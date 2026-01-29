@@ -655,13 +655,12 @@ export function registerDataModelTools(server: ExtendedMcpServer) {
       name?: string;
       names?: string[];
     }) => {
-      try {
-        const cloudbase = await getManager();
-        let currentEnvId = await getEnvId(cloudBaseOptions);
+      const cloudbase = await getManager();
+      let currentEnvId = await getEnvId(cloudBaseOptions);
 
-        let result;
+      let result;
 
-        switch (action) {
+      switch (action) {
           case "get":
             if (!name) {
               throw new Error("获取数据模型需要提供模型名称");
@@ -982,28 +981,8 @@ export function registerDataModelTools(server: ExtendedMcpServer) {
               throw error;
             }
 
-          default:
-            throw new Error(`不支持的操作类型: ${action}`);
-        }
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: false,
-                  action,
-                  error: error.message || error.original?.Message || "未知错误",
-                  code: error.original?.Code,
-                  message: "数据模型操作失败",
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        default:
+          throw new Error(`不支持的操作类型: ${action}`);
       }
     }
   );
@@ -1092,12 +1071,10 @@ classDiagram
       publish?: boolean;
       dbInstanceType?: string;
     }) => {
-      try {
-        const cloudbase = await getManager();
-        let currentEnvId = await getEnvId(cloudBaseOptions);
+      const cloudbase = await getManager();
+      let currentEnvId = await getEnvId(cloudBaseOptions);
 
-        // 使用mermaidToJsonSchema转换Mermaid图表
-        const schemas = mermaidToJsonSchema(mermaidDiagram);
+      const schemas = mermaidToJsonSchema(mermaidDiagram);
 
         if (!schemas || Object.keys(schemas).length === 0) {
           return {
@@ -1226,25 +1203,6 @@ classDiagram
             },
           ],
         };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: error.message || error.original?.Message || "未知错误",
-                  code: error.original?.Code,
-                  message: "数据模型修改操作失败",
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      }
     }
   );
 }

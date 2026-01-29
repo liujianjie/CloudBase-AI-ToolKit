@@ -259,71 +259,21 @@ updateCollection: 更新集合`),
       },
     },
     async ({ action, collectionName, updateOptions }) => {
-      try {
-        const cloudbase = await getManager();
-        if (action === "createCollection") {
-          const result =
-            await cloudbase.database.createCollection(collectionName);
-          logCloudBaseResult(server.logger, result);
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  {
-                    success: true,
-                    requestId: result.RequestId,
-                    action,
-                    message: "云开发数据库集合创建成功",
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        }
-
-        if (action === "updateCollection") {
-          if (!updateOptions) {
-            throw new Error("更新集合时必须提供 options");
-          }
-          const result = await cloudbase.database.updateCollection(
-            collectionName,
-            updateOptions,
-          );
-          logCloudBaseResult(server.logger, result);
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  {
-                    success: true,
-                    requestId: result.RequestId,
-                    action,
-                    message: "云开发数据库集合更新成功",
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        }
-
-        throw new Error(`不支持的操作类型: ${action}`);
-      } catch (error: any) {
+      const cloudbase = await getManager();
+      if (action === "createCollection") {
+        const result =
+          await cloudbase.database.createCollection(collectionName);
+        logCloudBaseResult(server.logger, result);
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify(
                 {
-                  success: false,
+                  success: true,
+                  requestId: result.RequestId,
                   action,
-                  error: error.message,
-                  message: "集合创建/更新操作失败",
+                  message: "云开发数据库集合创建成功",
                 },
                 null,
                 2,
@@ -332,6 +282,36 @@ updateCollection: 更新集合`),
           ],
         };
       }
+
+      if (action === "updateCollection") {
+        if (!updateOptions) {
+          throw new Error("更新集合时必须提供 options");
+        }
+        const result = await cloudbase.database.updateCollection(
+          collectionName,
+          updateOptions,
+        );
+        logCloudBaseResult(server.logger, result);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  requestId: result.RequestId,
+                  action,
+                  message: "云开发数据库集合更新成功",
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      throw new Error(`不支持的操作类型: ${action}`);
     },
   );
 
@@ -365,61 +345,41 @@ updateCollection: 更新集合`),
       },
     },
     async ({ collectionName, query, projection, sort, limit, offset }) => {
-      try {
-        const cloudbase = await getManager();
-        const instanceId = await getDatabaseInstanceId(getManager);
-        // 兼容对象和字符串
-        const toJSONString = (v: any) =>
-          typeof v === "object" && v !== null ? JSON.stringify(v) : v;
-        const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-          Action: "QueryRecords",
-          Param: {
-            TableName: collectionName,
-            MgoQuery: toJSONString(query),
-            MgoProjection: toJSONString(projection),
-            MgoSort: toJSONString(sort),
-            MgoLimit: limit ?? 100, // 默认返回100条,避免底层SDK缺参报错
-            MgoOffset: offset,
-            Tag: instanceId,
+      const cloudbase = await getManager();
+      const instanceId = await getDatabaseInstanceId(getManager);
+      const toJSONString = (v: any) =>
+        typeof v === "object" && v !== null ? JSON.stringify(v) : v;
+      const result = await cloudbase.commonService("tcb", "2018-06-08").call({
+        Action: "QueryRecords",
+        Param: {
+          TableName: collectionName,
+          MgoQuery: toJSONString(query),
+          MgoProjection: toJSONString(projection),
+          MgoSort: toJSONString(sort),
+          MgoLimit: limit ?? 100,
+          MgoOffset: offset,
+          Tag: instanceId,
+        },
+      });
+      logCloudBaseResult(server.logger, result);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                requestId: result.RequestId,
+                data: result.Data,
+                pager: result.Pager,
+                message: "文档查询成功",
+              },
+              null,
+              2,
+            ),
           },
-        });
-        logCloudBaseResult(server.logger, result);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: true,
-                  requestId: result.RequestId,
-                  data: result.Data,
-                  pager: result.Pager,
-                  message: "文档查询成功",
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: error.message,
-                  message: "文档查询失败",
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
+        ],
+      };
     },
   );
 
@@ -554,41 +514,28 @@ async function insertDocuments({
   getManager: () => Promise<CloudBase>;
   logger?: Logger;
 }) {
-  try {
-    const cloudbase = await getManager();
-    const instanceId = await getDatabaseInstanceId(getManager);
-    // 将对象数组序列化为字符串数组
-    const docsAsStrings = documents.map((doc) => JSON.stringify(doc));
-    const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-      Action: "PutItem",
-      Param: {
-        TableName: collectionName,
-        MgoDocs: docsAsStrings,
-        Tag: instanceId,
-      },
-    });
-    logCloudBaseResult(logger, result);
-    return JSON.stringify(
-      {
-        success: true,
-        requestId: result.RequestId,
-        insertedIds: result.InsertedIds,
-        message: "文档插入成功",
-      },
-      null,
-      2,
-    );
-  } catch (error: any) {
-    return JSON.stringify(
-      {
-        success: false,
-        error: error.message,
-        message: "文档插入失败",
-      },
-      null,
-      2,
-    );
-  }
+  const cloudbase = await getManager();
+  const instanceId = await getDatabaseInstanceId(getManager);
+  const docsAsStrings = documents.map((doc) => JSON.stringify(doc));
+  const result = await cloudbase.commonService("tcb", "2018-06-08").call({
+    Action: "PutItem",
+    Param: {
+      TableName: collectionName,
+      MgoDocs: docsAsStrings,
+      Tag: instanceId,
+    },
+  });
+  logCloudBaseResult(logger, result);
+  return JSON.stringify(
+    {
+      success: true,
+      requestId: result.RequestId,
+      insertedIds: result.InsertedIds,
+      message: "文档插入成功",
+    },
+    null,
+    2,
+  );
 }
 
 async function updateDocuments({
@@ -608,46 +555,34 @@ async function updateDocuments({
   getManager: () => Promise<CloudBase>;
   logger?: Logger;
 }) {
-  try {
-    const cloudbase = await getManager();
-    const instanceId = await getDatabaseInstanceId(getManager);
-    const toJSONString = (v: any) =>
-      typeof v === "object" && v !== null ? JSON.stringify(v) : v;
-    const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-      Action: "UpdateItem",
-      Param: {
-        TableName: collectionName,
-        MgoQuery: toJSONString(query),
-        MgoUpdate: toJSONString(update),
-        MgoIsMulti: isMulti,
-        MgoUpsert: upsert,
-        Tag: instanceId,
-      },
-    });
-    logCloudBaseResult(logger, result);
-    return JSON.stringify(
-      {
-        success: true,
-        requestId: result.RequestId,
-        modifiedCount: result.ModifiedNum,
-        matchedCount: result.MatchedNum,
-        upsertedId: result.UpsertedId,
-        message: "文档更新成功",
-      },
-      null,
-      2,
-    );
-  } catch (error: any) {
-    return JSON.stringify(
-      {
-        success: false,
-        error: error.message,
-        message: "文档更新失败",
-      },
-      null,
-      2,
-    );
-  }
+  const cloudbase = await getManager();
+  const instanceId = await getDatabaseInstanceId(getManager);
+  const toJSONString = (v: any) =>
+    typeof v === "object" && v !== null ? JSON.stringify(v) : v;
+  const result = await cloudbase.commonService("tcb", "2018-06-08").call({
+    Action: "UpdateItem",
+    Param: {
+      TableName: collectionName,
+      MgoQuery: toJSONString(query),
+      MgoUpdate: toJSONString(update),
+      MgoIsMulti: isMulti,
+      MgoUpsert: upsert,
+      Tag: instanceId,
+    },
+  });
+  logCloudBaseResult(logger, result);
+  return JSON.stringify(
+    {
+      success: true,
+      requestId: result.RequestId,
+      modifiedCount: result.ModifiedNum,
+      matchedCount: result.MatchedNum,
+      upsertedId: result.UpsertedId,
+      message: "文档更新成功",
+    },
+    null,
+    2,
+  );
 }
 
 async function deleteDocuments({
@@ -663,40 +598,28 @@ async function deleteDocuments({
   getManager: () => Promise<CloudBase>;
   logger?: Logger;
 }) {
-  try {
-    const cloudbase = await getManager();
-    const instanceId = await getDatabaseInstanceId(getManager);
-    const toJSONString = (v: any) =>
-      typeof v === "object" && v !== null ? JSON.stringify(v) : v;
-    const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-      Action: "DeleteItem",
-      Param: {
-        TableName: collectionName,
-        MgoQuery: toJSONString(query),
-        MgoIsMulti: isMulti,
-        Tag: instanceId,
-      },
-    });
-    logCloudBaseResult(logger, result);
-    return JSON.stringify(
-      {
-        success: true,
-        requestId: result.RequestId,
-        deleted: result.Deleted,
-        message: "文档删除成功",
-      },
-      null,
-      2,
-    );
-  } catch (error: any) {
-    return JSON.stringify(
-      {
-        success: false,
-        error: error.message,
-        message: "文档删除失败",
-      },
-      null,
-      2,
-    );
-  }
+  const cloudbase = await getManager();
+  const instanceId = await getDatabaseInstanceId(getManager);
+  const toJSONString = (v: any) =>
+    typeof v === "object" && v !== null ? JSON.stringify(v) : v;
+  const result = await cloudbase.commonService("tcb", "2018-06-08").call({
+    Action: "DeleteItem",
+    Param: {
+      TableName: collectionName,
+      MgoQuery: toJSONString(query),
+      MgoIsMulti: isMulti,
+      Tag: instanceId,
+    },
+  });
+  logCloudBaseResult(logger, result);
+  return JSON.stringify(
+    {
+      success: true,
+      requestId: result.RequestId,
+      deleted: result.Deleted,
+      message: "文档删除成功",
+    },
+    null,
+    2,
+  );
 }

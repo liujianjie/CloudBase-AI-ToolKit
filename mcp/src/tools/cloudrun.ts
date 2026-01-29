@@ -192,18 +192,17 @@ export function registerCloudRunTools(server: ExtendedMcpServer) {
       }
     },
     async (args: queryCloudRunInput) => {
-      try {
-        const input = args;
-        const manager = await getManager();
+      const input = args;
+      const manager = await getManager();
 
-        if (!manager) {
-          throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
-        }
+      if (!manager) {
+        throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
+      }
 
-        const cloudrunService = manager.cloudrun;
+      const cloudrunService = manager.cloudrun;
 
-        switch (input.action) {
-          case 'list': {
+      switch (input.action) {
+        case 'list': {
             const listParams: any = {
               pageSize: input.pageSize,
               pageNum: input.pageNum,
@@ -295,23 +294,8 @@ export function registerCloudRunTools(server: ExtendedMcpServer) {
             };
           }
 
-          default:
-            throw new Error(`Unsupported action: ${input.action}`);
-        }
-
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: error.message || 'Unknown error occurred',
-                message: "Failed to query CloudRun information. Please check your permissions and try again."
-              }, null, 2)
-            }
-          ]
-        };
+        default:
+          throw new Error(`Unsupported action: ${input.action}`);
       }
     }
   );
@@ -335,24 +319,22 @@ export function registerCloudRunTools(server: ExtendedMcpServer) {
       }
     },
     async (args: ManageCloudRunInput) => {
-      try {
-        const input = args;
-        const manager = await getManager();
+      const input = args;
+      const manager = await getManager();
 
-        if (!manager) {
-          throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
-        }
+      if (!manager) {
+        throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
+      }
 
-        const cloudrunService = manager.cloudrun;
-        let targetPath: string | undefined;
+      const cloudrunService = manager.cloudrun;
+      let targetPath: string | undefined;
 
-        // Validate and normalize path for operations that require it
-        if (input.targetPath) {
-          targetPath = validateAndNormalizePath(input.targetPath);
-        }
+      if (input.targetPath) {
+        targetPath = validateAndNormalizePath(input.targetPath);
+      }
 
-        switch (input.action) {
-          case 'createAgent': {
+      switch (input.action) {
+        case 'createAgent': {
             if (!targetPath) {
               throw new Error("targetPath is required for createAgent operation");
             }
@@ -939,23 +921,8 @@ for await (let x of res.textStream) {
             };
           }
 
-          default:
-            throw new Error(`Unsupported action: ${input.action}`);
-        }
-
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: error.message || 'Unknown error occurred',
-                message: `Failed to ${args.action} CloudRun service. Please check your permissions and parameters.`
-              }, null, 2)
-            }
-          ]
-        };
+        default:
+          throw new Error(`Unsupported action: ${input.action}`);
       }
     }
   );

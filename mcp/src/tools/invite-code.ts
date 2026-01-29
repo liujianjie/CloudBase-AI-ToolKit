@@ -37,40 +37,25 @@ export function registerInviteCodeTools(server: ExtendedMcpServer) {
           ]
         };
       }
-      try {
-        const manager = await getManager();
-        const EnvId = await getEnvId(cloudBaseOptions);
-        const result = await manager.commonService().call({
-          Action: 'ActivateInviteCode',
-          Param: { InviteCode, EnvId }
-        });
-        logCloudBaseResult(server.logger, result);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                ErrorCode: result?.ErrorCode || '',
-                ErrorMsg: result?.ErrorMsg || '',
-                RequestId: result?.RequestId || ''
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (e: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                ErrorCode: e.code || 'Exception',
-                ErrorMsg: '激活失败：' + e.message,
-                RequestId: e.RequestId || ''
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      const manager = await getManager();
+      const EnvId = await getEnvId(cloudBaseOptions);
+      const result = await manager.commonService().call({
+        Action: 'ActivateInviteCode',
+        Param: { InviteCode, EnvId }
+      });
+      logCloudBaseResult(server.logger, result);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              ErrorCode: result?.ErrorCode || '',
+              ErrorMsg: result?.ErrorMsg || '',
+              RequestId: result?.RequestId || ''
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 } 

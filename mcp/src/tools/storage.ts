@@ -53,103 +53,87 @@ export function registerStorageTools(server: ExtendedMcpServer) {
       }
     },
     async (args: QueryStorageInput) => {
-      try {
-        const input = args;
-        const manager = await getManager();
+      const input = args;
+      const manager = await getManager();
 
-        if (!manager) {
-          throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
+      if (!manager) {
+        throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
+      }
+
+      const storageService = manager.storage;
+
+      switch (input.action) {
+        case 'list': {
+          const result = await storageService.listDirectoryFiles(input.cloudPath);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  data: {
+                    action: 'list',
+                    cloudPath: input.cloudPath,
+                    files: result || [],
+                    totalCount: result?.length || 0
+                  },
+                  message: `Successfully listed ${result?.length || 0} files in directory '${input.cloudPath}'`
+                }, null, 2)
+              }
+            ]
+          };
         }
 
-        const storageService = manager.storage;
+        case 'info': {
+          const result = await storageService.getFileInfo(input.cloudPath);
 
-        switch (input.action) {
-          case 'list': {
-            const result = await storageService.listDirectoryFiles(input.cloudPath);
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    success: true,
-                    data: {
-                      action: 'list',
-                      cloudPath: input.cloudPath,
-                      files: result || [],
-                      totalCount: result?.length || 0
-                    },
-                    message: `Successfully listed ${result?.length || 0} files in directory '${input.cloudPath}'`
-                  }, null, 2)
-                }
-              ]
-            };
-          }
-
-          case 'info': {
-            const result = await storageService.getFileInfo(input.cloudPath);
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    success: true,
-                    data: {
-                      action: 'info',
-                      cloudPath: input.cloudPath,
-                      fileInfo: result
-                    },
-                    message: `Successfully retrieved file info for '${input.cloudPath}'`
-                  }, null, 2)
-                }
-              ]
-            };
-          }
-
-          case 'url': {
-            const result = await storageService.getTemporaryUrl([{
-              cloudPath: input.cloudPath,
-              maxAge: input.maxAge || 3600
-            }]);
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    success: true,
-                    data: {
-                      action: 'url',
-                      cloudPath: input.cloudPath,
-                      temporaryUrl: result[0]?.url || "",
-                      expireTime: `${input.maxAge || 3600}秒`,
-                      fileId: result[0]?.fileId || ""
-                    },
-                    message: `Successfully generated temporary URL for '${input.cloudPath}'`
-                  }, null, 2)
-                }
-              ]
-            };
-          }
-
-          default:
-            throw new Error(`Unsupported action: ${input.action}`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  data: {
+                    action: 'info',
+                    cloudPath: input.cloudPath,
+                    fileInfo: result
+                  },
+                  message: `Successfully retrieved file info for '${input.cloudPath}'`
+                }, null, 2)
+              }
+            ]
+          };
         }
 
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: error.message || 'Unknown error occurred',
-                message: `Failed to query storage information. Please check your permissions and parameters.`
-              }, null, 2)
-            }
-          ]
-        };
+        case 'url': {
+          const result = await storageService.getTemporaryUrl([{
+            cloudPath: input.cloudPath,
+            maxAge: input.maxAge || 3600
+          }]);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  data: {
+                    action: 'url',
+                    cloudPath: input.cloudPath,
+                    temporaryUrl: result[0]?.url || "",
+                    expireTime: `${input.maxAge || 3600}秒`,
+                    fileId: result[0]?.fileId || ""
+                  },
+                  message: `Successfully generated temporary URL for '${input.cloudPath}'`
+                }, null, 2)
+              }
+            ]
+          };
+        }
+
+        default:
+          throw new Error(`Unsupported action: ${input.action}`);
       }
     }
   );
@@ -170,159 +154,136 @@ export function registerStorageTools(server: ExtendedMcpServer) {
       }
     },
     async (args: ManageStorageInput) => {
-      try {
-        const input = args;
-        const manager = await getManager();
+      const input = args;
+      const manager = await getManager();
 
-        if (!manager) {
-          throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
-        }
+      if (!manager) {
+        throw new Error("Failed to initialize CloudBase manager. Please check your credentials and environment configuration.");
+      }
 
-        const storageService = manager.storage;
+      const storageService = manager.storage;
 
-        switch (input.action) {
-          case 'upload': {
-            if (input.isDirectory) {
-              // 上传目录
-              await storageService.uploadDirectory({
-                localPath: input.localPath,
-                cloudPath: input.cloudPath,
-                onProgress: (progressData: any) => {
-                  console.log("Upload directory progress:", progressData);
-                }
-              });
-            } else {
-              // 上传文件
-              await storageService.uploadFile({
-                localPath: input.localPath,
-                cloudPath: input.cloudPath,
-                onProgress: (progressData: any) => {
-                  console.log("Upload file progress:", progressData);
-                }
-              });
-            }
-
-            // 获取文件临时下载地址
-            const fileUrls = await storageService.getTemporaryUrl([{
+      switch (input.action) {
+        case 'upload': {
+          if (input.isDirectory) {
+            await storageService.uploadDirectory({
+              localPath: input.localPath,
               cloudPath: input.cloudPath,
-              maxAge: 3600 // 临时链接有效期1小时
-            }]);
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    success: true,
-                    data: {
-                      action: 'upload',
-                      localPath: input.localPath,
-                      cloudPath: input.cloudPath,
-                      isDirectory: input.isDirectory,
-                      temporaryUrl: fileUrls[0]?.url || "",
-                      expireTime: "1小时"
-                    },
-                    message: `Successfully uploaded ${input.isDirectory ? 'directory' : 'file'} from '${input.localPath}' to '${input.cloudPath}'`
-                  }, null, 2)
-                }
-              ]
-            };
+              onProgress: (progressData: any) => {
+                console.log("Upload directory progress:", progressData);
+              }
+            });
+          } else {
+            await storageService.uploadFile({
+              localPath: input.localPath,
+              cloudPath: input.cloudPath,
+              onProgress: (progressData: any) => {
+                console.log("Upload file progress:", progressData);
+              }
+            });
           }
 
-          case 'download': {
-            if (input.isDirectory) {
-              // 下载目录
-              await storageService.downloadDirectory({
-                cloudPath: input.cloudPath,
-                localPath: input.localPath
-              });
-            } else {
-              // 下载文件
-              await storageService.downloadFile({
-                cloudPath: input.cloudPath,
-                localPath: input.localPath
-              });
-            }
+          const fileUrls = await storageService.getTemporaryUrl([{
+            cloudPath: input.cloudPath,
+            maxAge: 3600
+          }]);
 
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    success: true,
-                    data: {
-                      action: 'download',
-                      cloudPath: input.cloudPath,
-                      localPath: input.localPath,
-                      isDirectory: input.isDirectory
-                    },
-                    message: `Successfully downloaded ${input.isDirectory ? 'directory' : 'file'} from '${input.cloudPath}' to '${input.localPath}'`
-                  }, null, 2)
-                }
-              ]
-            };
-          }
-
-          case 'delete': {
-            if (!input.force) {
-              return {
-                content: [
-                  {
-                    type: "text",
-                    text: JSON.stringify({
-                      success: false,
-                      error: "Delete operation requires confirmation",
-                      message: "Please set force: true to confirm deletion. This action cannot be undone."
-                    }, null, 2)
-                  }
-                ]
-              };
-            }
-
-            if (input.isDirectory) {
-              // 删除目录
-              await storageService.deleteDirectory(input.cloudPath);
-            } else {
-              // 删除文件
-              await storageService.deleteFile([input.cloudPath]);
-            }
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    success: true,
-                    data: {
-                      action: 'delete',
-                      cloudPath: input.cloudPath,
-                      isDirectory: input.isDirectory,
-                      deleted: true
-                    },
-                    message: `Successfully deleted ${input.isDirectory ? 'directory' : 'file'} '${input.cloudPath}'`
-                  }, null, 2)
-                }
-              ]
-            };
-          }
-
-          default:
-            throw new Error(`Unsupported action: ${input.action}`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  data: {
+                    action: 'upload',
+                    localPath: input.localPath,
+                    cloudPath: input.cloudPath,
+                    isDirectory: input.isDirectory,
+                    temporaryUrl: fileUrls[0]?.url || "",
+                    expireTime: "1小时"
+                  },
+                  message: `Successfully uploaded ${input.isDirectory ? 'directory' : 'file'} from '${input.localPath}' to '${input.cloudPath}'`
+                }, null, 2)
+              }
+            ]
+          };
         }
 
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: error.message || 'Unknown error occurred',
-                message: `Failed to manage storage. Please check your permissions and parameters.`
-              }, null, 2)
-            }
-          ]
-        };
+        case 'download': {
+          if (input.isDirectory) {
+            await storageService.downloadDirectory({
+              cloudPath: input.cloudPath,
+              localPath: input.localPath
+            });
+          } else {
+            await storageService.downloadFile({
+              cloudPath: input.cloudPath,
+              localPath: input.localPath
+            });
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  data: {
+                    action: 'download',
+                    cloudPath: input.cloudPath,
+                    localPath: input.localPath,
+                    isDirectory: input.isDirectory
+                  },
+                  message: `Successfully downloaded ${input.isDirectory ? 'directory' : 'file'} from '${input.cloudPath}' to '${input.localPath}'`
+                }, null, 2)
+              }
+            ]
+          };
+        }
+
+        case 'delete': {
+          if (!input.force) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    success: false,
+                    error: "Delete operation requires confirmation",
+                    message: "Please set force: true to confirm deletion. This action cannot be undone."
+                  }, null, 2)
+                }
+              ]
+            };
+          }
+
+          if (input.isDirectory) {
+            await storageService.deleteDirectory(input.cloudPath);
+          } else {
+            await storageService.deleteFile([input.cloudPath]);
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: true,
+                  data: {
+                    action: 'delete',
+                    cloudPath: input.cloudPath,
+                    isDirectory: input.isDirectory,
+                    deleted: true
+                  },
+                  message: `Successfully deleted ${input.isDirectory ? 'directory' : 'file'} '${input.cloudPath}'`
+                }, null, 2)
+              }
+            ]
+          };
+        }
+
+        default:
+          throw new Error(`Unsupported action: ${input.action}`);
       }
     }
   );

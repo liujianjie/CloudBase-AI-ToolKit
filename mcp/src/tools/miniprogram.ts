@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ExtendedMcpServer } from "../server.js";
-import { error, info } from "../utils/logger.js";
+import { info } from "../utils/logger.js";
 import ci from "miniprogram-ci";
 
 // 获取私钥配置
@@ -72,54 +72,39 @@ export function registerMiniprogramTools(server: ExtendedMcpServer) {
       robot?: number;
       type?: "miniProgram" | "miniGame";
     }) => {
-      try {
-        const project = await createProject(projectPath, appId, type);
-        
-        const result = await ci.upload({
-          project,
-          version,
-          desc: desc || `版本 ${version}`,
-          setting: {
-            es6: true,
-            es7: true,
-            minify: true,
-            minifyWXSS: true,
-            minifyJS: true,
-            autoPrefixWXSS: true,
-            ...setting
-          },
-          robot: robot || 1,
-          onProgressUpdate: (progress: string | any) => {
-            info(`上传进度: ${typeof progress === 'string' ? progress : JSON.stringify(progress)}`);
-          }
-        });
+      const project = await createProject(projectPath, appId, type);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                message: "小程序代码上传成功",
-                data: result
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (err) {
-        error("上传小程序代码失败:", err instanceof Error ? err : new Error(String(err)));
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: err instanceof Error ? err.message : String(err)
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      const result = await ci.upload({
+        project,
+        version,
+        desc: desc || `版本 ${version}`,
+        setting: {
+          es6: true,
+          es7: true,
+          minify: true,
+          minifyWXSS: true,
+          minifyJS: true,
+          autoPrefixWXSS: true,
+          ...setting
+        },
+        robot: robot || 1,
+        onProgressUpdate: (progress: string | any) => {
+          info(`上传进度: ${typeof progress === 'string' ? progress : JSON.stringify(progress)}`);
+        }
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              message: "小程序代码上传成功",
+              data: result
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 
@@ -168,58 +153,43 @@ export function registerMiniprogramTools(server: ExtendedMcpServer) {
       pagePath?: string;
       searchQuery?: string;
     }) => {
-      try {
-        const project = await createProject(projectPath, appId, type);
-        
-        const result = await ci.preview({
-          project,
-          version: "preview",
-          desc: desc || "预览版本",
-          setting: {
-            es6: true,
-            es7: true,
-            minify: true,
-            minifyWXSS: true,
-            minifyJS: true,
-            autoPrefixWXSS: true,
-            ...setting
-          },
-          robot: robot || 1,
-          qrcodeFormat: qrcodeFormat || "terminal",
-          qrcodeOutputDest,
-          pagePath,
-          searchQuery,
-          onProgressUpdate: (progress: string | any) => {
-            info(`预览进度: ${typeof progress === 'string' ? progress : JSON.stringify(progress)}`);
-          }
-        });
+      const project = await createProject(projectPath, appId, type);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                message: "小程序预览成功",
-                data: result
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (err) {
-        error("预览小程序代码失败:", err instanceof Error ? err : new Error(String(err)));
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: err instanceof Error ? err.message : String(err)
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      const result = await ci.preview({
+        project,
+        version: "preview",
+        desc: desc || "预览版本",
+        setting: {
+          es6: true,
+          es7: true,
+          minify: true,
+          minifyWXSS: true,
+          minifyJS: true,
+          autoPrefixWXSS: true,
+          ...setting
+        },
+        robot: robot || 1,
+        qrcodeFormat: qrcodeFormat || "terminal",
+        qrcodeOutputDest,
+        pagePath,
+        searchQuery,
+        onProgressUpdate: (progress: string | any) => {
+          info(`预览进度: ${typeof progress === 'string' ? progress : JSON.stringify(progress)}`);
+        }
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              message: "小程序预览成功",
+              data: result
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 
@@ -251,42 +221,27 @@ export function registerMiniprogramTools(server: ExtendedMcpServer) {
       robot?: number;
       ignores?: string[];
     }) => {
-      try {
-        const project = await createProject(projectPath, appId, type);
-        
-        const result = await ci.packNpm(project, {
-          ignores: ignores || ["pack_npm_ignore_list"],
-          reporter: (infos: any) => {
-            info("构建 npm 包信息:", infos);
-          }
-        });
+      const project = await createProject(projectPath, appId, type);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                message: "小程序 npm 构建成功",
-                data: result
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (err) {
-        error("构建小程序 npm 失败:", err instanceof Error ? err : new Error(String(err)));
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: err instanceof Error ? err.message : String(err)
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      const result = await ci.packNpm(project, {
+        ignores: ignores || ["pack_npm_ignore_list"],
+        reporter: (infos: any) => {
+          info("构建 npm 包信息:", infos);
+        }
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              message: "小程序 npm 构建成功",
+              data: result
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 
@@ -314,39 +269,24 @@ export function registerMiniprogramTools(server: ExtendedMcpServer) {
       projectPath: string;
       type?: "miniProgram" | "miniGame";
     }) => {
-      try {
-        const project = await createProject(projectPath, appId, type);
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                message: "获取项目配置成功",
-                data: {
-                  appId,
-                  projectPath,
-                  type: type || "miniProgram"
-                }
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (err) {
-        error("获取小程序项目配置失败:", err instanceof Error ? err : new Error(String(err)));
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: err instanceof Error ? err.message : String(err)
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      const project = await createProject(projectPath, appId, type);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              message: "获取项目配置成功",
+              data: {
+                appId,
+                projectPath,
+                type: type || "miniProgram"
+              }
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 
@@ -378,45 +318,30 @@ export function registerMiniprogramTools(server: ExtendedMcpServer) {
       sourceMapSavePath: string;
       type?: "miniProgram" | "miniGame";
     }) => {
-      try {
-        const project = await createProject(projectPath, appId, type);
-        
-        const result = await ci.getDevSourceMap({
-          project,
-          robot,
-          sourceMapSavePath
-        });
+      const project = await createProject(projectPath, appId, type);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                message: "SourceMap 获取成功",
-                data: {
-                  robot,
-                  sourceMapSavePath,
-                  result
-                }
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (err) {
-        error("获取小程序 SourceMap 失败:", err instanceof Error ? err : new Error(String(err)));
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: err instanceof Error ? err.message : String(err)
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      const result = await ci.getDevSourceMap({
+        project,
+        robot,
+        sourceMapSavePath
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              message: "SourceMap 获取成功",
+              data: {
+                robot,
+                sourceMapSavePath,
+                result
+              }
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 
@@ -446,43 +371,28 @@ export function registerMiniprogramTools(server: ExtendedMcpServer) {
       saveReportPath: string;
       type?: "miniProgram" | "miniGame";
     }) => {
-      try {
-        const project = await createProject(projectPath, appId, type);
-        
-        const result = await (ci as any).checkCodeQuality({
-          project,
-          saveReportPath
-        });
+      const project = await createProject(projectPath, appId, type);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                message: "代码质量检查完成",
-                data: {
-                  saveReportPath,
-                  result
-                }
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (err) {
-        error("检查小程序代码质量失败:", err instanceof Error ? err : new Error(String(err)));
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: err instanceof Error ? err.message : String(err)
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      const result = await (ci as any).checkCodeQuality({
+        project,
+        saveReportPath
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              message: "代码质量检查完成",
+              data: {
+                saveReportPath,
+                result
+              }
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 
@@ -510,43 +420,28 @@ export function registerMiniprogramTools(server: ExtendedMcpServer) {
       miniprogramNpmDistDir: string;
       ignores?: string[];
     }) => {
-      try {
-        const result = await ci.packNpmManually({
-          packageJsonPath,
-          miniprogramNpmDistDir,
-          ignores
-        });
+      const result = await ci.packNpmManually({
+        packageJsonPath,
+        miniprogramNpmDistDir,
+        ignores
+      });
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                message: "自定义 npm 构建完成",
-                data: {
-                  packageJsonPath,
-                  miniprogramNpmDistDir,
-                  result
-                }
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (err) {
-        error("自定义构建小程序 npm 失败:", err instanceof Error ? err : new Error(String(err)));
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: false,
-                error: err instanceof Error ? err.message : String(err)
-              }, null, 2)
-            }
-          ]
-        };
-      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              message: "自定义 npm 构建完成",
+              data: {
+                packageJsonPath,
+                miniprogramNpmDistDir,
+                result
+              }
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 }

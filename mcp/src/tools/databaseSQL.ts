@@ -29,61 +29,41 @@ export function registerSQLDatabaseTools(server: ExtendedMcpServer) {
       },
     },
     async ({ sql }) => {
-      try {
-        const cloudbase = await getManager();
-        const envId = await getEnvId(cloudBaseOptions);
+      const cloudbase = await getManager();
+      const envId = await getEnvId(cloudBaseOptions);
 
-        // TODO: 考虑是否有支持指定其他 instance、schema 的需求
-        const schemaId = envId;
-        const instanceId = "default";
+      const schemaId = envId;
+      const instanceId = "default";
 
-        const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-          Action: "RunSql",
-          Param: {
+      const result = await cloudbase.commonService("tcb", "2018-06-08").call({
+        Action: "RunSql",
+        Param: {
+          EnvId: envId,
+          Sql: sql,
+          DbInstance: {
             EnvId: envId,
-            Sql: sql,
-            DbInstance: {
-              EnvId: envId,
-              InstanceId: instanceId,
-              Schema: schemaId,
-            },
+            InstanceId: instanceId,
+            Schema: schemaId,
           },
-        });
-        logCloudBaseResult(server.logger, result);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: true,
-                  message: "SQL query executed successfully",
-                  result,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: error.message,
-                  message: "SQL query execution failed",
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
+        },
+      });
+      logCloudBaseResult(server.logger, result);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                message: "SQL query executed successfully",
+                result,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
     },
   );
 
@@ -110,62 +90,42 @@ export function registerSQLDatabaseTools(server: ExtendedMcpServer) {
       },
     },
     async ({ sql }) => {
-      try {
-        const cloudbase = await getManager();
-        const envId = await getEnvId(cloudBaseOptions);
+      const cloudbase = await getManager();
+      const envId = await getEnvId(cloudBaseOptions);
 
-        // TODO: 考虑是否有支持指定其他 instance、schema 的需求
-        const schemaId = envId;
-        const instanceId = "default";
+      const schemaId = envId;
+      const instanceId = "default";
 
-        const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-          Action: "RunSql",
-          Param: {
+      const result = await cloudbase.commonService("tcb", "2018-06-08").call({
+        Action: "RunSql",
+        Param: {
+          EnvId: envId,
+          Sql: sql,
+          DbInstance: {
             EnvId: envId,
-            Sql: sql,
-            DbInstance: {
-              EnvId: envId,
-              InstanceId: instanceId,
-              Schema: schemaId,
-            },
+            InstanceId: instanceId,
+            Schema: schemaId,
           },
-        });
-        logCloudBaseResult(server.logger, result);
+        },
+      });
+      logCloudBaseResult(server.logger, result);
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: true,
-                  message: `SQL statement executed successfully. If you just created a table, make sure to check its security rule is set to a proper value by using \`${WRITE_SECURITY_RULE}\` and \`${READ_SECURITY_RULE}\` tools.`,
-                  result,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: error.message,
-                  message: "SQL statement execution failed",
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                message: `SQL statement executed successfully. If you just created a table, make sure to check its security rule is set to a proper value by using \`${WRITE_SECURITY_RULE}\` and \`${READ_SECURITY_RULE}\` tools.`,
+                result,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
     },
   );
 }

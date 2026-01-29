@@ -381,67 +381,48 @@ export function registerDownloadTools(server: ExtendedMcpServer) {
       }
     },
     async ({ url, relativePath }: { url: string; relativePath: string }) => {
-      try {
-        // 验证相对路径安全性
-        if (!isPathSafe(relativePath)) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({
-                  success: false,
-                  error: "不安全的相对路径",
-                  message: "相对路径包含路径遍历操作（../）或绝对路径，出于安全考虑已拒绝",
-                  suggestion: "请使用项目根目录下的相对路径，例如：'assets/images/logo.png'"
-                }, null, 2)
-              }
-            ]
-          };
-        }
-
-        // 计算最终下载路径
-        const targetPath = calculateDownloadPath(relativePath);
-        const projectRoot = getProjectRoot();
-        
-        console.log(`📁 项目根目录: ${projectRoot}`);
-        console.log(`📁 相对路径: ${relativePath}`);
-        console.log(`📁 最终路径: ${targetPath}`);
-        
-        // 下载文件到指定路径
-        const result = await downloadFileToPath(url, targetPath);
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                success: true,
-                filePath: result.filePath,
-                relativePath: relativePath,
-                contentType: result.contentType,
-                fileSize: result.fileSize,
-                projectRoot: projectRoot,
-                message: "文件下载成功到指定路径",
-                note: `文件已保存到项目目录: ${relativePath}`
-              }, null, 2)
-            }
-          ]
-        };
-      } catch (error: any) {
+      if (!isPathSafe(relativePath)) {
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
                 success: false,
-                error: error.message,
-                message: "文件下载失败",
-                suggestion: "请检查相对路径是否正确，确保不包含 ../ 等路径遍历操作"
+                error: "不安全的相对路径",
+                message: "相对路径包含路径遍历操作（../）或绝对路径，出于安全考虑已拒绝",
+                suggestion: "请使用项目根目录下的相对路径，例如：'assets/images/logo.png'"
               }, null, 2)
             }
           ]
         };
       }
+
+      const targetPath = calculateDownloadPath(relativePath);
+      const projectRoot = getProjectRoot();
+
+      console.log(`📁 项目根目录: ${projectRoot}`);
+      console.log(`📁 相对路径: ${relativePath}`);
+      console.log(`📁 最终路径: ${targetPath}`);
+
+      const result = await downloadFileToPath(url, targetPath);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              filePath: result.filePath,
+              relativePath: relativePath,
+              contentType: result.contentType,
+              fileSize: result.fileSize,
+              projectRoot: projectRoot,
+              message: "文件下载成功到指定路径",
+              note: `文件已保存到项目目录: ${relativePath}`
+            }, null, 2)
+          }
+        ]
+      };
     }
   );
 } 
