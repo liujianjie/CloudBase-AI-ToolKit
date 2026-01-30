@@ -17,6 +17,7 @@
         "collapsed": false,
         "items": [
           "ai/cloudbase-ai-toolkit/getting-started",
+          "ai/cloudbase-ai-toolkit/connection-modes",
           {
             "type": "doc",
             "id": "ai/cloudbase-ai-toolkit/mcp-tools",

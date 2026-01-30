@@ -56,17 +56,19 @@
 
 ## 云端 MCP 配置说明
 
+- **托管模式**（HTTP 连接云端 MCP 服务）：完整说明、配置示例及 URL 控制插件方式见 [连接方式：本地模式与托管模式](/ai/cloudbase-ai-toolkit/connection-modes#托管模式)。
+- **本地模式**（npx 在本机运行 MCP）：配置与可选环境变量见 [连接方式：本地模式与托管模式](/ai/cloudbase-ai-toolkit/connection-modes#本地模式推荐)。
 
-### 环境变量配置
+### 可选环境变量
 
-使用云端 MCP 需要配置以下环境变量：
+自建或使用云端 MCP 服务时，服务端可配置以下**可选**环境变量，按需填写：
 
 | 环境变量 | 说明 | 获取方式 |
 |---------|------|---------|
-| `TENCENTCLOUD_SECRETID` | 腾讯云 SecretId | [获取腾讯云 API 密钥](https://console.cloud.tencent.com/cam/capi) |
-| `TENCENTCLOUD_SECRETKEY` | 腾讯云 SecretKey | [获取腾讯云 API 密钥](https://console.cloud.tencent.com/cam/capi) |
-| `TENCENTCLOUD_SESSIONTOKEN` | 非必填，腾讯云临时密钥 Token（可选） | 仅在使用临时密钥时需要，可通过 [STS 服务](https://console.cloud.tencent.com/cam/capi) 获取 |
-| `CLOUDBASE_ENV_ID` | 云开发环境 ID | [获取云开发环境 ID](https://tcb.cloud.tencent.com/dev) |
+| `TENCENTCLOUD_SECRETID` | 腾讯云 SecretId（可选） | [获取腾讯云 API 密钥](https://console.cloud.tencent.com/cam/capi) |
+| `TENCENTCLOUD_SECRETKEY` | 腾讯云 SecretKey（可选） | [获取腾讯云 API 密钥](https://console.cloud.tencent.com/cam/capi) |
+| `TENCENTCLOUD_SESSIONTOKEN` | 腾讯云临时密钥 Token（可选） | 仅在使用临时密钥时需要，可通过 [STS 服务](https://console.cloud.tencent.com/cam/capi) 获取 |
+| `CLOUDBASE_ENV_ID` | 云开发环境 ID（可选） | [获取云开发环境 ID](https://tcb.cloud.tencent.com/dev) |
 
 ## 详细规格
 

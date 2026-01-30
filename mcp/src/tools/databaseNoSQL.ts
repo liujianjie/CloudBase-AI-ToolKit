@@ -217,9 +217,10 @@ checkIndex: 检查索引是否存在`),
       title: "修改 NoSQL 数据库结构",
       description: "修改 NoSQL 数据库结构",
       inputSchema: {
-        action: z.enum(["createCollection", "updateCollection"])
+        action: z.enum(["createCollection", "updateCollection", "deleteCollection"])
           .describe(`createCollection: 创建集合
-updateCollection: 更新集合`),
+updateCollection: 更新集合
+deleteCollection: 删除集合`),
         collectionName: z.string().describe("集合名称"),
         updateOptions: z
           .object({
@@ -252,7 +253,7 @@ updateCollection: 更新集合`),
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: false,
         openWorldHint: true,
         category: CATEGORY,
@@ -306,6 +307,31 @@ updateCollection: 更新集合`),
                 null,
                 2,
               ),
+            },
+          ],
+        };
+      }
+
+      if (action === "deleteCollection") {
+        const result =
+          await cloudbase.database.deleteCollection(collectionName);
+        logCloudBaseResult(server.logger, result);
+        const body: Record<string, unknown> = {
+          success: true,
+          requestId: result.RequestId,
+          action,
+          message: result.Exists === false
+            ? "集合不存在"
+            : "云开发数据库集合删除成功",
+        };
+        if (result.Exists === false) {
+          body.exists = false;
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(body, null, 2),
             },
           ],
         };
@@ -391,9 +417,7 @@ updateCollection: 更新集合`),
       description: "修改 NoSQL 数据库数据记录",
       inputSchema: {
         action: z.enum(["insert", "update", "delete"])
-          .describe(`createCollection: 创建数据
-updateCollection: 更新数据
-deleteCollection: 删除数据`),
+          .describe(`insert: 插入数据（新增文档）\nupdate: 更新数据\ndelete: 删除数据`),
         collectionName: z.string().describe("集合名称"),
         documents: z
           .array(z.object({}).passthrough())

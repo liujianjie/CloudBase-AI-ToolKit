@@ -402,7 +402,8 @@ const IDES: IDE[] = [
       "command": "npx",
       "args": ["@cloudbase/cloudbase-mcp@latest"],
       "env": {
-        "INTEGRATION_IDE": "WindSurf"
+        "INTEGRATION_IDE": "WindSurf",
+        "CLOUDBASE_MCP_PLUGINS_DISABLED": "interactive"
       }
     }
   }
@@ -533,6 +534,12 @@ const translations: Record<string, Record<string, string>> = {
   'zh-CN': {
     client: 'Client',
     configureDescription: '配置你的 MCP 客户端以连接 CloudBase 环境',
+    connectionModesHint: '支持本地与托管两种连接方式，详见 ',
+    connectionModesLink: '连接方式',
+    connectionModesSuffix: '。',
+    skillsHint: '搭配 Skills 效果更好，详见 ',
+    skillsLink: '如何使用',
+    skillsSuffix: '。',
     installation: '步骤 1：配置 CloudBase MCP',
     useTemplate: '使用项目模板（推荐）',
     templateDescription: '模板已内置 MCP 配置和 AI 规则',
@@ -560,6 +567,12 @@ const translations: Record<string, Record<string, string>> = {
   'en': {
     client: 'Client',
     configureDescription: 'Configure your MCP client to connect with your CloudBase environment',
+    connectionModesHint: 'Supports local and hosted connection. See ',
+    connectionModesLink: 'connection modes',
+    connectionModesSuffix: '.',
+    skillsHint: 'Works better with Skills. See ',
+    skillsLink: 'how to use',
+    skillsSuffix: '.',
     installation: 'Step 1: Configure CloudBase MCP',
     useTemplate: 'Use project template (recommended)',
     templateDescription: 'Template includes MCP configuration and AI rules',
@@ -972,6 +985,19 @@ export default function IDESelector({
 
       <p className={styles.description}>
         {t.configureDescription}
+        {isEnglish ? '. ' : ' '}
+        {t.connectionModesHint}
+        <a href="/ai/cloudbase-ai-toolkit/connection-modes" className={styles.templateLink}>
+          {t.connectionModesLink}
+        </a>
+        {t.connectionModesSuffix}
+      </p>
+      <p className={styles.description}>
+        {t.skillsHint}
+        <a href="/ai/cloudbase-ai-toolkit/prompts/how-to-use" className={styles.templateLink}>
+          {t.skillsLink}
+        </a>
+        {t.skillsSuffix}
       </p>
 
       {/* Installation Card */}
