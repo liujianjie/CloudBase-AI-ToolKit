@@ -1,6 +1,6 @@
 ---
 name: auth-web-cloudbase
-description: CloudBase Auth v3 Web SDK - Quick Reference Guide
+description: CloudBase Web Authentication Quick Guide - Provides concise and practical Web frontend authentication solutions with multiple login methods and complete user management.
 alwaysApply: false
 ---
 
@@ -11,11 +11,17 @@ alwaysApply: false
 
 ---
 
-## When to Use
+## Core Capabilities
 
-Web frontend authentication with `@cloudbase/js-sdk@2.24.0+`, Compatible with `supabase-js` Auth API and type declarations. **NOT for** server-side or direct HTTP API.
+**Use Case**: Web frontend projects using `@cloudbase/js-sdk@2.24.0+` for user authentication  
+**Key Benefits**: Compatible with `supabase-js` API, supports phone, email, anonymous, username/password, and third-party login methods
+**`@cloudbase/js-sdk` cdn source**: `https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js`
 
-`@cloudbase/js-sdk` cdn source `https://static.cloudbase.net/cloudbase-js-sdk/latest/cloudbase.full.js`
+
+## Prerequisites
+
+- Automatically use `auth-tool-cloudbase` to get `publishable key` and configure login methods. 
+- If `auth-tool-cloudbase` failed, let user go to `https://tcb.cloud.tencent.com/dev?envId={env}#/env/apikey` to get `publishable key` and `https://tcb.cloud.tencent.com/dev?envId={env}#/identity/login-manage` to set up login methods
 
 ## Quick Start
 
@@ -25,29 +31,26 @@ import cloudbase from '@cloudbase/js-sdk'
 const app = cloudbase.init({
   env: `env`, // CloudBase environment ID
   region: `region`,  // CloudBase environment Region, default 'ap-shanghai'
-  accessKey: 'publishable key', // required, get publishable key from auth-tool-cloudbase('Get Publishable Key')
+  accessKey: 'publishable key', // required, get from auth-tool-cloudbase
   auth: { detectSessionInUrl: true }, // required
 })
 
 const auth = app.auth
-```
-
-**⚠️ Console Setup Required**: `https://tcb.cloud.tencent.com/dev?envId={envId}#/identity/login-manage`
-- Enable login methods, configure templates, add domain to whitelist
-
-**Tokens**: `access_token` (2h), `refresh_token` (30d, auto-refresh), stored in localStorage
+``
 
 ---
 
 ## Login Methods
 
 **1. Phone OTP (Recommended)**
+- Automatically use `auth-tool-cloudbase` turn on `SMS Login`
 ```js
 const { data, error } = await auth.signInWithOtp({ phone: '13800138000' })
 const { data: loginData, error: loginError } = await data.verifyOtp({ token:'123456' })
 ```
 
 **2. Email OTP**
+- Automatically use `auth-tool-cloudbase` turn on `Email Login`
 ```js
 const { data, error } = await auth.signInWithOtp({ email: 'user@example.com' })
 const { data: loginData, error: loginError } = await data.verifyOtp({ token: '654321' })
@@ -61,7 +64,8 @@ const { data, error } = await auth.signInWithPassword({ phone: '13800138000', pa
 ```
 
 **4. Registration (Smart: auto-login if exists)**
-- only support email and phone otp registration
+- Only support email and phone otp registration
+- Automatically use `auth-tool-cloudbase` turn on `Email Login` or `SMS Login`
 ```js
 // Email Otp
 const { data, error } = await auth.signUp({ email: 'new@example.com', nickname: 'User' })
@@ -73,11 +77,13 @@ const { data: loginData, error: loginError } = await data.verifyOtp({ token: '12
 ```
 
 **5. Anonymous**
+- Automatically use `auth-tool-cloudbase` turn on `Anonymous Login`
 ```js
 const { data, error } = await auth.signInAnonymously()
 ```
 
 **6. OAuth (Google/WeChat)**
+- Automatically use `auth-tool-cloudbase` turn on `Google Login` or `WeChat Login`
 ```js
 const { data, error } = await auth.signInWithOAuth({ provider: 'google' })
 window.location.href = data.url // Auto-complete after callback
