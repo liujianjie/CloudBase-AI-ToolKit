@@ -1,6 +1,9 @@
 import CloudBase from "@cloudbase/manager-node";
 import { z } from "zod";
-import { getCloudBaseManager, logCloudBaseResult } from "../cloudbase-manager.js";
+import {
+  getCloudBaseManager,
+  logCloudBaseResult,
+} from "../cloudbase-manager.js";
 import { ExtendedMcpServer } from "../server.js";
 import { Logger } from "../types.js";
 
@@ -217,8 +220,11 @@ checkIndex: 检查索引是否存在`),
       title: "修改 NoSQL 数据库结构",
       description: "修改 NoSQL 数据库结构",
       inputSchema: {
-        action: z.enum(["createCollection", "updateCollection", "deleteCollection"])
-          .describe(`createCollection: 创建集合
+        action: z.enum([
+          "createCollection",
+          "updateCollection",
+          "deleteCollection",
+        ]).describe(`createCollection: 创建集合
 updateCollection: 更新集合
 deleteCollection: 删除集合`),
         collectionName: z.string().describe("集合名称"),
@@ -320,9 +326,8 @@ deleteCollection: 删除集合`),
           success: true,
           requestId: result.RequestId,
           action,
-          message: result.Exists === false
-            ? "集合不存在"
-            : "云开发数据库集合删除成功",
+          message:
+            result.Exists === false ? "集合不存在" : "云开发数据库集合删除成功",
         };
         if (result.Exists === false) {
           body.exists = false;
@@ -358,9 +363,21 @@ deleteCollection: 删除集合`),
           .optional()
           .describe("返回字段投影(对象或字符串,推荐对象)"),
         sort: z
-          .union([z.object({}).passthrough(), z.string()])
+          .union([
+            z.array(
+              z
+                .object({
+                  key: z.string().describe("sort 字段名"),
+                  direction: z.number().describe("排序方向,1:升序,-1:降序"),
+                })
+                .passthrough(),
+            ),
+            z.string(),
+          ])
           .optional()
-          .describe("排序条件(对象或字符串,推荐对象)"),
+          .describe(
+            "排序条件，使用对象或字符串。",
+          ),
         limit: z.number().optional().describe("返回数量限制"),
         offset: z.number().optional().describe("跳过的记录数"),
       },
@@ -416,8 +433,11 @@ deleteCollection: 删除集合`),
       title: "修改 NoSQL 数据库数据记录",
       description: "修改 NoSQL 数据库数据记录",
       inputSchema: {
-        action: z.enum(["insert", "update", "delete"])
-          .describe(`insert: 插入数据（新增文档）\nupdate: 更新数据\ndelete: 删除数据`),
+        action: z
+          .enum(["insert", "update", "delete"])
+          .describe(
+            `insert: 插入数据（新增文档）\nupdate: 更新数据\ndelete: 删除数据`,
+          ),
         collectionName: z.string().describe("集合名称"),
         documents: z
           .array(z.object({}).passthrough())
