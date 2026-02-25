@@ -40,11 +40,28 @@ jobs:
       
       - name: Copy output to target repository
         run: |
-          # Remove existing content except .git
           cd skills-repo
-          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
-          
-          # Copy all content from .skills-repo-output
+      
+          echo "Cleaning auto-generated content, keeping whitelisted local skills..."
+      
+          # 1. 只删除自动生成的内容，保留白名单目录
+          #    - 保留：setup-cloudbase-openclaw
+          #    - 保留：所有以 local- 前缀命名的目录（比如 local-*, 方便以后扩展）
+          for entry in $(find . -mindepth 1 -maxdepth 1 ! -name '.git'); do
+            name="$(basename "$entry")"
+      
+            case "$name" in
+              setup-cloudbase-openclaw|local-*)
+                echo "Keep local skill: $name"
+                ;;
+              *)
+                echo "Remove generated entry: $name"
+                rm -rf "$entry"
+                ;;
+            esac
+          done
+      
+          # 2. 拷贝生成产物覆盖（如果有同名目录，会被上面的删除逻辑释放出来）
           cp -r ../.skills-repo-output/* .
       
       - name: Commit and push changes
