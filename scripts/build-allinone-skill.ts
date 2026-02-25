@@ -62,56 +62,20 @@ description: CloudBase AI Development - Complete toolkit for building Web, Mini 
 
 `;
 
-// Skill categories for routing table
-const SKILL_CATEGORIES: Record<string, string[]> = {
-  'Platform': ['cloudbase-platform', 'web-development', 'miniprogram-development', 'cloudrun-development', 'cloud-functions'],
-  'Authentication': ['auth-web', 'auth-wechat', 'auth-nodejs', 'auth-tool'],
-  'Database': ['no-sql-web-sdk', 'no-sql-wx-mp-sdk', 'relational-database-web', 'relational-database-tool', 'data-model-creation'],
-  'Storage': ['cloud-storage-web'],
-  'AI': ['ai-model-web', 'ai-model-nodejs', 'ai-model-wechat', 'cloudbase-agent-ts'],
-  'API': ['http-api'],
-  'Design': ['ui-design'],
-  'Workflow': ['spec-workflow'],
-};
-
-// Generate routing table markdown
-function generateRoutingTable(availableSkills: string[]): string {
-  const lines = [
-    '',
-    '## 📚 Skill References (Progressive Loading)',
-    '',
-    'When you need detailed information, read the corresponding reference file:',
-    '',
-    '| Category | Skill | Path |',
-    '|----------|-------|------|',
-  ];
-
-  for (const [category, skillNames] of Object.entries(SKILL_CATEGORIES)) {
-    for (const skillName of skillNames) {
-      if (availableSkills.includes(skillName)) {
-        lines.push(`| ${category} | ${skillName} | [references/${skillName}/SKILL.md](references/${skillName}/SKILL.md) |`);
-      }
-    }
-  }
-
-  lines.push('', '> **Progressive Loading**: Only read reference files when needed to keep context efficient.', '');
-  return lines.join('\n');
-}
-
 // Convert .mdc content to SKILL.md format
-function convertMdcToSkill(mdcContent: string, routingTable: string): string {
+function convertMdcToSkill(mdcContent: string): string {
   // Remove .mdc frontmatter
   let content = mdcContent.replace(/^---[\s\S]*?---\n/, '');
 
   // Replace rules/ paths with references/ paths
   content = content.replace(/rules\/([a-z-]+)\/rule\.md/g, 'references/$1/SKILL.md');
-  content = content.replace(/`\{([a-z-]+)\}`/g, '`references/$1/SKILL.md`');
-
-  // Insert routing table after first heading
-  const firstH2 = content.indexOf('\n## ');
-  if (firstH2 > 0) {
-    content = content.slice(0, firstH2) + routingTable + content.slice(firstH2);
-  }
+  // Replace `{skill-name}` notation with references path, but skip placeholder `{rule-name}`
+  content = content.replace(/`\{([a-z-]+)\}`/g, (match, name) => {
+    if (name === 'rule-name') {
+      return match; // Keep placeholder as-is
+    }
+    return `\`references/${name}/SKILL.md\``;
+  });
 
   return SKILL_FRONTMATTER + content;
 }
@@ -159,10 +123,9 @@ async function main() {
   fs.mkdirSync(referencesDir, { recursive: true });
 
   // 3. Generate and write main SKILL.md
-  const routingTable = generateRoutingTable(allSkills);
   const mdcPath = path.join(TOOLKIT_ROOT, SOURCES.mainRules);
   const mdcContent = fs.readFileSync(mdcPath, 'utf-8');
-  const skillContent = convertMdcToSkill(mdcContent, routingTable);
+  const skillContent = convertMdcToSkill(mdcContent);
 
   fs.writeFileSync(path.join(outputDir, 'SKILL.md'), skillContent);
   console.log('✅ Created: cloudbase/SKILL.md');

@@ -7,3 +7,4 @@
 # Package publish backup files
 **/package.json.backup
 .skills-repo-output
+.DS_Store
