@@ -1,11 +1,52 @@
 import express from "express";
 import http from "http";
+import { execFile } from "child_process";
 import open from "open";
 import { WebSocket, WebSocketServer } from "ws";
 import { renderEnvSetupPage } from "./templates/env-setup/index.js";
 import { debug, error, info, warn } from "./utils/logger.js";
 
-// 动态导入 open 模块，兼容 ESM/CJS 环境
+function isVSCodeEnvironment() {
+  return Boolean(
+    process.env.VSCODE_IPC_HOOK_CLI ||
+      process.env.VSCODE_PID ||
+      process.env.TERM_PROGRAM === "vscode",
+  );
+}
+
+function parseBrowserCommand(browser: string) {
+  const parts = browser.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+  return parts.map((item) => item.replace(/^"(.*)"$/, "$1"));
+}
+
+async function openUrlByBrowserEnv(url: string) {
+  const browser = process.env.BROWSER?.trim();
+  if (!browser) {
+    return false;
+  }
+
+  const [command, ...args] = parseBrowserCommand(browser);
+  if (!command) {
+    return false;
+  }
+
+  const finalArgs = args.map((arg) => (arg === "%s" ? url : arg));
+  if (!args.includes("%s")) {
+    finalArgs.push(url);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    execFile(command, finalArgs, (execError: unknown) => {
+      resolve(!execError);
+    });
+  });
+}
+
+function shouldUseBrowserEnvFallback() {
+  return process.platform === "linux" && isVSCodeEnvironment();
+}
+
+// Dynamic open behavior with IDE awareness and VSCode/Linux fallback
 async function openUrl(url: string, options?: any, mcpServer?: any) {
   // mcpServer 是 ExtendedMcpServer 实例，它有 server 和 ide 属性
   // server 属性是 MCP server 的内部 server 实例，有 sendLoggingMessage 方法
@@ -42,15 +83,36 @@ async function openUrl(url: string, options?: any, mcpServer?: any) {
     }
   }
 
-  // 默认行为：直接打开网页
+  // 默认行为：直接打开网页（带 VSCode/Linux 降级逻辑）
   debug(`[openUrl] Opening URL in browser: ${url}`);
   try {
-    return await open(url, options);
-  } catch (err) {
+    const openOptions = options ? { url: true, ...options } : { url: true };
+    const child = await open(url, openOptions as any);
+
+    if ((child as any)?.once) {
+      (child as any).once("error", async () => {
+        if (shouldUseBrowserEnvFallback()) {
+          debug("[openUrl] open() failed, trying BROWSER fallback");
+          await openUrlByBrowserEnv(url);
+        }
+      });
+    }
+
+    return;
+  } catch (err: unknown) {
     error(
-      `Failed to open ${url} ${options} ${err instanceof Error ? err.message : err} `,
+      `Failed to open ${url} ${options} ${
+        err instanceof Error ? err.message : err
+      } `,
       err instanceof Error ? err : new Error(String(err)),
     );
+
+    if (shouldUseBrowserEnvFallback()) {
+      debug("[openUrl] open() threw, trying BROWSER fallback");
+      await openUrlByBrowserEnv(url);
+      return;
+    }
+
     warn(`Please manually open: ${url}`);
   }
 }

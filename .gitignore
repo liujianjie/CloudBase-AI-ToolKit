@@ -8,3 +8,24 @@
 **/package.json.backup
 .skills-repo-output
 .DS_Store
+
+# MCP local IDE / rules artifacts
+mcp/.agent/
+mcp/.claude/
+mcp/.clinerules/
+mcp/.codebuddy/
+mcp/.codex/
+mcp/.comate/
+mcp/.cursor/
+mcp/.gemini/
+mcp/.github/
+mcp/.kiro/
+mcp/.lingma/
+mcp/.qoder/
+mcp/.qwen/
+mcp/.roo/
+mcp/.rules/
+mcp/.trae/
+mcp/.vscode/
+mcp/.windsurf/
+mcp/rules/
