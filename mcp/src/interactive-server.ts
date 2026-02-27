@@ -471,6 +471,9 @@ export class InteractiveServer {
           }
         };
 
+        // Host: default 0.0.0.0 so Cloud IDE / VSCode Remote port-forward can connect; set INTERACTIVE_SERVER_HOST=127.0.0.1 for local-only
+        const host = process.env.INTERACTIVE_SERVER_HOST ?? "0.0.0.0";
+
         // 设置成功监听处理
         const listeningHandler = () => {
           const address = this.server.address();
@@ -478,7 +481,7 @@ export class InteractiveServer {
             this.port = address.port;
             this.isRunning = true;
             info(
-              `Interactive server started successfully on http://localhost:${this.port}`,
+              `Interactive server started successfully on http://${host}:${this.port}`,
             );
             // 移除临时监听器
             this.server.removeListener("error", errorHandler);
@@ -495,7 +498,7 @@ export class InteractiveServer {
         this.server.once("listening", listeningHandler);
 
         try {
-          this.server.listen(portToTry, "127.0.0.1");
+          this.server.listen(portToTry, host);
         } catch (err) {
           error(`Failed to bind to port ${portToTry}:`, err instanceof Error ? err : new Error(String(err)));
           tryNextPort();
