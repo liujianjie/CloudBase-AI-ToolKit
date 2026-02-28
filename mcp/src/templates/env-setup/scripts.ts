@@ -63,8 +63,10 @@ export function getJavaScripts(wsPort: number): string {
     }
   }
 
-  // WebSocket connection
-  const ws = new WebSocket('ws://localhost:${wsPort}');
+  // WebSocket: same host as page so it works in remote VS Code / Cloud IDE (no localhost)
+  const wsScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = wsScheme + '//' + window.location.host;
+  const ws = new WebSocket(wsUrl);
   
   ws.onopen = () => {
     console.log('[env-setup] WebSocket connected');
