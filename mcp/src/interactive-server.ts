@@ -151,10 +151,16 @@ export class InteractiveServer {
     3734, 3735,
   ];
 
+  /** Idle timeout for HTTP/WS connections (e.g. long login). Avoids "connection disconnected" after ~1 min. */
+  private static readonly SERVER_IDLE_MS = 30 * 60 * 1000; // 30 minutes
+  /** WebSocket ping interval to keep connection alive past proxies/firewalls. */
+  private static readonly WS_PING_INTERVAL_MS = 25 * 1000; // 25 seconds
+
   constructor(mcpServer?: any) {
     this._mcpServer = mcpServer;
     this.app = express();
     this.server = http.createServer(this.app);
+    this.applyServerTimeouts();
     this.wss = new WebSocketServer({ server: this.server });
 
     this.setupExpress();
@@ -171,6 +177,20 @@ export class InteractiveServer {
       this.server.close();
       this.wss.close();
       this.isRunning = false;
+    }
+  }
+
+  /** Apply timeouts so long-lived login does not cause "connection disconnected". */
+  private applyServerTimeouts() {
+    this.server.timeout = 0;
+    if (typeof (this.server as any).keepAliveTimeout === "number") {
+      (this.server as any).keepAliveTimeout = InteractiveServer.SERVER_IDLE_MS;
+    }
+    if (typeof (this.server as any).headersTimeout === "number") {
+      (this.server as any).headersTimeout = Math.max(
+        (this.server as any).headersTimeout || 0,
+        InteractiveServer.SERVER_IDLE_MS,
+      );
     }
   }
 
@@ -302,6 +322,17 @@ export class InteractiveServer {
     this.wss.on("connection", (ws: WebSocket) => {
       debug("WebSocket client connected");
 
+      // Keep connection alive during long login so proxies/firewalls do not close it
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.ping();
+        }
+      }, InteractiveServer.WS_PING_INTERVAL_MS);
+      ws.on("close", () => {
+        clearInterval(pingInterval);
+        debug("WebSocket client disconnected");
+      });
+
       ws.on("message", async (message: string) => {
         try {
           const data = JSON.parse(message.toString());
@@ -412,10 +443,6 @@ export class InteractiveServer {
         } catch (err) {
           error("WebSocket message parsing error", err instanceof Error ? err : new Error(String(err)));
         }
-      });
-
-      ws.on("close", () => {
-        debug("WebSocket client disconnected");
       });
     });
   }
@@ -544,6 +571,7 @@ export class InteractiveServer {
               
               // 重新创建整个服务器实例以便下次使用
               this.server = http.createServer(this.app);
+              this.applyServerTimeouts();
               this.wss = new WebSocketServer({ server: this.server });
               this.setupWebSocket();
               debug("HTTP and WebSocket servers recreated for next use");
@@ -653,11 +681,9 @@ export class InteractiveServer {
 
       info("Waiting for user selection...");
 
-      // Use shorter timeout for CodeBuddy when notification is sent (2 minutes)
-      // This prevents hanging while still giving users enough time to respond
-      // Otherwise use the default 10 minutes timeout
-      const timeoutDuration = (isCodeBuddy && notificationSent) ? 2 * 60 * 1000 : 10 * 60 * 1000;
-      debug(`[collectEnvId] Using timeout duration: ${timeoutDuration / 1000} seconds (CodeBuddy: ${isCodeBuddy}, notification sent: ${notificationSent})`);
+      // Use same 10 minutes for all IDEs so long login (re-auth, switch account) does not close the server
+      const timeoutDuration = 10 * 60 * 1000;
+      debug(`[collectEnvId] Using timeout duration: ${timeoutDuration / 1000} seconds`);
 
       return new Promise((resolve) => {
         this.currentResolver = (result) => {
