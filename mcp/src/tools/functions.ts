@@ -4,12 +4,14 @@ import {
   logCloudBaseResult,
 } from "../cloudbase-manager.js";
 import { ExtendedMcpServer } from "../server.js";
+import { debug } from "../utils/logger.js";
 
 import { IEnvVariable } from "@cloudbase/manager-node/types/function/types.js";
 import path from "path";
 
 // 支持的 Node.js 运行时列表
 export const SUPPORTED_NODEJS_RUNTIMES = [
+  "Nodejs20.19",
   "Nodejs18.15",
   "Nodejs16.13",
   "Nodejs14.18",
@@ -162,11 +164,37 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     "createFunction",
     {
       title: "创建云函数",
-      description: "创建云函数",
+      description: "创建云函数。云函数分为事件型云函数和 HTTP 云函数，请确认你要创建的函数类型。",
       inputSchema: {
         func: z
           .object({
             name: z.string().describe("函数名称"),
+            type: z
+              .enum(["Event", "HTTP"])
+              .optional()
+              .describe("函数类型，Event 为事件型云函数，HTTP 为 HTTP 云函数"),
+            protocolType: z
+              .enum(["HTTP", "WS"])
+              .optional()
+              .describe("HTTP 云函数的协议类型，HTTP 为 HTTP 协议（默认），WS 为 WebSocket 协议，仅当 type 为 HTTP 时有效"),
+            protocolParams: z
+              .object({
+                wsParams: z
+                  .object({
+                    idleTimeOut: z.number().optional().describe("WebSocket 空闲超时时间（秒），默认 15 秒"),
+                  })
+                  .optional()
+                  .describe("WebSocket 协议参数"),
+              })
+              .optional()
+              .describe("协议参数配置，仅当 protocolType 为 WS 时有效"),
+            instanceConcurrencyConfig: z
+              .object({
+                dynamicEnabled: z.boolean().optional().describe("是否启用动态并发，默认 false"),
+                maxConcurrency: z.number().optional().describe("最大并发数，默认 10"),
+              })
+              .optional()
+              .describe("多并发配置，仅当 type 为 HTTP 时有效"),
             timeout: z.number().optional().describe("函数超时时间"),
             envVariables: z.record(z.string()).optional().describe("环境变量"),
             vpc: z
@@ -241,27 +269,34 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       functionRootPath?: string;
       force: boolean;
     }) => {
-      // 自动填充默认 runtime
-      if (!func.runtime) {
-        func.runtime = DEFAULT_NODEJS_RUNTIME;
-      } else {
-        // 验证 runtime 格式，防止常见的空格问题
-        const normalizedRuntime = func.runtime.replace(/\s+/g, "");
-        if (SUPPORTED_NODEJS_RUNTIMES.includes(normalizedRuntime)) {
-          func.runtime = normalizedRuntime;
-        } else if (func.runtime.includes(" ")) {
-          console.warn(
-            `检测到 runtime 参数包含空格: "${func.runtime}"，已自动移除空格`,
-          );
-          func.runtime = normalizedRuntime;
-        }
-      }
+      debug(`[createFunction] name=${func.name}, type=${func.type || "Event"}`);
 
-      // 验证 runtime 是否有效
-      if (!SUPPORTED_NODEJS_RUNTIMES.includes(func.runtime)) {
-        throw new Error(
-          `不支持的运行时环境: "${func.runtime}"。支持的值：${SUPPORTED_NODEJS_RUNTIMES.join(", ")}`,
-        );
+      // HTTP 云函数跳过 runtime 验证，Event 云函数进行验证
+      const isHttpFunction = func.type === "HTTP";
+
+      if (!isHttpFunction) {
+        // 自动填充默认 runtime
+        if (!func.runtime) {
+          func.runtime = DEFAULT_NODEJS_RUNTIME;
+        } else {
+          // 验证 runtime 格式，防止常见的空格问题
+          const normalizedRuntime = func.runtime.replace(/\s+/g, "");
+          if (SUPPORTED_NODEJS_RUNTIMES.includes(normalizedRuntime)) {
+            func.runtime = normalizedRuntime;
+          } else if (func.runtime.includes(" ")) {
+            console.warn(
+              `检测到 runtime 参数包含空格: "${func.runtime}"，已自动移除空格`,
+            );
+            func.runtime = normalizedRuntime;
+          }
+        }
+
+        // 验证 runtime 是否有效
+        if (!SUPPORTED_NODEJS_RUNTIMES.includes(func.runtime)) {
+          throw new Error(
+            `不支持的运行时环境: "${func.runtime}"。支持的值：${SUPPORTED_NODEJS_RUNTIMES.join(", ")}`,
+          );
+        }
       }
 
       // 强制设置 installDependency 为 true（不暴露给AI）
