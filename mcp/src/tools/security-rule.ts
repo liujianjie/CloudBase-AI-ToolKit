@@ -69,7 +69,7 @@ export function registerSecurityRuleTools(server: ExtendedMcpServer) {
         resourceId: z
           .string()
           .describe(
-            "资源唯一标识。noSQL 数据库为集合名，SQL 数据库为表名，云函数为函数名，存储为桶名。",
+            "资源唯一标识。noSQL 数据库为集合名，SQL 数据库为表名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。",
           ),
       },
       annotations: {
@@ -134,6 +134,8 @@ export function registerSecurityRuleTools(server: ExtendedMcpServer) {
             text: JSON.stringify(
               {
                 success: true,
+                resourceType,
+                resourceId,
                 aclTag: result.AclTag,
                 rule: result.Rule ?? null,
                 raw: result,
@@ -163,7 +165,7 @@ export function registerSecurityRuleTools(server: ExtendedMcpServer) {
         resourceId: z
           .string()
           .describe(
-            "资源唯一标识。sqlDatabase=表名，noSqlDatabase=集合名，云函数为函数名，存储为桶名。",
+            "资源唯一标识。sqlDatabase=表名，noSqlDatabase=集合名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。",
           ),
         aclTag: z
           .enum(["READONLY", "PRIVATE", "ADMINWRITE", "ADMINONLY", "CUSTOM"])
