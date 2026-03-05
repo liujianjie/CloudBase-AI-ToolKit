@@ -78,7 +78,23 @@ export function registerCapiTools(server: ExtendedMcpServer) {
                     throw new Error(`${service}/${action} Cloud API is not exposed or does not exist. Please use another API.`);
                 }
                 if (service === 'tcb') {
-                    const tcbCapiForbidList = ['DescribeStorageACL', 'ModifyStorageACL', 'DescribeSecurityRule'];
+                    const tcbCapiForbidList = [
+                        // 未明确对外的云API
+                        'DescribeStorageACL', 'ModifyStorageACL', 'DescribeSecurityRule',
+
+                        // 要下线的云API
+                        "ListTables",
+                        "DescribeCloudBaseGWAPI",
+                        "DescribeCloudBaseGWService",
+                        "CreateCloudBaseGWAPI",
+                        "DeleteCloudBaseGWAPI",
+                        "ModifyCloudBaseGWAPI",
+                        "DeleteCloudBaseGWDomain",
+                        "BindCloudBaseGWDomain",
+                        "BindCloudBaseAccessDomain"
+
+                    ];
+
                     if (tcbCapiForbidList.includes(action)) {
                         throw new Error(`${service}/${action} Cloud API is not exposed or does not exist. Please use another API.`);
                     }
