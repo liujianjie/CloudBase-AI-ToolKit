@@ -40,7 +40,7 @@
     "prebuild": "npm run clean",
     "build": "npm run build:webpack && npm run build:types && npm run build:permissions",
     "build:webpack": "webpack --config webpack/index.cjs --mode=production",
-    "build:types": "tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist/types && cp dist/types/index.d.ts dist/index.d.ts && cp dist/types/cli.d.ts dist/cli.d.ts && rm -rf dist/types",
+    "build:types": "tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist/types && api-extractor run --local --verbose && cp dist/types/cli.d.ts dist/cli.d.ts && rm -rf dist/types",
     "build:permissions": "chmod 755 dist/cli.cjs",
     "test": "npm run build && vitest run",
     "test:watch": "npm run build && vitest",
@@ -85,6 +85,7 @@
     "zod": "^3.24.3"
   },
   "devDependencies": {
+    "@microsoft/api-extractor": "^7.57.6",
     "@modelcontextprotocol/sdk": "^1.13.3",
     "@rollup/plugin-commonjs": "^28.0.1",
     "@rollup/plugin-inject": "^5.0.5",
