@@ -39,7 +39,7 @@ export function toolPayloadErrorToResult(error: unknown) {
   return buildJsonToolResult(error.payload);
 }
 
-export function buildLoginNextStep(
+export function buildAuthNextStep(
   action: string,
   options?: {
     requiredParams?: string[];
@@ -47,7 +47,7 @@ export function buildLoginNextStep(
   },
 ): ToolNextStep {
   return {
-    tool: "login",
+    tool: "auth",
     action,
     required_params: options?.requiredParams,
     suggested_args: options?.suggestedArgs ?? { action },

@@ -283,10 +283,23 @@ test("Database tools support object/object[] parameters", async () => {
   );
   console.log("CLOUDBASE_ENV_ID 值:", process.env.CLOUDBASE_ENV_ID || "未设置");
 
-  // 检查是否有认证信息
-  const hasAuth =
-    process.env.TENCENTCLOUD_SECRETID && process.env.TENCENTCLOUD_SECRETKEY;
-  console.log("🔐 认证信息状态:", hasAuth ? "✅ 已设置" : "❌ 未设置");
+  // This integration test requires real credentials and a target environment.
+  const hasCloudBaseCredentials = Boolean(
+    process.env.TENCENTCLOUD_SECRETID &&
+      process.env.TENCENTCLOUD_SECRETKEY &&
+      process.env.CLOUDBASE_ENV_ID,
+  );
+  console.log(
+    "🔐 认证信息状态:",
+    hasCloudBaseCredentials ? "✅ 已设置" : "❌ 未设置",
+  );
+
+  if (!hasCloudBaseCredentials) {
+    console.log(
+      "⏭️ 跳过数据库集成测试：缺少 TENCENTCLOUD_SECRETID/TENCENTCLOUD_SECRETKEY/CLOUDBASE_ENV_ID",
+    );
+    return;
+  }
 
   try {
     // 启动 MCP server

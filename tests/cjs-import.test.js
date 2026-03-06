@@ -78,17 +78,17 @@ test('CJS CLI executable works correctly', async () => {
     expect(Array.isArray(toolsResult.tools)).toBe(true);
     console.log(`Found ${toolsResult.tools.length} tools in CJS CLI build`);
 
-    // 新增：测试 login 工具调用，超时不算失败
+    // 新增：测试 auth 工具调用，超时不算失败
     try {
-      console.log('Testing login tool call (may timeout)...');
-      const loginResult = await Promise.race([
-        client.callTool('login', { provider: 'cloudbase' }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('login timeout')), 10000))
+      console.log('Testing auth tool call (may timeout)...');
+      const authResult = await Promise.race([
+        client.callTool('auth', { action: 'status' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('auth timeout')), 10000))
       ]);
-      console.log('login tool call result:', loginResult);
+      console.log('auth tool call result:', authResult);
     } catch (err) {
       if (err && err.message && err.message.includes('timeout')) {
-        console.warn('⚠️ login tool call timeout (acceptable)');
+        console.warn('⚠️ auth tool call timeout (acceptable)');
       } else {
         throw err;
       }

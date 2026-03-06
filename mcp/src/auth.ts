@@ -1,8 +1,8 @@
-import { AuthSupevisor } from "@cloudbase/toolbox";
+import { AuthSupervisor } from "@cloudbase/toolbox";
 import { debug } from "./utils/logger.js";
 import { isInternationalRegion } from "./utils/tencet-cloud.js";
 
-const auth = AuthSupevisor.getInstance({});
+const auth = AuthSupervisor.getInstance({});
 
 export type AuthFlowMode = "web" | "device";
 
@@ -176,7 +176,7 @@ export async function ensureLogin(options?: {
     const normalizedEnvMode =
       envMode === "web" || envMode === "device" ? envMode : undefined;
     const mode: AuthFlowMode = options?.authMode || normalizedEnvMode || "device";
-    const loginOptions: Record<string, unknown> = { mode };
+    const loginOptions: Record<string, unknown> = { flow: mode };
 
     if (mode === "web") {
       loginOptions.getAuthUrl =
@@ -206,7 +206,7 @@ export async function ensureLogin(options?: {
     }
     debug("beforeloginByWebAuth", { loginOptions });
     try {
-      await (auth as any).loginByWebAuth(loginOptions);
+      await auth.loginByWebAuth(loginOptions as Parameters<typeof auth.loginByWebAuth>[0]);
       resolveAuthProgressState();
     } catch (error) {
       rejectAuthProgressState(error);

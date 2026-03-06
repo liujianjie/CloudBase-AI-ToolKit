@@ -51,7 +51,7 @@ describe("cloudbase manager auth gate", () => {
       payload: expect.objectContaining({
         code: "AUTH_REQUIRED",
         next_step: expect.objectContaining({
-          tool: "login",
+          tool: "auth",
           action: "start_auth",
         }),
       }),
@@ -80,7 +80,7 @@ describe("cloudbase manager auth gate", () => {
           user_code: "WDJB-MJHT",
         }),
         next_step: expect.objectContaining({
-          tool: "login",
+          tool: "auth",
           action: "status",
         }),
       }),
@@ -116,7 +116,7 @@ describe("cloudbase manager auth gate", () => {
           }),
         ],
         next_step: expect.objectContaining({
-          tool: "login",
+          tool: "auth",
           action: "select_env",
         }),
       }),

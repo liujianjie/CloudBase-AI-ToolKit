@@ -7,7 +7,7 @@ import {
 import { _promptAndSetEnvironmentId, type EnvSetupFailureInfo } from './tools/interactive.js';
 import { CloudBaseOptions, Logger } from './types.js';
 import { debug, error } from './utils/logger.js';
-import { buildLoginNextStep, throwToolPayloadError } from './utils/tool-result.js';
+import { buildAuthNextStep, throwToolPayloadError } from './utils/tool-result.js';
 const ENV_ID_TIMEOUT = 600000; // 10 minutes (600 seconds) - matches InteractiveServer timeout
 
 export type EnvCandidate = {
@@ -97,8 +97,8 @@ function throwAuthRequiredError() {
     throwToolPayloadError({
         ok: false,
         code: "AUTH_REQUIRED",
-        message: "当前未登录，请先调用 login 工具完成认证。",
-        next_step: buildLoginNextStep("start_auth", {
+        message: "当前未登录，请先调用 auth 工具完成认证。",
+        next_step: buildAuthNextStep("start_auth", {
             suggestedArgs: {
                 action: "start_auth",
                 authMode: "device",
@@ -120,7 +120,7 @@ async function throwPendingAuthError() {
                 expires_in: authState.authChallenge.expires_in,
             }
             : undefined,
-        next_step: buildLoginNextStep("status", {
+        next_step: buildAuthNextStep("status", {
             suggestedArgs: {
                 action: "status",
             },
@@ -138,12 +138,12 @@ async function throwEnvRequiredError(options?: {
         ok: false,
         code: "ENV_REQUIRED",
         message: envCandidates.length === 0
-            ? "当前已登录，但还没有可用环境，请先调用 login 工具完成环境选择或创建环境。"
+            ? "当前已登录，但还没有可用环境，请先调用 auth 工具完成环境选择或创建环境。"
             : envCandidates.length === 1
                 ? `当前已登录，但尚未绑定环境。可直接选择环境 ${singleEnvId}。`
-                : "当前已登录，但尚未绑定环境，请先调用 login 工具选择环境。",
+                : "当前已登录，但尚未绑定环境，请先调用 auth 工具选择环境。",
         env_candidates: envCandidates,
-        next_step: buildLoginNextStep("select_env", {
+        next_step: buildAuthNextStep("select_env", {
             requiredParams: singleEnvId ? undefined : ["envId"],
             suggestedArgs: singleEnvId
                 ? {

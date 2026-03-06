@@ -3,27 +3,32 @@ import { registerEnvTools } from "./env.js";
 import type { ExtendedMcpServer } from "../server.js";
 
 const {
-  mockSupervisorGetLoginState,
   mockSupervisorLoginByWebAuth,
   mockEnsureLogin,
+  mockPeekLoginState,
   mockGetAuthProgressState,
+  mockLogout,
   mockEnvManagerSetEnvId,
   mockGetCachedEnvId,
   mockListAvailableEnvCandidates,
+  mockResetCloudBaseManagerCache,
+  mockPromptAndSetEnvironmentId,
 } = vi.hoisted(() => ({
-  mockSupervisorGetLoginState: vi.fn(),
   mockSupervisorLoginByWebAuth: vi.fn(),
   mockEnsureLogin: vi.fn(),
+  mockPeekLoginState: vi.fn(),
   mockGetAuthProgressState: vi.fn(),
+  mockLogout: vi.fn(),
   mockEnvManagerSetEnvId: vi.fn(),
   mockGetCachedEnvId: vi.fn(),
   mockListAvailableEnvCandidates: vi.fn(),
+  mockResetCloudBaseManagerCache: vi.fn(),
+  mockPromptAndSetEnvironmentId: vi.fn(),
 }));
 
 vi.mock("@cloudbase/toolbox", () => ({
-  AuthSupevisor: {
+  AuthSupervisor: {
     getInstance: vi.fn(() => ({
-      getLoginState: mockSupervisorGetLoginState,
       loginByWebAuth: mockSupervisorLoginByWebAuth,
     })),
   },
@@ -31,8 +36,9 @@ vi.mock("@cloudbase/toolbox", () => ({
 
 vi.mock("../auth.js", () => ({
   ensureLogin: mockEnsureLogin,
+  peekLoginState: mockPeekLoginState,
   getAuthProgressState: mockGetAuthProgressState,
-  logout: vi.fn(),
+  logout: mockLogout,
   rejectAuthProgressState: vi.fn(),
   resolveAuthProgressState: vi.fn(),
   setPendingAuthProgressState: vi.fn(),
@@ -46,34 +52,35 @@ vi.mock("../cloudbase-manager.js", () => ({
   getCloudBaseManager: vi.fn(),
   listAvailableEnvCandidates: mockListAvailableEnvCandidates,
   logCloudBaseResult: vi.fn(),
-  resetCloudBaseManagerCache: vi.fn(),
+  resetCloudBaseManagerCache: mockResetCloudBaseManagerCache,
 }));
 
 vi.mock("./interactive.js", () => ({
-  _promptAndSetEnvironmentId: vi.fn(),
+  _promptAndSetEnvironmentId: mockPromptAndSetEnvironmentId,
 }));
 
 vi.mock("./rag.js", () => ({
   getClaudePrompt: vi.fn().mockResolvedValue(""),
 }));
 
-function createMockServer() {
+function createMockServer(ide = "TestIDE") {
   const tools: Record<
     string,
     {
+      meta: any;
       handler: (args: any) => Promise<any>;
     }
   > = {};
 
   const server: ExtendedMcpServer = {
     cloudBaseOptions: { envId: "env-test", region: "ap-guangzhou" },
-    ide: "TestIDE",
+    ide,
     server: {
       sendLoggingMessage: vi.fn(),
     },
     registerTool: vi.fn(
-      (name: string, _meta: any, handler: (args: any) => Promise<any>) => {
-        tools[name] = { handler };
+      (name: string, meta: any, handler: (args: any) => Promise<any>) => {
+        tools[name] = { meta, handler };
       },
     ),
   } as unknown as ExtendedMcpServer;
@@ -86,7 +93,7 @@ function createMockServer() {
   };
 }
 
-describe("env tools - login", () => {
+describe("env tools - auth", () => {
   let tools: ReturnType<typeof createMockServer>["tools"];
 
   beforeEach(() => {
@@ -97,21 +104,26 @@ describe("env tools - login", () => {
       status: "IDLE",
       updatedAt: Date.now(),
     });
-    mockSupervisorGetLoginState.mockResolvedValue(null);
+    mockPeekLoginState.mockResolvedValue(null);
     mockEnsureLogin.mockResolvedValue({
       secretId: "sid",
       secretKey: "skey",
       envId: "env-test",
     });
+    mockPromptAndSetEnvironmentId.mockResolvedValue({
+      selectedEnvId: "env-picked",
+      cancelled: false,
+    });
     ({ tools } = createMockServer());
   });
 
-  it("should expose login tool", () => {
-    expect(typeof tools.login?.handler).toBe("function");
+  it("should expose auth tool and remove standalone logout tool", () => {
+    expect(typeof tools.auth?.handler).toBe("function");
+    expect(tools.logout).toBeUndefined();
   });
 
-  it("login(action=status) should return structured status payload", async () => {
-    const result = await tools.login.handler({ action: "status" });
+  it("auth(action=status) should return structured status payload", async () => {
+    const result = await tools.auth.handler({ action: "status" });
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload).toHaveProperty("ok", true);
@@ -120,12 +132,12 @@ describe("env tools - login", () => {
     expect(payload).toHaveProperty("env_status");
     expect(payload).toHaveProperty("current_env_id");
     expect(payload.next_step).toMatchObject({
-      tool: "login",
+      tool: "auth",
       action: "start_auth",
     });
   });
 
-  it("login(action=status) should surface pending auth challenge", async () => {
+  it("auth(action=status) should surface pending auth challenge", async () => {
     mockGetAuthProgressState.mockResolvedValue({
       status: "PENDING",
       updatedAt: Date.now(),
@@ -137,7 +149,7 @@ describe("env tools - login", () => {
       },
     });
 
-    const result = await tools.login.handler({ action: "status" });
+    const result = await tools.auth.handler({ action: "status" });
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload).toHaveProperty("auth_status", "PENDING");
@@ -147,12 +159,12 @@ describe("env tools - login", () => {
       expires_in: 600,
     });
     expect(payload.next_step).toMatchObject({
-      tool: "login",
+      tool: "auth",
       action: "status",
     });
   });
 
-  it("login(action=start_auth, authMode=device) should return AUTH_PENDING immediately", async () => {
+  it("auth(action=start_auth, authMode=device) should return AUTH_PENDING immediately", async () => {
     mockSupervisorLoginByWebAuth.mockImplementation(
       async ({ onDeviceCode }: { onDeviceCode: (info: any) => void }) => {
         onDeviceCode({
@@ -165,7 +177,7 @@ describe("env tools - login", () => {
       },
     );
 
-    const result = await tools.login.handler({
+    const result = await tools.auth.handler({
       action: "start_auth",
       authMode: "device",
     });
@@ -178,12 +190,16 @@ describe("env tools - login", () => {
       expires_in: 600,
     });
     expect(payload.next_step).toMatchObject({
-      tool: "login",
+      tool: "auth",
       action: "status",
     });
   });
 
-  it("login(action=select_env, envId) should accept direct env selection shape", async () => {
+  it("auth(action=select_env, envId) should accept direct env selection shape", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
     mockListAvailableEnvCandidates.mockResolvedValue([
       {
         envId: "env-test",
@@ -192,7 +208,7 @@ describe("env tools - login", () => {
       },
     ]);
 
-    const result = await tools.login.handler({
+    const result = await tools.auth.handler({
       action: "select_env",
       envId: "env-test",
     });
@@ -200,11 +216,70 @@ describe("env tools - login", () => {
 
     expect(payload).toHaveProperty("code", "ENV_READY");
     expect(payload).toHaveProperty("current_env_id", "env-test");
-    expect(payload.next_step).toMatchObject({
-      tool: "login",
-      action: "ensure",
-    });
+    expect(payload.next_step).toBeUndefined();
     expect(mockEnvManagerSetEnvId).toHaveBeenCalledWith("env-test");
+  });
+
+  it("auth(action=choose_env) should use interactive environment selection", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
+    mockPromptAndSetEnvironmentId.mockResolvedValue({
+      selectedEnvId: "env-picked",
+      cancelled: false,
+      error: undefined,
+      noEnvs: false,
+      switch: false,
+    });
+
+    const result = await tools.auth.handler({
+      action: "choose_env",
+      forceUpdate: true,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toHaveProperty("code", "ENV_READY");
+    expect(payload).toHaveProperty("current_env_id", "env-picked");
+    expect(payload.next_step).toBeUndefined();
+    expect(mockPromptAndSetEnvironmentId).toHaveBeenCalledWith(true, {
+      server: expect.anything(),
+    });
+  });
+
+  it("auth(action=logout) should clear session state", async () => {
+    const result = await tools.auth.handler({
+      action: "logout",
+      confirm: "yes",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toHaveProperty("code", "LOGGED_OUT");
+    expect(payload.next_step).toBeUndefined();
+    expect(mockLogout).toHaveBeenCalled();
+    expect(mockResetCloudBaseManagerCache).toHaveBeenCalled();
+  });
+
+  it("CodeBuddy should only expose status and select_env actions", () => {
+    const { tools: codeBuddyTools } = createMockServer("CodeBuddy");
+    expect(codeBuddyTools.auth.meta.inputSchema.action.unwrap().options).toEqual([
+      "status",
+      "select_env",
+    ]);
+    expect(codeBuddyTools.auth.meta.inputSchema.authMode).toBeUndefined();
+    expect(codeBuddyTools.auth.meta.inputSchema.forceUpdate).toBeUndefined();
+    expect(codeBuddyTools.auth.meta.inputSchema.confirm).toBeUndefined();
+  });
+
+  it("CodeBuddy status should not recommend start_auth", async () => {
+    const { tools: codeBuddyTools } = createMockServer("CodeBuddy");
+    const result = await codeBuddyTools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.next_step).toMatchObject({
+      tool: "auth",
+      action: "status",
+    });
   });
 });
 
