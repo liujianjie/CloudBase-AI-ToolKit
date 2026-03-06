@@ -495,7 +495,15 @@ export async function getUinForTelemetry(): Promise<string | undefined> {
     const loginState = await getLoginState({ region });
     // Try to extract UIN from loginState
     // Note: actual field name may vary, adjust based on actual response
-    return loginState.uin || undefined;
+    if (
+      loginState &&
+      typeof loginState === "object" &&
+      "uin" in loginState &&
+      typeof loginState.uin !== "undefined"
+    ) {
+      return String(loginState.uin);
+    }
+    return undefined;
   } catch (err) {
     debug('Failed to get UIN for telemetry', { error: err instanceof Error ? err.message : String(err) });
     return undefined;

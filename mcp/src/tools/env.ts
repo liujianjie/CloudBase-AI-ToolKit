@@ -1,11 +1,29 @@
 import { z } from "zod";
-import { logout } from "../auth.js";
+import { AuthSupevisor } from "@cloudbase/toolbox";
 import {
+  ensureLogin,
+  getAuthProgressState,
+  logout,
+  rejectAuthProgressState,
+  resolveAuthProgressState,
+  setPendingAuthProgressState,
+  type DeviceFlowAuthInfo,
+} from "../auth.js";
+import {
+  envManager,
+  getCachedEnvId,
   getCloudBaseManager,
+  listAvailableEnvCandidates,
   logCloudBaseResult,
   resetCloudBaseManagerCache,
+  type EnvCandidate,
 } from "../cloudbase-manager.js";
 import { ExtendedMcpServer } from "../server.js";
+import {
+  buildJsonToolResult,
+  buildLoginNextStep,
+  toolPayloadErrorToResult,
+} from "../utils/tool-result.js";
 import { debug } from "../utils/logger.js";
 import { _promptAndSetEnvironmentId } from "./interactive.js";
 import { getClaudePrompt } from "./rag.js";
@@ -37,6 +55,45 @@ export function simplifyEnvList(envList: any[]): any[] {
   });
 }
 
+function formatDeviceAuthHint(deviceAuthInfo?: DeviceFlowAuthInfo): string {
+  if (!deviceAuthInfo) {
+    return "";
+  }
+
+  const lines = [
+    "",
+    "### Device Flow 授权信息",
+    `- user_code: ${deviceAuthInfo.user_code}`,
+  ];
+
+  if (deviceAuthInfo.verification_uri) {
+    lines.push(`- verification_uri: ${deviceAuthInfo.verification_uri}`);
+  }
+  lines.push(`- expires_in: ${deviceAuthInfo.expires_in}s`);
+  lines.push(
+    "",
+    "请在另一台可用浏览器设备打开 `verification_uri` 并输入 `user_code` 完成授权。",
+  );
+  return lines.join("\n");
+}
+
+function emitDeviceAuthNotice(server: ExtendedMcpServer, deviceAuthInfo: DeviceFlowAuthInfo): void {
+  // Temporarily disabled: avoid sending logging notifications for device auth
+}
+
+async function fetchAvailableEnvCandidates(
+  cloudBaseOptions: any,
+  server: ExtendedMcpServer,
+): Promise<EnvCandidate[]> {
+  try {
+    return await listAvailableEnvCandidates({
+      cloudBaseOptions,
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function registerEnvTools(server: ExtendedMcpServer) {
   // 获取 cloudBaseOptions，如果没有则为 undefined
   const cloudBaseOptions = server.cloudBaseOptions;
@@ -53,7 +110,19 @@ export function registerEnvTools(server: ExtendedMcpServer) {
       description:
         "登录云开发环境，在生成包含云开发 CloudBase 相关功能前**必须**先调用此工具进行登录。登录云开发环境并选择要使用的环境。",
       inputSchema: {
+        action: z
+          .enum(["ensure", "start_auth", "select_env", "status"])
+          .optional()
+          .describe("登录动作：ensure=确保已登录并绑定环境，start_auth=仅发起认证，select_env=仅设置环境，status=查询当前状态"),
         forceUpdate: z.boolean().optional().describe("是否强制重新选择环境"),
+        authMode: z
+          .enum(["device", "web"])
+          .optional()
+          .describe("认证模式：device=设备码授权，web=浏览器回调授权"),
+        envId: z
+          .string()
+          .optional()
+          .describe("环境ID。action=select_env 时可直接指定环境，避免交互式选择"),
       },
       annotations: {
         readOnlyHint: false,
@@ -63,10 +132,305 @@ export function registerEnvTools(server: ExtendedMcpServer) {
         category: "env",
       },
     },
-    async ({ forceUpdate = false }: { forceUpdate?: boolean }) => {
+    async ({
+      action = "ensure",
+      forceUpdate = false,
+      authMode,
+      envId,
+    }: {
+      action?: "ensure" | "start_auth" | "select_env" | "status";
+      forceUpdate?: boolean;
+      authMode?: "device" | "web";
+      envId?: string;
+    }) => {
       let isSwitching = false;
+      let deviceAuthInfo: DeviceFlowAuthInfo | undefined;
+      const onDeviceCode = (info: DeviceFlowAuthInfo) => {
+        deviceAuthInfo = info;
+        setPendingAuthProgressState(info, "device");
+        // emitDeviceAuthNotice(server, info);
+      };
+      const authChallenge = () =>
+        deviceAuthInfo
+          ? {
+            user_code: deviceAuthInfo.user_code,
+            verification_uri: deviceAuthInfo.verification_uri,
+            expires_in: deviceAuthInfo.expires_in,
+          }
+          : undefined;
 
       try {
+        if (action === "status") {
+          const auth = AuthSupevisor.getInstance({});
+          const loginState = await auth.getLoginState();
+          const authFlowState = await getAuthProgressState();
+          const envId =
+            getCachedEnvId() ||
+            process.env.CLOUDBASE_ENV_ID ||
+            (typeof loginState?.envId === "string" ? loginState.envId : undefined);
+
+          const authStatus = loginState
+            ? "READY"
+            : authFlowState.status === "PENDING"
+              ? "PENDING"
+              : "REQUIRED";
+          const envCandidates = await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+          const envStatus = envId
+            ? "READY"
+            : envCandidates.length > 1
+              ? "MULTIPLE"
+              : envCandidates.length === 1
+                ? "READY"
+                : "NONE";
+          const message =
+            authStatus === "READY"
+              ? `当前已登录${envId ? `，环境: ${envId}` : "，但未绑定环境"}`
+              : authStatus === "PENDING"
+                ? "设备码授权进行中，请完成浏览器授权后再次调用 status 或 ensure"
+              : "当前未登录，请先执行 start_auth";
+
+          return buildJsonToolResult({
+            ok: true,
+            code: "STATUS",
+            auth_status: authStatus,
+            env_status: envStatus,
+            current_env_id: envId || null,
+            env_candidates: envCandidates,
+            auth_challenge:
+              authFlowState.status === "PENDING" && authFlowState.authChallenge
+                ? {
+                    user_code: authFlowState.authChallenge.user_code,
+                    verification_uri: authFlowState.authChallenge.verification_uri,
+                    expires_in: authFlowState.authChallenge.expires_in,
+                  }
+                : undefined,
+            message,
+            next_step:
+              authStatus === "REQUIRED"
+                ? buildLoginNextStep("start_auth", {
+                    suggestedArgs: { action: "start_auth", authMode: "device" },
+                  })
+                : authStatus === "PENDING"
+                  ? buildLoginNextStep("status", {
+                      suggestedArgs: { action: "status" },
+                    })
+                : envStatus === "MULTIPLE" || envStatus === "NONE"
+                  ? buildLoginNextStep("select_env", {
+                      requiredParams: ["envId"],
+                      suggestedArgs: { action: "select_env" },
+                    })
+                  : buildLoginNextStep("ensure", {
+                      suggestedArgs: { action: "ensure" },
+                    }),
+          });
+        }
+
+        if (action === "start_auth") {
+          const region = server.cloudBaseOptions?.region || process.env.TCB_REGION;
+          const auth = AuthSupevisor.getInstance({});
+          const authFlowState = await getAuthProgressState();
+
+          if (authFlowState.status === "PENDING" && authFlowState.authChallenge) {
+            return buildJsonToolResult({
+              ok: true,
+              code: "AUTH_PENDING",
+              message:
+                "设备码授权进行中，请在浏览器中打开 verification_uri 并输入 user_code 完成授权。",
+              auth_challenge: {
+                user_code: authFlowState.authChallenge.user_code,
+                verification_uri: authFlowState.authChallenge.verification_uri,
+                expires_in: authFlowState.authChallenge.expires_in,
+              },
+              next_step: buildLoginNextStep("status", {
+                suggestedArgs: { action: "status" },
+              }),
+            });
+          }
+
+          // 1. 如果已经有登录态，直接返回 AUTH_READY
+          try {
+            const existingLoginState = await auth.getLoginState();
+            if (existingLoginState) {
+              const envId =
+                typeof existingLoginState.envId === "string" ? existingLoginState.envId : null;
+              const envCandidates = envId
+                ? []
+                : await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+              return buildJsonToolResult({
+                ok: true,
+                code: "AUTH_READY",
+                message: envId
+                  ? `认证成功，当前登录态 envId: ${envId}`
+                  : "认证成功",
+                auth_challenge: authChallenge(),
+                env_candidates: envCandidates,
+                next_step: envId
+                  ? buildLoginNextStep("ensure", {
+                      suggestedArgs: { action: "ensure" },
+                    })
+                  : buildLoginNextStep("select_env", {
+                      requiredParams: ["envId"],
+                      suggestedArgs: { action: "select_env" },
+                    }),
+              });
+            }
+          } catch {
+            // 忽略 getLoginState 错误，继续尝试发起登录
+          }
+
+          // 2. 设备码模式：监听到 device code 即返回 AUTH_PENDING，后续由 toolbox 异步轮询并更新本地 credential
+          const effectiveMode: "device" | "web" =
+            authMode && (authMode === "device" || authMode === "web")
+              ? authMode
+              : process.env.TCB_AUTH_MODE === "web"
+                ? "web"
+                : "device";
+
+          if (effectiveMode === "device") {
+            let resolveCode: (() => void) | undefined;
+            let rejectCode: ((reason?: unknown) => void) | undefined;
+            const codeReady = new Promise<void>((resolve, reject) => {
+              resolveCode = resolve;
+              rejectCode = reject;
+            });
+
+            const deviceOnCode = (info: DeviceFlowAuthInfo) => {
+              onDeviceCode(info);
+              if (resolveCode) {
+                resolveCode();
+              }
+            };
+
+            try {
+              // 启动 Device Flow，全流程由 toolbox 负责轮询和写入 credential，这里不等待完成
+              (auth as any)
+                .loginByWebAuth({
+                  mode: "device",
+                  onDeviceCode: deviceOnCode,
+                })
+                .then(() => {
+                  resolveAuthProgressState();
+                })
+                .catch((err: unknown) => {
+                  rejectAuthProgressState(err);
+                  // 如果在拿到 device code 之前就失败，则唤醒当前调用并返回错误
+                  if (!deviceAuthInfo && rejectCode) {
+                    rejectCode(err);
+                  }
+                });
+            } catch (err) {
+              if (rejectCode) {
+                rejectCode(err);
+              }
+            }
+
+            try {
+              await codeReady;
+            } catch (err) {
+              const message =
+                err instanceof Error ? err.message : String(err ?? "unknown error");
+              return buildJsonToolResult({
+                ok: false,
+                code: "AUTH_REQUIRED",
+                message: `设备码登录初始化失败: ${message}`,
+                next_step: buildLoginNextStep("start_auth", {
+                  suggestedArgs: { action: "start_auth", authMode: "device" },
+                }),
+              });
+            }
+
+            if (!deviceAuthInfo) {
+              return buildJsonToolResult({
+                ok: false,
+                code: "AUTH_REQUIRED",
+                message: "未获取到设备码信息，请重试设备码登录",
+                next_step: buildLoginNextStep("start_auth", {
+                  suggestedArgs: { action: "start_auth", authMode: "device" },
+                }),
+              });
+            }
+
+            const envCandidates = await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+            return buildJsonToolResult({
+              ok: true,
+              code: "AUTH_PENDING",
+              message:
+                "已发起设备码登录，请在浏览器中打开 verification_uri 并输入 user_code 完成授权。授权完成后请再次调用 login(action=\"status\") 或 login(action=\"ensure\")。",
+              auth_challenge: authChallenge(),
+              env_candidates: envCandidates,
+              next_step: buildLoginNextStep("status", {
+                suggestedArgs: { action: "status" },
+              }),
+            });
+          }
+
+          // 3. 非 Device Flow（显式 web 模式）仍然使用 getLoginState 阻塞等待
+          const loginState = await ensureLogin({
+            region,
+            authMode: effectiveMode,
+          });
+
+          if (!loginState) {
+            return buildJsonToolResult({
+              ok: false,
+              code: "AUTH_REQUIRED",
+              message: "未获取到登录态，请先完成认证",
+              next_step: buildLoginNextStep("start_auth", {
+                suggestedArgs: { action: "start_auth", authMode: effectiveMode },
+              }),
+            });
+          }
+
+          const envId =
+            typeof loginState.envId === "string" ? loginState.envId : null;
+          const envCandidates = envId
+            ? []
+            : await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+          return buildJsonToolResult({
+            ok: true,
+            code: "AUTH_READY",
+            message: envId ? `认证成功，当前登录态 envId: ${envId}` : "认证成功",
+            auth_challenge: authChallenge(),
+            env_candidates: envCandidates,
+            next_step: envId
+              ? buildLoginNextStep("ensure", {
+                  suggestedArgs: { action: "ensure" },
+                })
+              : buildLoginNextStep("select_env", {
+                  requiredParams: ["envId"],
+                  suggestedArgs: { action: "select_env" },
+                }),
+          });
+        }
+
+        if (action === "select_env" && envId) {
+          const envCandidates = await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+          const target = envCandidates.find((item) => item.envId === envId);
+          if (!target) {
+            return buildJsonToolResult({
+              ok: false,
+              code: "INVALID_ARGS",
+              message: `未找到环境: ${envId}`,
+              env_candidates: envCandidates,
+              next_step: buildLoginNextStep("select_env", {
+                requiredParams: ["envId"],
+                suggestedArgs: { action: "select_env" },
+              }),
+            });
+          }
+          await envManager.setEnvId(envId);
+          return buildJsonToolResult({
+            ok: true,
+            code: "ENV_READY",
+            message: `环境设置成功，当前环境: ${envId}`,
+            current_env_id: envId,
+            env_candidates: envCandidates,
+            next_step: buildLoginNextStep("ensure", {
+              suggestedArgs: { action: "ensure" },
+            }),
+          });
+        }
+
         // 使用 while 循环处理用户切换账号的情况
         while (true) {
           // CRITICAL: Ensure server is passed correctly
@@ -89,6 +453,8 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             loginFromCloudBaseLoginPage: isSwitching,
             // When switching account, ignore environment variables to force Web login
             ignoreEnvVars: isSwitching,
+            authMode,
+            onDeviceCode,
           });
 
           isSwitching = Boolean(switchAccount);
@@ -102,11 +468,50 @@ export function registerEnvTools(server: ExtendedMcpServer) {
           });
 
           if (error) {
-            return { content: [{ type: "text", text: error }] };
+            const normalizedError = String(error || "");
+            const code = noEnvs
+              ? "NO_ENV"
+              : normalizedError.includes("请先登录")
+                ? "AUTH_REQUIRED"
+                : normalizedError.includes("过期")
+                  ? "AUTH_EXPIRED"
+                  : normalizedError.includes("拒绝")
+                    ? "AUTH_DENIED"
+                    : "INTERNAL_ERROR";
+            return buildJsonToolResult({
+              ok: false,
+              code,
+              message: normalizedError,
+              auth_challenge: authChallenge(),
+              env_candidates:
+                code === "NO_ENV"
+                  ? await fetchAvailableEnvCandidates(cloudBaseOptions, server)
+                  : undefined,
+              next_step:
+                code === "AUTH_REQUIRED" || code === "AUTH_EXPIRED" || code === "AUTH_DENIED"
+                  ? buildLoginNextStep("start_auth", {
+                      suggestedArgs: { action: "start_auth", authMode: authMode || "device" },
+                    })
+                  : code === "NO_ENV"
+                    ? buildLoginNextStep("status", {
+                        suggestedArgs: { action: "status" },
+                      })
+                    : buildLoginNextStep("ensure", {
+                        suggestedArgs: { action: "ensure" },
+                      }),
+            });
           }
 
           if (cancelled) {
-            return { content: [{ type: "text", text: "用户取消了登录" }] };
+            return buildJsonToolResult({
+              ok: false,
+              code: "USER_CANCELLED",
+              message: "用户取消了登录流程",
+              auth_challenge: authChallenge(),
+              next_step: buildLoginNextStep("ensure", {
+                suggestedArgs: { action: "ensure" },
+              }),
+            });
           }
 
           // 用户选择切换账号，先 logout 再重新登录
@@ -128,6 +533,22 @@ export function registerEnvTools(server: ExtendedMcpServer) {
           }
 
           if (selectedEnvId) {
+            const deviceHint = formatDeviceAuthHint(deviceAuthInfo);
+
+            if (action === "select_env") {
+              return buildJsonToolResult({
+                ok: true,
+                code: "ENV_READY",
+                message: `环境设置成功，当前环境: ${selectedEnvId}`,
+                current_env_id: selectedEnvId,
+                auth_challenge: authChallenge(),
+                hint: deviceHint || undefined,
+                next_step: buildLoginNextStep("ensure", {
+                  suggestedArgs: { action: "ensure" },
+                }),
+              });
+            }
+
             // Get CLAUDE.md prompt content (skip for CodeBuddy IDE)
             let promptContent = "";
             const currentIde = server.ide || process.env.INTEGRATION_IDE;
@@ -145,27 +566,33 @@ export function registerEnvTools(server: ExtendedMcpServer) {
               ? `\n\n⚠️ 重要提示：后续所有云开发相关的开发工作必须严格遵循以下开发规范和最佳实践：\n\n${promptContent}`
               : "";
 
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: successMessage + promptMessage,
-                },
-              ],
-            };
+            return buildJsonToolResult({
+              ok: true,
+              code: "READY",
+              message: successMessage,
+              current_env_id: selectedEnvId,
+              auth_challenge: authChallenge(),
+              hint: deviceHint || undefined,
+              prompt: promptMessage || undefined,
+              next_step: buildLoginNextStep("status", {
+                suggestedArgs: { action: "status" },
+              }),
+            });
           }
 
           throw new Error("登录失败");
         }
       } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `登录失败: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
+        const message = error instanceof Error ? error.message : String(error);
+        return buildJsonToolResult({
+          ok: false,
+          code: "INTERNAL_ERROR",
+          message: `登录失败: ${message}`,
+          auth_challenge: authChallenge(),
+          next_step: buildLoginNextStep("status", {
+            suggestedArgs: { action: "status" },
+          }),
+        });
       }
     },
   );
@@ -289,6 +716,10 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                   result.EnvList = simplifyEnvList(result.EnvList);
                 }
               } catch (fallbackError) {
+                const toolPayloadResult = toolPayloadErrorToResult(fallbackError);
+                if (toolPayloadResult) {
+                  return toolPayloadResult;
+                }
                 debug("降级到 listEnvs() 也失败:", fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError)));
                 return {
                   content: [
@@ -358,6 +789,10 @@ export function registerEnvTools(server: ExtendedMcpServer) {
           ],
         };
       } catch (error) {
+        const toolPayloadResult = toolPayloadErrorToResult(error);
+        if (toolPayloadResult) {
+          return toolPayloadResult;
+        }
         return {
           content: [
             {
@@ -426,6 +861,10 @@ export function registerEnvTools(server: ExtendedMcpServer) {
           ],
         };
       } catch (error) {
+        const toolPayloadResult = toolPayloadErrorToResult(error);
+        if (toolPayloadResult) {
+          return toolPayloadResult;
+        }
         return {
           content: [
             {

@@ -1,9 +1,161 @@
 import CloudBase from "@cloudbase/manager-node";
-import { getLoginState } from './auth.js';
+import {
+    getAuthProgressState,
+    peekLoginState,
+    getLoginState,
+} from './auth.js';
 import { _promptAndSetEnvironmentId, type EnvSetupFailureInfo } from './tools/interactive.js';
 import { CloudBaseOptions, Logger } from './types.js';
 import { debug, error } from './utils/logger.js';
+import { buildLoginNextStep, throwToolPayloadError } from './utils/tool-result.js';
 const ENV_ID_TIMEOUT = 600000; // 10 minutes (600 seconds) - matches InteractiveServer timeout
+
+export type EnvCandidate = {
+    envId: string;
+    env_id: string;
+    alias?: string;
+    region?: string;
+    status?: string;
+    env_type?: string;
+};
+
+function toEnvCandidates(envList: any[]): EnvCandidate[] {
+    if (!Array.isArray(envList)) {
+        return [];
+    }
+
+    return envList
+        .filter((item) => item?.EnvId)
+        .map((item) => ({
+            envId: item.EnvId,
+            env_id: item.EnvId,
+            alias: item.Alias,
+            region: item.Region,
+            status: item.Status,
+            env_type: item.EnvType,
+        }));
+}
+
+function createManagerFromLoginState(loginState: any, region?: string): CloudBase {
+    return new CloudBase({
+        secretId: loginState.secretId,
+        secretKey: loginState.secretKey,
+        envId: loginState.envId,
+        token: loginState.token,
+        proxy: process.env.http_proxy,
+        region,
+    });
+}
+
+export async function listAvailableEnvCandidates(options?: {
+    cloudBaseOptions?: CloudBaseOptions;
+    loginState?: any;
+}): Promise<EnvCandidate[]> {
+    const { cloudBaseOptions, loginState: providedLoginState } = options ?? {};
+
+    if (cloudBaseOptions?.envId) {
+        return [{
+            envId: cloudBaseOptions.envId,
+            env_id: cloudBaseOptions.envId,
+        }];
+    }
+
+    let cloudbase: CloudBase | undefined;
+    if (cloudBaseOptions?.secretId && cloudBaseOptions?.secretKey) {
+        cloudbase = createCloudBaseManagerWithOptions(cloudBaseOptions);
+    } else {
+        const loginState = providedLoginState ?? await peekLoginState();
+        if (!loginState?.secretId || !loginState?.secretKey) {
+            return [];
+        }
+        const region = cloudBaseOptions?.region ?? process.env.TCB_REGION ?? undefined;
+        cloudbase = createManagerFromLoginState(loginState, region);
+    }
+
+    try {
+        const result = await cloudbase.commonService("tcb", "2018-06-08").call({
+            Action: "DescribeEnvs",
+            Param: {
+                EnvTypes: ["weda", "baas"],
+                IsVisible: false,
+                Channels: ["dcloud", "iotenable", "tem", "scene_module"],
+            },
+        });
+        const envList = result?.EnvList || result?.Data?.EnvList || [];
+        return toEnvCandidates(envList);
+    } catch {
+        try {
+            const fallback = await cloudbase.env.listEnvs();
+            return toEnvCandidates(fallback?.EnvList || []);
+        } catch {
+            return [];
+        }
+    }
+}
+
+function throwAuthRequiredError() {
+    throwToolPayloadError({
+        ok: false,
+        code: "AUTH_REQUIRED",
+        message: "当前未登录，请先调用 login 工具完成认证。",
+        next_step: buildLoginNextStep("start_auth", {
+            suggestedArgs: {
+                action: "start_auth",
+                authMode: "device",
+            },
+        }),
+    });
+}
+
+async function throwPendingAuthError() {
+    const authState = await getAuthProgressState();
+    throwToolPayloadError({
+        ok: false,
+        code: "AUTH_PENDING",
+        message: authState.lastError || "设备码授权进行中，请先完成登录后再重试当前工具。",
+        auth_challenge: authState.authChallenge
+            ? {
+                user_code: authState.authChallenge.user_code,
+                verification_uri: authState.authChallenge.verification_uri,
+                expires_in: authState.authChallenge.expires_in,
+            }
+            : undefined,
+        next_step: buildLoginNextStep("status", {
+            suggestedArgs: {
+                action: "status",
+            },
+        }),
+    });
+}
+
+async function throwEnvRequiredError(options?: {
+    cloudBaseOptions?: CloudBaseOptions;
+    loginState?: any;
+}) {
+    const envCandidates = await listAvailableEnvCandidates(options);
+    const singleEnvId = envCandidates.length === 1 ? envCandidates[0].envId : undefined;
+    throwToolPayloadError({
+        ok: false,
+        code: "ENV_REQUIRED",
+        message: envCandidates.length === 0
+            ? "当前已登录，但还没有可用环境，请先调用 login 工具完成环境选择或创建环境。"
+            : envCandidates.length === 1
+                ? `当前已登录，但尚未绑定环境。可直接选择环境 ${singleEnvId}。`
+                : "当前已登录，但尚未绑定环境，请先调用 login 工具选择环境。",
+        env_candidates: envCandidates,
+        next_step: buildLoginNextStep("select_env", {
+            requiredParams: singleEnvId ? undefined : ["envId"],
+            suggestedArgs: singleEnvId
+                ? {
+                    action: "select_env",
+                    envId: singleEnvId,
+                }
+                : {
+                    action: "select_env",
+                },
+        }),
+    });
+}
 
 // 统一的环境ID管理类
 class EnvironmentManager {
@@ -222,6 +374,18 @@ export async function getEnvId(cloudBaseOptions?: CloudBaseOptions): Promise<str
         return cloudBaseOptions.envId;
     }
 
+    const cachedEnvId = envManager.getCachedEnvId() || process.env.CLOUDBASE_ENV_ID;
+    if (cachedEnvId) {
+        debug('使用缓存中的 envId:', { envId: cachedEnvId });
+        return cachedEnvId;
+    }
+
+    const loginState = await peekLoginState();
+    if (typeof loginState?.envId === 'string' && loginState.envId.length > 0) {
+        debug('使用登录态中的 envId:', { envId: loginState.envId });
+        return loginState.envId;
+    }
+
     // 否则使用默认逻辑
     return envManager.getEnvId();
 }
@@ -240,16 +404,25 @@ export interface GetManagerOptions {
     requireEnvId?: boolean;
     cloudBaseOptions?: CloudBaseOptions;
     mcpServer?: any; // Optional MCP server instance for IDE detection (e.g., CodeBuddy)
+    authStrategy?: 'fail_fast' | 'ensure';
 }
 
 /**
  * 每次都实时获取最新的 token/secretId/secretKey
  */
 export async function getCloudBaseManager(options: GetManagerOptions = {}): Promise<CloudBase> {
-    const { requireEnvId = true, cloudBaseOptions, mcpServer } = options;
+    const {
+        requireEnvId = true,
+        cloudBaseOptions,
+        mcpServer,
+        authStrategy = 'fail_fast',
+    } = options;
 
     // 如果传入了 cloudBaseOptions，直接使用传入的配置
     if (cloudBaseOptions) {
+        if (authStrategy === 'fail_fast' && requireEnvId && !cloudBaseOptions.envId) {
+            await throwEnvRequiredError({ cloudBaseOptions });
+        }
         debug('使用传入的 CloudBase 配置');
         return createCloudBaseManagerWithOptions(cloudBaseOptions);
     }
@@ -258,7 +431,17 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
         // Get region from environment variable for auth URL
         // Note: At this point, cloudBaseOptions is undefined (checked above), so only use env var
         const region = process.env.TCB_REGION;
-        const loginState = await getLoginState({ region });
+        const loginState = authStrategy === 'ensure'
+            ? await getLoginState({ region })
+            : await peekLoginState();
+
+        if (!loginState) {
+            const authState = await getAuthProgressState();
+            if (authState.status === 'PENDING') {
+                await throwPendingAuthError();
+            }
+            throwAuthRequiredError();
+        }
         const {
             envId: loginEnvId,
             secretId,
@@ -280,6 +463,9 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
                 debug('使用 loginState 中的环境ID:', { loginEnvId });
                 finalEnvId = loginEnvId;
             } else {
+                if (authStrategy === 'fail_fast') {
+                    await throwEnvRequiredError({ loginState });
+                }
                 // Only call envManager.getEnvId() when neither cache nor loginState has envId
                 // This may trigger auto-setup flow (pass mcpServer for IDE detection)
                 finalEnvId = await envManager.getEnvId(mcpServer);

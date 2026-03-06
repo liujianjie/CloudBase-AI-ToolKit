@@ -37,7 +37,7 @@
 <tr><td><code>domainManagement</code></td><td>统一的域名管理工具，支持绑定、解绑、查询和修改域名配置</td></tr>
 <tr><td><code>queryStorage</code></td><td>查询云存储信息，支持列出目录文件、获取文件信息、获取临时下载链接等只读操作。返回的文件信息包括文件名、大小、修改时间、下载链接等。</td></tr>
 <tr><td><code>manageStorage</code></td><td>管理云存储文件，支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。</td></tr>
-<tr><td><code>downloadTemplate</code></td><td>自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️&lt;br/&gt;**CRITICAL**: This tool MUST be called FIRST when starting a new project.&lt;br/&gt;支持的模板:&lt;br/&gt;- react: React + CloudBase 全栈应用模板&lt;br/&gt;- vue: Vue + CloudBase 全栈应用模板&lt;br/&gt;- miniprogram: 微信小程序 + 云开发模板  &lt;br/&gt;- uniapp: UniApp + CloudBase 跨端应用模板&lt;br/&gt;- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置&lt;br/&gt;支持的IDE类型:&lt;br/&gt;- all: 下载所有IDE配置&lt;br/&gt;- cursor: Cursor AI编辑器&lt;br/&gt;- 其他IDE类型见下方列表&lt;br/&gt;注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数&lt;br/&gt;- windsurf: WindSurf AI编辑器&lt;br/&gt;- codebuddy: CodeBuddy AI编辑器&lt;br/&gt;- claude-code: Claude Code AI编辑器&lt;br/&gt;- cline: Cline AI编辑器&lt;br/&gt;- gemini-cli: Gemini CLI&lt;br/&gt;- opencode: OpenCode AI编辑器&lt;br/&gt;- qwen-code: 通义灵码&lt;br/&gt;- baidu-comate: 百度Comate&lt;br/&gt;- openai-codex-cli: OpenAI Codex CLI&lt;br/&gt;- augment-code: Augment Code&lt;br/&gt;- github-copilot: GitHub Copilot&lt;br/&gt;- roocode: RooCode AI编辑器&lt;br/&gt;- tongyi-lingma: 通义灵码&lt;br/&gt;- trae: Trae AI编辑器&lt;br/&gt;- qoder: Qoder AI编辑器&lt;br/&gt;- antigravity: Google Antigravity AI编辑器&lt;br/&gt;- vscode: Visual Studio Code&lt;br/&gt;- kiro: Kiro AI编辑器&lt;br/&gt;- aider: Aider AI编辑器&lt;br/&gt;特别说明：&lt;br/&gt;- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.10.0），便于后续维护和版本追踪&lt;br/&gt;- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）</td></tr>
+<tr><td><code>downloadTemplate</code></td><td>自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️&lt;br/&gt;**CRITICAL**: This tool MUST be called FIRST when starting a new project.&lt;br/&gt;支持的模板:&lt;br/&gt;- react: React + CloudBase 全栈应用模板&lt;br/&gt;- vue: Vue + CloudBase 全栈应用模板&lt;br/&gt;- miniprogram: 微信小程序 + 云开发模板  &lt;br/&gt;- uniapp: UniApp + CloudBase 跨端应用模板&lt;br/&gt;- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置&lt;br/&gt;支持的IDE类型:&lt;br/&gt;- all: 下载所有IDE配置&lt;br/&gt;- cursor: Cursor AI编辑器&lt;br/&gt;- 其他IDE类型见下方列表&lt;br/&gt;注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数&lt;br/&gt;- windsurf: WindSurf AI编辑器&lt;br/&gt;- codebuddy: CodeBuddy AI编辑器&lt;br/&gt;- claude-code: Claude Code AI编辑器&lt;br/&gt;- cline: Cline AI编辑器&lt;br/&gt;- gemini-cli: Gemini CLI&lt;br/&gt;- opencode: OpenCode AI编辑器&lt;br/&gt;- qwen-code: 通义灵码&lt;br/&gt;- baidu-comate: 百度Comate&lt;br/&gt;- openai-codex-cli: OpenAI Codex CLI&lt;br/&gt;- augment-code: Augment Code&lt;br/&gt;- github-copilot: GitHub Copilot&lt;br/&gt;- roocode: RooCode AI编辑器&lt;br/&gt;- tongyi-lingma: 通义灵码&lt;br/&gt;- trae: Trae AI编辑器&lt;br/&gt;- qoder: Qoder AI编辑器&lt;br/&gt;- antigravity: Google Antigravity AI编辑器&lt;br/&gt;- vscode: Visual Studio Code&lt;br/&gt;- kiro: Kiro AI编辑器&lt;br/&gt;- aider: Aider AI编辑器&lt;br/&gt;特别说明：&lt;br/&gt;- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.11.1），便于后续维护和版本追踪&lt;br/&gt;- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）</td></tr>
 <tr><td><code>interactiveDialog</code></td><td>统一的交互式对话工具，支持需求澄清和任务确认，当需要和用户确认下一步的操作的时候，可以调用这个工具的clarify，如果有敏感的操作，需要用户确认，可以调用这个工具的confirm</td></tr>
 <tr><td><code>searchWeb</code></td><td>使用联网来进行信息检索，如查询最新的新闻、文章、股价、天气等。支持自然语言查询，也可以直接输入网址获取网页内容</td></tr>
 <tr><td><code>searchKnowledgeBase</code></td><td>云开发知识库智能检索工具，支持向量查询 (vector)、固定文档 (doc) 和 OpenAPI 文档 (openapi) 查询。&lt;br/&gt;      强烈推荐始终优先使用固定文档 (doc) 或 OpenAPI 文档 (openapi) 模式进行检索，仅当固定文档无法覆盖你的问题时，再使用向量查询 (vector) 模式。&lt;br/&gt;      固定文档 (doc) 查询当前支持 22 个固定文档，分别是：&lt;br/&gt;      文档名：ai-model-nodejs 文档介绍：Use this skill when developing Node.js backend services or CloudBase cloud functions (Express/Koa/NestJS, serverless, backend APIs) that need AI capabilities. Features text generation (generateText), streaming (streamText), AND image generation (generateImage) via @cloudbase/node-sdk ≥3.16.0. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended), DeepSeek (deepseek-v3.2 recommended), and hunyuan-image for images. This is the ONLY SDK that supports image generation. NOT for browser/Web apps (use ai-model-web) or WeChat Mini Program (use ai-model-wechat).&lt;br/&gt;文档名：ai-model-web 文档介绍：Use this skill when developing browser/Web applications (React/Vue/Angular, static websites, SPAs) that need AI capabilities. Features text generation (generateText) and streaming (streamText) via @cloudbase/js-sdk. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). NOT for Node.js backend (use ai-model-nodejs), WeChat Mini Program (use ai-model-wechat), or image generation (Node SDK only).&lt;br/&gt;文档名：ai-model-wechat 文档介绍：Use this skill when developing WeChat Mini Programs (小程序, 企业微信小程序, wx.cloud-based apps) that need AI capabilities. Features text generation (generateText) and streaming (streamText) with callback support (onText, onEvent, onFinish) via wx.cloud.extend.AI. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). API differs from JS/Node SDK - streamText requires data wrapper, generateText returns raw response. NOT for browser/Web apps (use ai-model-web), Node.js backend (use ai-model-nodejs), or image generation (not supported).&lt;br/&gt;文档名：auth-http-api 文档介绍：Use when you need to implement CloudBase Auth v2 over raw HTTP endpoints (login/signup, tokens, user operations) from backends or scripts that are not using the Web or Node SDKs.&lt;br/&gt;文档名：auth-nodejs 文档介绍：Complete guide for CloudBase Auth using the CloudBase Node SDK – caller identity, user lookup, custom login tickets, and server-side best practices.&lt;br/&gt;文档名：auth-tool 文档介绍：Use CloudBase Auth tool to configure and manage authentication providers for web applications - enable/disable login methods (SMS, Email, WeChat Open Platform, Google, Anonymous, Username/password, OAuth, SAML, CAS, Dingding, etc.) and configure provider settings via MCP tools `callCloudApi`.&lt;br/&gt;文档名：auth-web 文档介绍：CloudBase Web Authentication Quick Guide - Provides concise and practical Web frontend authentication solutions with multiple login methods and complete user management.&lt;br/&gt;文档名：auth-wechat 文档介绍：Complete guide for WeChat Mini Program authentication with CloudBase - native login, user identity, and cloud function integration.&lt;br/&gt;文档名：cloud-functions 文档介绍：Complete guide for CloudBase cloud functions development - runtime selection, deployment, logging, invocation, and HTTP access configuration.&lt;br/&gt;文档名：cloud-storage-web 文档介绍：Complete guide for CloudBase cloud storage using Web SDK (@cloudbase/js-sdk) - upload, download, temporary URLs, file management, and best practices.&lt;br/&gt;文档名：cloudbase-platform 文档介绍：CloudBase platform knowledge and best practices. Use this skill for general CloudBase platform understanding, including storage, hosting, authentication, cloud functions, database permissions, and data models.&lt;br/&gt;文档名：cloudrun-development 文档介绍：CloudBase Run backend development rules (Function mode/Container mode). Use this skill when deploying backend services that require long connections, multi-language support, custom environments, or AI agent development.&lt;br/&gt;文档名：data-model-creation 文档介绍：Optional advanced tool for complex data modeling. For simple table creation, use relational-database-tool directly with SQL statements.&lt;br/&gt;文档名：http-api 文档介绍：Use CloudBase HTTP API to access CloudBase platform features (database, authentication, cloud functions, cloud hosting, cloud storage, AI) via HTTP protocol from backends or scripts that are not using SDKs.&lt;br/&gt;文档名：miniprogram-development 文档介绍：WeChat Mini Program development rules. Use this skill when developing WeChat mini programs, integrating CloudBase capabilities, and deploying mini program projects.&lt;br/&gt;文档名：no-sql-web-sdk 文档介绍：Use CloudBase document database Web SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.&lt;br/&gt;文档名：no-sql-wx-mp-sdk 文档介绍：Use CloudBase document database WeChat MiniProgram SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.&lt;br/&gt;文档名：relational-database-tool 文档介绍：This is the required documentation for agents operating on the CloudBase Relational Database. It lists the only four supported tools for running SQL and managing security rules. Read the full content to understand why you must NOT use standard Application SDKs and how to safely execute INSERT, UPDATE, or DELETE operations without corrupting production data.&lt;br/&gt;文档名：relational-database-web 文档介绍：Use when building frontend Web apps that talk to CloudBase Relational Database via @cloudbase/js-sdk – provides the canonical init pattern so you can then use Supabase-style queries from the browser.&lt;br/&gt;文档名：spec-workflow 文档介绍：Standard software engineering workflow for requirement analysis, technical design, and task planning. Use this skill when developing new features, complex architecture designs, multi-module integrations, or projects involving database/UI design.&lt;br/&gt;文档名：ui-design 文档介绍：Professional UI design and frontend interface guidelines. Use this skill when creating web pages, mini-program interfaces, prototypes, or any frontend UI components that require distinctive, production-grade design with exceptional aesthetic quality.&lt;br/&gt;文档名：web-development 文档介绍：Web frontend project development rules. Use this skill when developing web frontend pages, deploying static hosting, and integrating CloudBase Web SDK.&lt;br/&gt;      OpenAPI 文档 (openapi) 查询当前支持 5 个 API 文档，分别是：&lt;br/&gt;      API名：mysqldb API介绍：MySQL RESTful API - 云开发 MySQL 数据库 HTTP API&lt;br/&gt;API名：functions API介绍：Cloud Functions API - 云函数 HTTP API&lt;br/&gt;API名：auth API介绍：Authentication API - 身份认证 HTTP API&lt;br/&gt;API名：cloudrun API介绍：CloudRun API - 云托管服务 HTTP API&lt;br/&gt;API名：storage API介绍：Storage API - 云存储 HTTP API</td></tr>
@@ -78,9 +78,52 @@
 <table>
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
+<tr><td><code>action</code></td><td>string</td><td></td><td>登录动作：ensure=确保已登录并绑定环境，start_auth=仅发起认证，select_env=仅设置环境，status=查询当前状态 可填写的值: "ensure", "start_auth", "select_env", "status"</td></tr>
 <tr><td><code>forceUpdate</code></td><td>boolean</td><td></td><td>是否强制重新选择环境</td></tr>
+<tr><td><code>authMode</code></td><td>string</td><td></td><td>认证模式：device=设备码授权，web=浏览器回调授权 可填写的值: "device", "web"</td></tr>
+<tr><td><code>envId</code></td><td>string</td><td></td><td>环境ID。action=select_env 时可直接指定环境，避免交互式选择</td></tr>
 </tbody>
 </table>
+
+#### 结构化返回
+
+`login` 会返回 JSON 文本，推荐 AI 直接解析以下字段：
+
+- `code`：关键状态码。常见值包括 `STATUS`、`AUTH_REQUIRED`、`AUTH_PENDING`、`AUTH_READY`、`ENV_READY`、`READY`、`NO_ENV`、`INVALID_ARGS`、`USER_CANCELLED`、`INTERNAL_ERROR`
+- `auth_status` / `env_status`：仅 `action=status` 时返回，表示当前认证和环境状态
+- `auth_challenge`：当设备码登录进行中时返回，包含 `user_code`、`verification_uri`、`expires_in`
+- `env_candidates`：环境候选列表。元素包含 `envId`、`env_id`、`alias`、`region`、`status`、`env_type`
+- `next_step`：下一步推荐动作，固定包含 `tool` 与 `action`，并可带 `required_params`、`suggested_args`
+
+#### 推荐用法
+
+1. 首次登录：调用 `login(action="start_auth", authMode="device")`
+2. 查询当前状态：调用 `login(action="status")`
+3. 绑定环境：调用 `login(action="select_env", envId="xxx")`
+4. 一次性完成登录与环境绑定：调用 `login(action="ensure")`
+
+#### 常见状态码
+
+| code | 含义 | 推荐下一步 |
+|------|------|-----------|
+| `AUTH_REQUIRED` | 当前未登录 | 调用 `login(action="start_auth", authMode="device")` |
+| `AUTH_PENDING` | 设备码授权进行中 | 按 `auth_challenge` 完成浏览器授权，再调用 `login(action="status")` |
+| `ENV_REQUIRED` | 已登录但尚未绑定环境 | 调用 `login(action="select_env")`，必要时传 `envId` |
+| `READY` | 登录与环境都已就绪 | 可继续调用其他 CloudBase 相关工具 |
+
+### 认证前置与统一失败协议
+
+除 `login`、`logout` 等少数环境管理工具外，其他受保护工具在未登录、设备码授权进行中、或未绑定环境时，会快速失败并返回结构化 JSON，而不是隐式拉起登录页或环境选择页。
+
+推荐 AI 解析失败结果中的 `next_step` 字段：
+
+- `next_step.tool="login"`：表示下一步应调用 `login` 工具
+- `next_step.action="start_auth"`：表示需要先发起认证
+- `next_step.action="status"`：表示当前认证进行中，应轮询状态
+- `next_step.action="select_env"`：表示需要绑定环境
+- `next_step.suggested_args`：可直接作为下次调用参数使用
+
+如果工具返回 `AUTH_PENDING`，且带有 `auth_challenge`，请优先展示 `verification_uri` 与 `user_code` 给用户，而不是依赖终端输出。
 
 ---
 
@@ -181,7 +224,7 @@
 <tr><td><code>collectionName</code></td><td>string</td><td>是</td><td>集合名称</td></tr>
 <tr><td><code>query</code></td><td>object \| string</td><td></td><td>查询条件(对象或字符串,推荐对象)</td></tr>
 <tr><td><code>projection</code></td><td>object \| string</td><td></td><td>返回字段投影(对象或字符串,推荐对象)</td></tr>
-<tr><td><code>sort</code></td><td>object \| string</td><td></td><td>排序条件(对象或字符串,推荐对象)</td></tr>
+<tr><td><code>sort</code></td><td>array of object \| string</td><td></td><td>排序条件，使用对象或字符串。</td></tr>
 <tr><td><code>limit</code></td><td>number</td><td></td><td>返回数量限制</td></tr>
 <tr><td><code>offset</code></td><td>number</td><td></td><td>跳过的记录数</td></tr>
 </tbody>
@@ -629,7 +672,7 @@ classDiagram
 - aider: Aider AI编辑器
 
 特别说明：
-- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.10.0），便于后续维护和版本追踪
+- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.11.1），便于后续维护和版本追踪
 - 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）
 
 #### 参数
