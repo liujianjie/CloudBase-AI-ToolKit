@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   getCloudBaseManager,
+  getEnvId,
   logCloudBaseResult,
 } from "../cloudbase-manager.js";
 import { ExtendedMcpServer } from "../server.js";
@@ -42,6 +43,54 @@ export const TRIGGER_CONFIG_EXAMPLES = {
   },
 };
 
+export const READ_FUNCTION_LAYER_ACTIONS = [
+  "listLayers",
+  "listLayerVersions",
+  "getLayerVersion",
+  "getFunctionLayers",
+] as const;
+
+export const WRITE_FUNCTION_LAYER_ACTIONS = [
+  "createLayerVersion",
+  "deleteLayerVersion",
+  "attachLayer",
+  "detachLayer",
+  "updateFunctionLayers",
+] as const;
+
+type ReadFunctionLayerAction = (typeof READ_FUNCTION_LAYER_ACTIONS)[number];
+type WriteFunctionLayerAction = (typeof WRITE_FUNCTION_LAYER_ACTIONS)[number];
+
+type FunctionLayerInput = {
+  LayerName: string;
+  LayerVersion: number;
+};
+
+function jsonContent(body: unknown) {
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: JSON.stringify(body, null, 2),
+      },
+    ],
+  };
+}
+
+function normalizeFunctionLayers(layers: unknown): FunctionLayerInput[] {
+  if (!Array.isArray(layers)) {
+    return [];
+  }
+
+  return layers
+    .filter((layer): layer is Record<string, unknown> => Boolean(layer))
+    .map((layer) => ({
+      LayerName: String(layer.LayerName ?? ""),
+      LayerVersion: Number(layer.LayerVersion ?? 0),
+    }))
+    .filter((layer) => Boolean(layer.LayerName) && Number.isFinite(layer.LayerVersion));
+}
+
 /**
  * 处理函数根目录路径，确保不包含函数名
  * @param functionRootPath 用户输入的路径
@@ -82,13 +131,13 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     {
       title: "查询云函数列表或详情",
       description:
-        "获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称）",
+        "获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称，返回结果中包含函数当前绑定的 Layers 信息）",
       inputSchema: {
         action: z
           .enum(["list", "detail"])
           .optional()
           .describe(
-            "操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数）",
+            "操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数，返回结果中包含当前绑定的 Layers）",
           ),
         limit: z.number().optional().describe("范围（list 操作时使用）"),
         offset: z.number().optional().describe("偏移（list 操作时使用）"),
@@ -761,6 +810,480 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       } else {
         throw new Error(`不支持的操作类型: ${action}`);
       }
+    },
+  );
+
+  server.registerTool?.(
+    "readFunctionLayers",
+    {
+      title: "查询云函数层信息",
+      description:
+        "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。返回格式：JSON 包含 success、data（含 action 与对应结果字段）、message；data.layers 或 data.layerVersions 为数组，getFunctionLayers 的 data.layers 每项为 { LayerName, LayerVersion }。",
+      inputSchema: {
+        action: z
+          .enum(READ_FUNCTION_LAYER_ACTIONS)
+          .describe(
+            "操作类型：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情，getFunctionLayers=查询指定函数当前绑定的层",
+          ),
+        name: z
+          .string()
+          .optional()
+          .describe("层名称。listLayerVersions 和 getLayerVersion 操作时必填"),
+        version: z
+          .number()
+          .optional()
+          .describe("层版本号。getLayerVersion 操作时必填"),
+        runtime: z
+          .string()
+          .optional()
+          .describe("运行时筛选。listLayers 操作时可选"),
+        searchKey: z
+          .string()
+          .optional()
+          .describe("层名称搜索关键字。listLayers 操作时可选"),
+        offset: z.number().optional().describe("分页偏移。listLayers 操作时可选"),
+        limit: z.number().optional().describe("分页数量。listLayers 操作时可选"),
+        functionName: z
+          .string()
+          .optional()
+          .describe("函数名称。getFunctionLayers 操作时必填"),
+        codeSecret: z
+          .string()
+          .optional()
+          .describe("代码保护密钥。getFunctionLayers 操作时可选"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: true,
+        category: "functions",
+      },
+    },
+    async ({
+      action,
+      name,
+      version,
+      runtime,
+      searchKey,
+      offset,
+      limit,
+      functionName,
+      codeSecret,
+    }: {
+      action: ReadFunctionLayerAction;
+      name?: string;
+      version?: number;
+      runtime?: string;
+      searchKey?: string;
+      offset?: number;
+      limit?: number;
+      functionName?: string;
+      codeSecret?: string;
+    }) => {
+      if (action === "listLayers") {
+        const cloudbase = await getManager();
+        const result = await cloudbase.functions.listLayers({
+          offset,
+          limit,
+          runtime,
+          searchKey,
+        });
+        logCloudBaseResult(server.logger, result);
+        return jsonContent({
+          success: true,
+          data: {
+            action,
+            layers: result.Layers || [],
+            totalCount: result.TotalCount || 0,
+            requestId: result.RequestId,
+          },
+          message: `Successfully retrieved ${result.Layers?.length || 0} layer entries`,
+          nextActions: [
+            { tool: "readFunctionLayers", action: "listLayerVersions", reason: "List versions of a layer" },
+            { tool: "writeFunctionLayers", action: "createLayerVersion", reason: "Create a new layer version" },
+          ],
+        });
+      }
+
+      if (action === "listLayerVersions") {
+        if (!name) {
+          throw new Error("查询层版本列表时，name 参数是必需的");
+        }
+
+        const cloudbase = await getManager();
+        const result = await cloudbase.functions.listLayerVersions({ name });
+        logCloudBaseResult(server.logger, result);
+        return jsonContent({
+          success: true,
+          data: {
+            action,
+            name,
+            layerVersions: result.LayerVersions || [],
+            requestId: result.RequestId,
+          },
+          message: `Successfully retrieved ${result.LayerVersions?.length || 0} versions for layer '${name}'`,
+          nextActions: [
+            { tool: "readFunctionLayers", action: "getLayerVersion", reason: "Get version details and download info" },
+            { tool: "writeFunctionLayers", action: "attachLayer", reason: "Bind this layer to a function" },
+          ],
+        });
+      }
+
+      if (action === "getLayerVersion") {
+        if (!name) {
+          throw new Error("查询层版本详情时，name 参数是必需的");
+        }
+        if (typeof version !== "number") {
+          throw new Error("查询层版本详情时，version 参数是必需的");
+        }
+
+        const cloudbase = await getManager();
+        const result = await cloudbase.functions.getLayerVersion({
+          name,
+          version,
+        });
+        logCloudBaseResult(server.logger, result);
+        return jsonContent({
+          success: true,
+          data: {
+            action,
+            name,
+            version,
+            layerVersion: result,
+            downloadInfo: {
+              location: result.Location,
+              codeSha256: result.CodeSha256,
+            },
+            requestId: result.RequestId,
+          },
+          message: `Successfully retrieved details for layer '${name}' version ${version}`,
+          nextActions: [
+            { tool: "writeFunctionLayers", action: "attachLayer", reason: "Bind this layer version to a function" },
+            { tool: "writeFunctionLayers", action: "deleteLayerVersion", reason: "Delete this layer version" },
+          ],
+        });
+      }
+
+      if (!functionName) {
+        throw new Error("查询函数层配置时，functionName 参数是必需的");
+      }
+
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionDetail(
+        functionName,
+        codeSecret,
+      );
+      logCloudBaseResult(server.logger, result);
+      const layers = normalizeFunctionLayers(result.Layers);
+      return jsonContent({
+        success: true,
+        data: {
+          action,
+          functionName,
+          layers,
+          count: layers.length,
+          requestId: result.RequestId,
+        },
+        message: `Successfully retrieved ${layers.length} bound layers for function '${functionName}'`,
+        nextActions: [
+          { tool: "writeFunctionLayers", action: "attachLayer", reason: "Add a layer to this function" },
+          { tool: "writeFunctionLayers", action: "detachLayer", reason: "Remove a layer from this function" },
+          { tool: "writeFunctionLayers", action: "updateFunctionLayers", reason: "Replace or reorder bound layers" },
+        ],
+      });
+    },
+  );
+
+  server.registerTool?.(
+    "writeFunctionLayers",
+    {
+      title: "管理云函数层",
+      description:
+        "管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。返回格式：JSON 包含 success、data（含 action 与结果字段，如 layerVersion、layers）、message、nextActions（建议的后续操作）。",
+      inputSchema: {
+        action: z
+          .enum(WRITE_FUNCTION_LAYER_ACTIONS)
+          .describe(
+            "操作类型：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=追加绑定层，detachLayer=解绑层，updateFunctionLayers=整体更新函数层数组",
+          ),
+        name: z
+          .string()
+          .optional()
+          .describe("层名称。createLayerVersion 和 deleteLayerVersion 操作时必填"),
+        version: z
+          .number()
+          .optional()
+          .describe("层版本号。deleteLayerVersion 操作时必填"),
+        contentPath: z
+          .string()
+          .optional()
+          .describe("层内容路径，可以是目录或 ZIP 文件路径。createLayerVersion 操作时与 base64Content 二选一"),
+        base64Content: z
+          .string()
+          .optional()
+          .describe("层内容的 base64 编码。createLayerVersion 操作时与 contentPath 二选一"),
+        runtimes: z
+          .array(z.string())
+          .optional()
+          .describe("层适用的运行时列表。createLayerVersion 操作时必填"),
+        description: z
+          .string()
+          .optional()
+          .describe("层版本描述。createLayerVersion 操作时可选"),
+        licenseInfo: z
+          .string()
+          .optional()
+          .describe("许可证信息。createLayerVersion 操作时可选"),
+        functionName: z
+          .string()
+          .optional()
+          .describe("函数名称。attachLayer、detachLayer、updateFunctionLayers 操作时必填"),
+        layerName: z
+          .string()
+          .optional()
+          .describe("要绑定或解绑的层名称。attachLayer 和 detachLayer 操作时必填"),
+        layerVersion: z
+          .number()
+          .optional()
+          .describe("要绑定或解绑的层版本号。attachLayer 和 detachLayer 操作时必填"),
+        layers: z
+          .array(
+            z.object({
+              LayerName: z.string().describe("层名称"),
+              LayerVersion: z.number().describe("层版本号"),
+            }),
+          )
+          .optional()
+          .describe("目标函数层数组。updateFunctionLayers 操作时必填，顺序即最终顺序"),
+        codeSecret: z
+          .string()
+          .optional()
+          .describe("代码保护密钥。attachLayer 和 detachLayer 操作时可选"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+        category: "functions",
+      },
+    },
+    async ({
+      action,
+      name,
+      version,
+      contentPath,
+      base64Content,
+      runtimes,
+      description,
+      licenseInfo,
+      functionName,
+      layerName,
+      layerVersion,
+      layers,
+      codeSecret,
+    }: {
+      action: WriteFunctionLayerAction;
+      name?: string;
+      version?: number;
+      contentPath?: string;
+      base64Content?: string;
+      runtimes?: string[];
+      description?: string;
+      licenseInfo?: string;
+      functionName?: string;
+      layerName?: string;
+      layerVersion?: number;
+      layers?: FunctionLayerInput[];
+      codeSecret?: string;
+    }) => {
+      if (action === "createLayerVersion") {
+        if (!name) {
+          throw new Error("创建层版本时，name 参数是必需的");
+        }
+        if (!runtimes || runtimes.length === 0) {
+          throw new Error("创建层版本时，runtimes 参数是必需的");
+        }
+        if (!contentPath && !base64Content) {
+          throw new Error(
+            "创建层版本时，contentPath 和 base64Content 至少需要提供一个",
+          );
+        }
+
+        const cloudbase = await getManager();
+        const result = await cloudbase.functions.createLayer({
+          name,
+          contentPath,
+          base64Content,
+          runtimes,
+          description,
+          licenseInfo,
+        });
+        logCloudBaseResult(server.logger, result);
+        return jsonContent({
+          success: true,
+          data: {
+            action,
+            name,
+            layerVersion: result.LayerVersion,
+            requestId: result.RequestId,
+          },
+          message: `Successfully created a new version for layer '${name}'`,
+          nextActions: [
+            { tool: "readFunctionLayers", action: "listLayerVersions", reason: "List all versions of this layer" },
+            { tool: "writeFunctionLayers", action: "attachLayer", reason: "Bind this version to a function" },
+          ],
+        });
+      }
+
+      if (action === "deleteLayerVersion") {
+        if (!name) {
+          throw new Error("删除层版本时，name 参数是必需的");
+        }
+        if (typeof version !== "number") {
+          throw new Error("删除层版本时，version 参数是必需的");
+        }
+
+        const cloudbase = await getManager();
+        const result = await cloudbase.functions.deleteLayerVersion({
+          name,
+          version,
+        });
+        logCloudBaseResult(server.logger, result);
+        return jsonContent({
+          success: true,
+          data: {
+            action,
+            name,
+            version,
+            requestId: result.RequestId,
+          },
+          message: `Successfully deleted layer '${name}' version ${version}`,
+          nextActions: [
+            { tool: "readFunctionLayers", action: "listLayers", reason: "List remaining layers" },
+          ],
+        });
+      }
+
+      if (
+        action === "attachLayer" ||
+        action === "detachLayer" ||
+        action === "updateFunctionLayers"
+      ) {
+        if (!functionName) {
+          throw new Error(`${action} 操作时，functionName 参数是必需的`);
+        }
+      }
+
+      const envId = await getEnvId(cloudBaseOptions);
+      const cloudbase = await getManager();
+
+      if (action === "attachLayer") {
+        if (!layerName) {
+          throw new Error("attachLayer 操作时，layerName 参数是必需的");
+        }
+        if (typeof layerVersion !== "number") {
+          throw new Error("attachLayer 操作时，layerVersion 参数是必需的");
+        }
+
+        const result = await cloudbase.functions.attachLayer({
+          envId,
+          functionName: functionName as string,
+          layerName,
+          layerVersion,
+          codeSecret,
+        });
+        logCloudBaseResult(server.logger, result);
+        const detail = await cloudbase.functions.getFunctionDetail(
+          functionName as string,
+          codeSecret,
+        );
+        const boundLayers = normalizeFunctionLayers(detail.Layers);
+        return jsonContent({
+          success: true,
+          data: {
+            action,
+            functionName,
+            layers: boundLayers,
+            requestId: result.RequestId,
+          },
+          message: `Successfully attached layer '${layerName}' version ${layerVersion} to function '${functionName}'`,
+          nextActions: [
+            { tool: "readFunctionLayers", action: "getFunctionLayers", reason: "Verify bound layers" },
+            { tool: "writeFunctionLayers", action: "detachLayer", reason: "Remove this layer from function" },
+          ],
+        });
+      }
+
+      if (action === "detachLayer") {
+        if (!layerName) {
+          throw new Error("detachLayer 操作时，layerName 参数是必需的");
+        }
+        if (typeof layerVersion !== "number") {
+          throw new Error("detachLayer 操作时，layerVersion 参数是必需的");
+        }
+
+        const result = await cloudbase.functions.unAttachLayer({
+          envId,
+          functionName: functionName as string,
+          layerName,
+          layerVersion,
+          codeSecret,
+        });
+        logCloudBaseResult(server.logger, result);
+        const detail = await cloudbase.functions.getFunctionDetail(
+          functionName as string,
+          codeSecret,
+        );
+        const boundLayers = normalizeFunctionLayers(detail.Layers);
+        return jsonContent({
+          success: true,
+          data: {
+            action,
+            functionName,
+            layers: boundLayers,
+            requestId: result.RequestId,
+          },
+          message: `Successfully detached layer '${layerName}' version ${layerVersion} from function '${functionName}'`,
+          nextActions: [
+            { tool: "readFunctionLayers", action: "getFunctionLayers", reason: "Verify current bound layers" },
+          ],
+        });
+      }
+
+      if (!layers || layers.length === 0) {
+        throw new Error("updateFunctionLayers 操作时，layers 参数是必需的");
+      }
+
+      const normalizedLayers = normalizeFunctionLayers(layers);
+      if (normalizedLayers.length === 0) {
+        throw new Error(
+          "updateFunctionLayers 操作时，layers 参数必须包含有效的 LayerName 和 LayerVersion",
+        );
+      }
+
+      const result = await cloudbase.functions.updateFunctionLayer({
+        envId,
+        functionName: functionName as string,
+        layers: normalizedLayers,
+      });
+      logCloudBaseResult(server.logger, result);
+      const detail = await cloudbase.functions.getFunctionDetail(
+        functionName as string,
+      );
+      const boundLayers = normalizeFunctionLayers(detail.Layers);
+      return jsonContent({
+        success: true,
+        data: {
+          action,
+          functionName,
+          layers: boundLayers,
+          requestId: result.RequestId,
+        },
+        message: `Successfully updated bound layers for function '${functionName}'`,
+        nextActions: [
+          { tool: "readFunctionLayers", action: "getFunctionLayers", reason: "Verify updated layer order" },
+        ],
+      });
     },
   );
 

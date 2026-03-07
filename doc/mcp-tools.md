@@ -1,6 +1,6 @@
 # MCP 工具
 
-当前包含 38 个工具。
+当前包含 40 个工具。
 
 源数据: [tools.json](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/blob/main/scripts/tools.json)
 
@@ -23,21 +23,23 @@
 <tr><td><code>executeWriteSQL</code></td><td>Execute a write SQL statement on the SQL database (INSERT, UPDATE, DELETE, etc.). Whenever you create a new table, you **must** include a fixed `_openid` column defined as `_openid VARCHAR(64) DEFAULT '' NOT NULL` that represents the user and is used for access control.</td></tr>
 <tr><td><code>manageDataModel</code></td><td>数据模型查询工具，支持查询和列表数据模型（只读操作）。通过 action 参数区分操作类型：list=获取模型列表（不含Schema，可选 names 参数过滤），get=查询单个模型详情（含Schema字段列表、格式、关联关系等，需要提供 name 参数），docs=生成SDK使用文档（需要提供 name 参数）</td></tr>
 <tr><td><code>modifyDataModel</code></td><td>基于Mermaid classDiagram创建或更新数据模型。支持创建新模型和更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。</td></tr>
-<tr><td><code>getFunctionList</code></td><td>获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称）</td></tr>
-<tr><td><code>createFunction</code></td><td>创建云函数</td></tr>
+<tr><td><code>getFunctionList</code></td><td>获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称，返回结果中包含函数当前绑定的 Layers 信息）</td></tr>
+<tr><td><code>createFunction</code></td><td>创建云函数。云函数分为事件型云函数和 HTTP 云函数，请确认你要创建的函数类型。</td></tr>
 <tr><td><code>updateFunctionCode</code></td><td>更新已存在函数的代码。注意：此工具仅用于更新代码，不支持修改函数配置（如 runtime）。如果需要修改 runtime，需要删除函数后使用 createFunction 重新创建。</td></tr>
 <tr><td><code>updateFunctionConfig</code></td><td>更新云函数配置</td></tr>
 <tr><td><code>invokeFunction</code></td><td>调用云函数</td></tr>
 <tr><td><code>getFunctionLogs</code></td><td>获取云函数日志基础信息（LogList），如需日志详情请用 RequestId 调用 getFunctionLogDetail 工具。此接口基于 manger-node 4.4.0+ 的 getFunctionLogsV2 实现，不返回具体日志内容。参数 offset+limit 不得大于 10000，startTime/endTime 间隔不得超过一天。</td></tr>
 <tr><td><code>getFunctionLogDetail</code></td><td>根据 getFunctionLogs 返回的 RequestId 查询日志详情。参数 startTime、endTime、requestId，返回日志内容（LogJson 等）。仅支持 manger-node 4.4.0+。</td></tr>
 <tr><td><code>manageFunctionTriggers</code></td><td>创建或删除云函数触发器，通过 action 参数区分操作类型</td></tr>
+<tr><td><code>readFunctionLayers</code></td><td>查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。</td></tr>
+<tr><td><code>writeFunctionLayers</code></td><td>管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。</td></tr>
 <tr><td><code>uploadFiles</code></td><td>上传文件到静态网站托管</td></tr>
 <tr><td><code>deleteFiles</code></td><td>删除静态网站托管的文件或文件夹</td></tr>
 <tr><td><code>findFiles</code></td><td>搜索静态网站托管的文件</td></tr>
 <tr><td><code>domainManagement</code></td><td>统一的域名管理工具，支持绑定、解绑、查询和修改域名配置</td></tr>
 <tr><td><code>queryStorage</code></td><td>查询云存储信息，支持列出目录文件、获取文件信息、获取临时下载链接等只读操作。返回的文件信息包括文件名、大小、修改时间、下载链接等。</td></tr>
 <tr><td><code>manageStorage</code></td><td>管理云存储文件，支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。</td></tr>
-<tr><td><code>downloadTemplate</code></td><td>自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️&lt;br/&gt;**CRITICAL**: This tool MUST be called FIRST when starting a new project.&lt;br/&gt;支持的模板:&lt;br/&gt;- react: React + CloudBase 全栈应用模板&lt;br/&gt;- vue: Vue + CloudBase 全栈应用模板&lt;br/&gt;- miniprogram: 微信小程序 + 云开发模板  &lt;br/&gt;- uniapp: UniApp + CloudBase 跨端应用模板&lt;br/&gt;- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置&lt;br/&gt;支持的IDE类型:&lt;br/&gt;- all: 下载所有IDE配置&lt;br/&gt;- cursor: Cursor AI编辑器&lt;br/&gt;- 其他IDE类型见下方列表&lt;br/&gt;注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数&lt;br/&gt;- windsurf: WindSurf AI编辑器&lt;br/&gt;- codebuddy: CodeBuddy AI编辑器&lt;br/&gt;- claude-code: Claude Code AI编辑器&lt;br/&gt;- cline: Cline AI编辑器&lt;br/&gt;- gemini-cli: Gemini CLI&lt;br/&gt;- opencode: OpenCode AI编辑器&lt;br/&gt;- qwen-code: 通义灵码&lt;br/&gt;- baidu-comate: 百度Comate&lt;br/&gt;- openai-codex-cli: OpenAI Codex CLI&lt;br/&gt;- augment-code: Augment Code&lt;br/&gt;- github-copilot: GitHub Copilot&lt;br/&gt;- roocode: RooCode AI编辑器&lt;br/&gt;- tongyi-lingma: 通义灵码&lt;br/&gt;- trae: Trae AI编辑器&lt;br/&gt;- qoder: Qoder AI编辑器&lt;br/&gt;- antigravity: Google Antigravity AI编辑器&lt;br/&gt;- vscode: Visual Studio Code&lt;br/&gt;- kiro: Kiro AI编辑器&lt;br/&gt;- aider: Aider AI编辑器&lt;br/&gt;特别说明：&lt;br/&gt;- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.10.0），便于后续维护和版本追踪&lt;br/&gt;- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）</td></tr>
+<tr><td><code>downloadTemplate</code></td><td>自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️&lt;br/&gt;**CRITICAL**: This tool MUST be called FIRST when starting a new project.&lt;br/&gt;支持的模板:&lt;br/&gt;- react: React + CloudBase 全栈应用模板&lt;br/&gt;- vue: Vue + CloudBase 全栈应用模板&lt;br/&gt;- miniprogram: 微信小程序 + 云开发模板  &lt;br/&gt;- uniapp: UniApp + CloudBase 跨端应用模板&lt;br/&gt;- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置&lt;br/&gt;支持的IDE类型:&lt;br/&gt;- all: 下载所有IDE配置&lt;br/&gt;- cursor: Cursor AI编辑器&lt;br/&gt;- 其他IDE类型见下方列表&lt;br/&gt;注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数&lt;br/&gt;- windsurf: WindSurf AI编辑器&lt;br/&gt;- codebuddy: CodeBuddy AI编辑器&lt;br/&gt;- claude-code: Claude Code AI编辑器&lt;br/&gt;- cline: Cline AI编辑器&lt;br/&gt;- gemini-cli: Gemini CLI&lt;br/&gt;- opencode: OpenCode AI编辑器&lt;br/&gt;- qwen-code: 通义灵码&lt;br/&gt;- baidu-comate: 百度Comate&lt;br/&gt;- openai-codex-cli: OpenAI Codex CLI&lt;br/&gt;- augment-code: Augment Code&lt;br/&gt;- github-copilot: GitHub Copilot&lt;br/&gt;- roocode: RooCode AI编辑器&lt;br/&gt;- tongyi-lingma: 通义灵码&lt;br/&gt;- trae: Trae AI编辑器&lt;br/&gt;- qoder: Qoder AI编辑器&lt;br/&gt;- antigravity: Google Antigravity AI编辑器&lt;br/&gt;- vscode: Visual Studio Code&lt;br/&gt;- kiro: Kiro AI编辑器&lt;br/&gt;- aider: Aider AI编辑器&lt;br/&gt;特别说明：&lt;br/&gt;- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.13.0），便于后续维护和版本追踪&lt;br/&gt;- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）</td></tr>
 <tr><td><code>interactiveDialog</code></td><td>统一的交互式对话工具，支持需求澄清和任务确认，当需要和用户确认下一步的操作的时候，可以调用这个工具的clarify，如果有敏感的操作，需要用户确认，可以调用这个工具的confirm</td></tr>
 <tr><td><code>searchWeb</code></td><td>使用联网来进行信息检索，如查询最新的新闻、文章、股价、天气等。支持自然语言查询，也可以直接输入网址获取网页内容</td></tr>
 <tr><td><code>searchKnowledgeBase</code></td><td>云开发知识库智能检索工具，支持向量查询 (vector)、固定文档 (doc) 和 OpenAPI 文档 (openapi) 查询。&lt;br/&gt;      强烈推荐始终优先使用固定文档 (doc) 或 OpenAPI 文档 (openapi) 模式进行检索，仅当固定文档无法覆盖你的问题时，再使用向量查询 (vector) 模式。&lt;br/&gt;      固定文档 (doc) 查询当前支持 22 个固定文档，分别是：&lt;br/&gt;      文档名：ai-model-nodejs 文档介绍：Use this skill when developing Node.js backend services or CloudBase cloud functions (Express/Koa/NestJS, serverless, backend APIs) that need AI capabilities. Features text generation (generateText), streaming (streamText), AND image generation (generateImage) via @cloudbase/node-sdk ≥3.16.0. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended), DeepSeek (deepseek-v3.2 recommended), and hunyuan-image for images. This is the ONLY SDK that supports image generation. NOT for browser/Web apps (use ai-model-web) or WeChat Mini Program (use ai-model-wechat).&lt;br/&gt;文档名：ai-model-web 文档介绍：Use this skill when developing browser/Web applications (React/Vue/Angular, static websites, SPAs) that need AI capabilities. Features text generation (generateText) and streaming (streamText) via @cloudbase/js-sdk. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). NOT for Node.js backend (use ai-model-nodejs), WeChat Mini Program (use ai-model-wechat), or image generation (Node SDK only).&lt;br/&gt;文档名：ai-model-wechat 文档介绍：Use this skill when developing WeChat Mini Programs (小程序, 企业微信小程序, wx.cloud-based apps) that need AI capabilities. Features text generation (generateText) and streaming (streamText) with callback support (onText, onEvent, onFinish) via wx.cloud.extend.AI. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). API differs from JS/Node SDK - streamText requires data wrapper, generateText returns raw response. NOT for browser/Web apps (use ai-model-web), Node.js backend (use ai-model-nodejs), or image generation (not supported).&lt;br/&gt;文档名：auth-http-api 文档介绍：Use when you need to implement CloudBase Auth v2 over raw HTTP endpoints (login/signup, tokens, user operations) from backends or scripts that are not using the Web or Node SDKs.&lt;br/&gt;文档名：auth-nodejs 文档介绍：Complete guide for CloudBase Auth using the CloudBase Node SDK – caller identity, user lookup, custom login tickets, and server-side best practices.&lt;br/&gt;文档名：auth-tool 文档介绍：Use CloudBase Auth tool to configure and manage authentication providers for web applications - enable/disable login methods (SMS, Email, WeChat Open Platform, Google, Anonymous, Username/password, OAuth, SAML, CAS, Dingding, etc.) and configure provider settings via MCP tools `callCloudApi`.&lt;br/&gt;文档名：auth-web 文档介绍：CloudBase Web Authentication Quick Guide - Provides concise and practical Web frontend authentication solutions with multiple login methods and complete user management.&lt;br/&gt;文档名：auth-wechat 文档介绍：Complete guide for WeChat Mini Program authentication with CloudBase - native login, user identity, and cloud function integration.&lt;br/&gt;文档名：cloud-functions 文档介绍：Complete guide for CloudBase cloud functions development - runtime selection, deployment, logging, invocation, and HTTP access configuration.&lt;br/&gt;文档名：cloud-storage-web 文档介绍：Complete guide for CloudBase cloud storage using Web SDK (@cloudbase/js-sdk) - upload, download, temporary URLs, file management, and best practices.&lt;br/&gt;文档名：cloudbase-platform 文档介绍：CloudBase platform knowledge and best practices. Use this skill for general CloudBase platform understanding, including storage, hosting, authentication, cloud functions, database permissions, and data models.&lt;br/&gt;文档名：cloudrun-development 文档介绍：CloudBase Run backend development rules (Function mode/Container mode). Use this skill when deploying backend services that require long connections, multi-language support, custom environments, or AI agent development.&lt;br/&gt;文档名：data-model-creation 文档介绍：Optional advanced tool for complex data modeling. For simple table creation, use relational-database-tool directly with SQL statements.&lt;br/&gt;文档名：http-api 文档介绍：Use CloudBase HTTP API to access CloudBase platform features (database, authentication, cloud functions, cloud hosting, cloud storage, AI) via HTTP protocol from backends or scripts that are not using SDKs.&lt;br/&gt;文档名：miniprogram-development 文档介绍：WeChat Mini Program development rules. Use this skill when developing WeChat mini programs, integrating CloudBase capabilities, and deploying mini program projects.&lt;br/&gt;文档名：no-sql-web-sdk 文档介绍：Use CloudBase document database Web SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.&lt;br/&gt;文档名：no-sql-wx-mp-sdk 文档介绍：Use CloudBase document database WeChat MiniProgram SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.&lt;br/&gt;文档名：relational-database-tool 文档介绍：This is the required documentation for agents operating on the CloudBase Relational Database. It lists the only four supported tools for running SQL and managing security rules. Read the full content to understand why you must NOT use standard Application SDKs and how to safely execute INSERT, UPDATE, or DELETE operations without corrupting production data.&lt;br/&gt;文档名：relational-database-web 文档介绍：Use when building frontend Web apps that talk to CloudBase Relational Database via @cloudbase/js-sdk – provides the canonical init pattern so you can then use Supabase-style queries from the browser.&lt;br/&gt;文档名：spec-workflow 文档介绍：Standard software engineering workflow for requirement analysis, technical design, and task planning. Use this skill when developing new features, complex architecture designs, multi-module integrations, or projects involving database/UI design.&lt;br/&gt;文档名：ui-design 文档介绍：Professional UI design and frontend interface guidelines. Use this skill when creating web pages, mini-program interfaces, prototypes, or any frontend UI components that require distinctive, production-grade design with exceptional aesthetic quality.&lt;br/&gt;文档名：web-development 文档介绍：Web frontend project development rules. Use this skill when developing web frontend pages, deploying static hosting, and integrating CloudBase Web SDK.&lt;br/&gt;      OpenAPI 文档 (openapi) 查询当前支持 5 个 API 文档，分别是：&lt;br/&gt;      API名：mysqldb API介绍：MySQL RESTful API - 云开发 MySQL 数据库 HTTP API&lt;br/&gt;API名：functions API介绍：Cloud Functions API - 云函数 HTTP API&lt;br/&gt;API名：auth API介绍：Authentication API - 身份认证 HTTP API&lt;br/&gt;API名：cloudrun API介绍：CloudRun API - 云托管服务 HTTP API&lt;br/&gt;API名：storage API介绍：Storage API - 云存储 HTTP API</td></tr>
@@ -181,7 +183,7 @@
 <tr><td><code>collectionName</code></td><td>string</td><td>是</td><td>集合名称</td></tr>
 <tr><td><code>query</code></td><td>object \| string</td><td></td><td>查询条件(对象或字符串,推荐对象)</td></tr>
 <tr><td><code>projection</code></td><td>object \| string</td><td></td><td>返回字段投影(对象或字符串,推荐对象)</td></tr>
-<tr><td><code>sort</code></td><td>object \| string</td><td></td><td>排序条件(对象或字符串,推荐对象)</td></tr>
+<tr><td><code>sort</code></td><td>array of object \| string</td><td></td><td>排序条件，使用对象或字符串。</td></tr>
 <tr><td><code>limit</code></td><td>number</td><td></td><td>返回数量限制</td></tr>
 <tr><td><code>offset</code></td><td>number</td><td></td><td>跳过的记录数</td></tr>
 </tbody>
@@ -314,14 +316,14 @@ classDiagram
 ---
 
 ### `getFunctionList`
-获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称）
+获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称，返回结果中包含函数当前绑定的 Layers 信息）
 
 #### 参数
 
 <table>
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
-<tr><td><code>action</code></td><td>string</td><td></td><td>操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数） 可填写的值: "list", "detail"</td></tr>
+<tr><td><code>action</code></td><td>string</td><td></td><td>操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数，返回结果中包含当前绑定的 Layers） 可填写的值: "list", "detail"</td></tr>
 <tr><td><code>limit</code></td><td>number</td><td></td><td>范围（list 操作时使用）</td></tr>
 <tr><td><code>offset</code></td><td>number</td><td></td><td>偏移（list 操作时使用）</td></tr>
 <tr><td><code>name</code></td><td>string</td><td></td><td>要查询的函数名称。当 action='detail' 时，此参数为必填项，必须提供已存在的函数名称。可通过 action='list' 操作获取可用的函数名称列表</td></tr>
@@ -332,7 +334,7 @@ classDiagram
 ---
 
 ### `createFunction`
-创建云函数
+创建云函数。云函数分为事件型云函数和 HTTP 云函数，请确认你要创建的函数类型。
 
 #### 参数
 
@@ -341,12 +343,20 @@ classDiagram
 <tbody>
 <tr><td><code>func</code></td><td>object</td><td>是</td><td>函数配置</td></tr>
 <tr><td><code>func.name</code></td><td>string</td><td>是</td><td>函数名称</td></tr>
+<tr><td><code>func.type</code></td><td>string</td><td></td><td>函数类型，Event 为事件型云函数，HTTP 为 HTTP 云函数 可填写的值: "Event", "HTTP"</td></tr>
+<tr><td><code>func.protocolType</code></td><td>string</td><td></td><td>HTTP 云函数的协议类型，HTTP 为 HTTP 协议（默认），WS 为 WebSocket 协议，仅当 type 为 HTTP 时有效 可填写的值: "HTTP", "WS"</td></tr>
+<tr><td><code>func.protocolParams</code></td><td>object</td><td></td><td>协议参数配置，仅当 protocolType 为 WS 时有效</td></tr>
+<tr><td><code>func.protocolParams.wsParams</code></td><td>object</td><td></td><td>WebSocket 协议参数</td></tr>
+<tr><td><code>func.protocolParams.wsParams.idleTimeOut</code></td><td>number</td><td></td><td>WebSocket 空闲超时时间（秒），默认 15 秒</td></tr>
+<tr><td><code>func.instanceConcurrencyConfig</code></td><td>object</td><td></td><td>多并发配置，仅当 type 为 HTTP 时有效</td></tr>
+<tr><td><code>func.instanceConcurrencyConfig.dynamicEnabled</code></td><td>boolean</td><td></td><td>是否启用动态并发，默认 false</td></tr>
+<tr><td><code>func.instanceConcurrencyConfig.maxConcurrency</code></td><td>number</td><td></td><td>最大并发数，默认 10</td></tr>
 <tr><td><code>func.timeout</code></td><td>number</td><td></td><td>函数超时时间</td></tr>
 <tr><td><code>func.envVariables</code></td><td>object</td><td></td><td>环境变量</td></tr>
 <tr><td><code>func.vpc</code></td><td>object</td><td></td><td>私有网络配置</td></tr>
 <tr><td><code>func.vpc.vpcId</code></td><td>string</td><td>是</td><td></td></tr>
 <tr><td><code>func.vpc.subnetId</code></td><td>string</td><td>是</td><td></td></tr>
-<tr><td><code>func.runtime</code></td><td>string</td><td></td><td>运行时环境,建议指定为 'Nodejs18.15'，其他可选值：Nodejs18.15，Nodejs16.13，Nodejs14.18，Nodejs12.16，Nodejs10.15，Nodejs8.9</td></tr>
+<tr><td><code>func.runtime</code></td><td>string</td><td></td><td>运行时环境,建议指定为 'Nodejs18.15'，其他可选值：Nodejs20.19，Nodejs18.15，Nodejs16.13，Nodejs14.18，Nodejs12.16，Nodejs10.15，Nodejs8.9</td></tr>
 <tr><td><code>func.triggers</code></td><td>array of object</td><td></td><td>Trigger configuration array</td></tr>
 <tr><td><code>func.triggers[].name</code></td><td>string</td><td>是</td><td>Trigger name</td></tr>
 <tr><td><code>func.triggers[].type</code></td><td>string</td><td>是</td><td>Trigger type, currently only supports 'timer' 可填写的值: "timer"</td></tr>
@@ -465,6 +475,56 @@ classDiagram
 <tr><td><code>triggers[].type</code></td><td>string</td><td>是</td><td>Trigger type, currently only supports 'timer' 可填写的值: "timer"</td></tr>
 <tr><td><code>triggers[].config</code></td><td>string</td><td>是</td><td>Trigger configuration. For timer triggers, use cron expression format: second minute hour day month week year. IMPORTANT: Must include exactly 7 fields (second minute hour day month week year). Examples: '0 0 2 1 * * *' (monthly), '0 30 9 * * * *' (daily at 9:30 AM)</td></tr>
 <tr><td><code>triggerName</code></td><td>string</td><td></td><td>触发器名称（删除时必需）</td></tr>
+</tbody>
+</table>
+
+---
+
+### `readFunctionLayers`
+查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。
+
+#### 参数
+
+<table>
+<thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>action</code></td><td>string</td><td>是</td><td>操作类型：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情，getFunctionLayers=查询指定函数当前绑定的层 可填写的值: "listLayers", "listLayerVersions", "getLayerVersion", "getFunctionLayers"</td></tr>
+<tr><td><code>name</code></td><td>string</td><td></td><td>层名称。listLayerVersions 和 getLayerVersion 操作时必填</td></tr>
+<tr><td><code>version</code></td><td>number</td><td></td><td>层版本号。getLayerVersion 操作时必填</td></tr>
+<tr><td><code>runtime</code></td><td>string</td><td></td><td>运行时筛选。listLayers 操作时可选</td></tr>
+<tr><td><code>searchKey</code></td><td>string</td><td></td><td>层名称搜索关键字。listLayers 操作时可选</td></tr>
+<tr><td><code>offset</code></td><td>number</td><td></td><td>分页偏移。listLayers 操作时可选</td></tr>
+<tr><td><code>limit</code></td><td>number</td><td></td><td>分页数量。listLayers 操作时可选</td></tr>
+<tr><td><code>functionName</code></td><td>string</td><td></td><td>函数名称。getFunctionLayers 操作时必填</td></tr>
+<tr><td><code>codeSecret</code></td><td>string</td><td></td><td>代码保护密钥。getFunctionLayers 操作时可选</td></tr>
+</tbody>
+</table>
+
+---
+
+### `writeFunctionLayers`
+管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。
+
+#### 参数
+
+<table>
+<thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>action</code></td><td>string</td><td>是</td><td>操作类型：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=追加绑定层，detachLayer=解绑层，updateFunctionLayers=整体更新函数层数组 可填写的值: "createLayerVersion", "deleteLayerVersion", "attachLayer", "detachLayer", "updateFunctionLayers"</td></tr>
+<tr><td><code>name</code></td><td>string</td><td></td><td>层名称。createLayerVersion 和 deleteLayerVersion 操作时必填</td></tr>
+<tr><td><code>version</code></td><td>number</td><td></td><td>层版本号。deleteLayerVersion 操作时必填</td></tr>
+<tr><td><code>contentPath</code></td><td>string</td><td></td><td>层内容路径，可以是目录或 ZIP 文件路径。createLayerVersion 操作时与 base64Content 二选一</td></tr>
+<tr><td><code>base64Content</code></td><td>string</td><td></td><td>层内容的 base64 编码。createLayerVersion 操作时与 contentPath 二选一</td></tr>
+<tr><td><code>runtimes</code></td><td>array of string</td><td></td><td>层适用的运行时列表。createLayerVersion 操作时必填</td></tr>
+<tr><td><code>description</code></td><td>string</td><td></td><td>层版本描述。createLayerVersion 操作时可选</td></tr>
+<tr><td><code>licenseInfo</code></td><td>string</td><td></td><td>许可证信息。createLayerVersion 操作时可选</td></tr>
+<tr><td><code>functionName</code></td><td>string</td><td></td><td>函数名称。attachLayer、detachLayer、updateFunctionLayers 操作时必填</td></tr>
+<tr><td><code>layerName</code></td><td>string</td><td></td><td>要绑定或解绑的层名称。attachLayer 和 detachLayer 操作时必填</td></tr>
+<tr><td><code>layerVersion</code></td><td>number</td><td></td><td>要绑定或解绑的层版本号。attachLayer 和 detachLayer 操作时必填</td></tr>
+<tr><td><code>layers</code></td><td>array of object</td><td></td><td>目标函数层数组。updateFunctionLayers 操作时必填，顺序即最终顺序</td></tr>
+<tr><td><code>layers[].LayerName</code></td><td>string</td><td>是</td><td>层名称</td></tr>
+<tr><td><code>layers[].LayerVersion</code></td><td>number</td><td>是</td><td>层版本号</td></tr>
+<tr><td><code>codeSecret</code></td><td>string</td><td></td><td>代码保护密钥。attachLayer 和 detachLayer 操作时可选</td></tr>
 </tbody>
 </table>
 
@@ -629,7 +689,7 @@ classDiagram
 - aider: Aider AI编辑器
 
 特别说明：
-- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.10.0），便于后续维护和版本追踪
+- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.13.0），便于后续维护和版本追踪
 - 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）
 
 #### 参数
@@ -808,6 +868,7 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
 <tbody>
 <tr><td><code>name</code></td><td>string</td><td>是</td><td>函数名</td></tr>
 <tr><td><code>path</code></td><td>string</td><td>是</td><td>HTTP 访问路径</td></tr>
+<tr><td><code>type</code></td><td>string</td><td></td><td>函数类型，Event 为事件型云函数（默认），HTTP 为 HTTP 云函数 可填写的值: "Event", "HTTP"</td></tr>
 </tbody>
 </table>
 
@@ -837,7 +898,7 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td><code>resourceType</code></td><td>string</td><td>是</td><td>资源类型：noSqlDatabase=noSQL 数据库，sqlDatabase=SQL 数据库，function=云函数，storage=存储桶 可填写的值: "noSqlDatabase", "sqlDatabase", "function", "storage"</td></tr>
-<tr><td><code>resourceId</code></td><td>string</td><td>是</td><td>资源唯一标识。noSQL 数据库为集合名，SQL 数据库为表名，云函数为函数名，存储为桶名。</td></tr>
+<tr><td><code>resourceId</code></td><td>string</td><td>是</td><td>资源唯一标识。noSQL 数据库为集合名，SQL 数据库为表名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。</td></tr>
 </tbody>
 </table>
 
@@ -852,7 +913,7 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td><code>resourceType</code></td><td>string</td><td>是</td><td>资源类型：sqlDatabase=SQL 数据库，noSqlDatabase=noSQL 数据库，function=云函数，storage=存储桶 可填写的值: "sqlDatabase", "noSqlDatabase", "function", "storage"</td></tr>
-<tr><td><code>resourceId</code></td><td>string</td><td>是</td><td>资源唯一标识。sqlDatabase=表名，noSqlDatabase=集合名，云函数为函数名，存储为桶名。</td></tr>
+<tr><td><code>resourceId</code></td><td>string</td><td>是</td><td>资源唯一标识。sqlDatabase=表名，noSqlDatabase=集合名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。</td></tr>
 <tr><td><code>aclTag</code></td><td>string</td><td>是</td><td>权限类别 可填写的值: "READONLY", "PRIVATE", "ADMINWRITE", "ADMINONLY", "CUSTOM"</td></tr>
 <tr><td><code>rule</code></td><td>string</td><td></td><td>自定义安全规则内容，仅当 aclTag 为 CUSTOM 时必填</td></tr>
 </tbody>

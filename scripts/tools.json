@@ -269,15 +269,31 @@
           "sort": {
             "anyOf": [
               {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": true
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "sort 字段名"
+                    },
+                    "direction": {
+                      "type": "number",
+                      "description": "排序方向,1:升序,-1:降序"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "direction"
+                  ],
+                  "additionalProperties": true
+                }
               },
               {
                 "type": "string"
               }
             ],
-            "description": "排序条件(对象或字符串,推荐对象)"
+            "description": "排序条件，使用对象或字符串。"
           },
           "limit": {
             "type": "number",
@@ -474,7 +490,7 @@
     },
     {
       "name": "getFunctionList",
-      "description": "获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称）",
+      "description": "获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称，返回结果中包含函数当前绑定的 Layers 信息）",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -484,7 +500,7 @@
               "list",
               "detail"
             ],
-            "description": "操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数）"
+            "description": "操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数，返回结果中包含当前绑定的 Layers）"
           },
           "limit": {
             "type": "number",
@@ -509,7 +525,7 @@
     },
     {
       "name": "createFunction",
-      "description": "创建云函数",
+      "description": "创建云函数。云函数分为事件型云函数和 HTTP 云函数，请确认你要创建的函数类型。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -519,6 +535,55 @@
               "name": {
                 "type": "string",
                 "description": "函数名称"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Event",
+                  "HTTP"
+                ],
+                "description": "函数类型，Event 为事件型云函数，HTTP 为 HTTP 云函数"
+              },
+              "protocolType": {
+                "type": "string",
+                "enum": [
+                  "HTTP",
+                  "WS"
+                ],
+                "description": "HTTP 云函数的协议类型，HTTP 为 HTTP 协议（默认），WS 为 WebSocket 协议，仅当 type 为 HTTP 时有效"
+              },
+              "protocolParams": {
+                "type": "object",
+                "properties": {
+                  "wsParams": {
+                    "type": "object",
+                    "properties": {
+                      "idleTimeOut": {
+                        "type": "number",
+                        "description": "WebSocket 空闲超时时间（秒），默认 15 秒"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "WebSocket 协议参数"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "协议参数配置，仅当 protocolType 为 WS 时有效"
+              },
+              "instanceConcurrencyConfig": {
+                "type": "object",
+                "properties": {
+                  "dynamicEnabled": {
+                    "type": "boolean",
+                    "description": "是否启用动态并发，默认 false"
+                  },
+                  "maxConcurrency": {
+                    "type": "number",
+                    "description": "最大并发数，默认 10"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "多并发配置，仅当 type 为 HTTP 时有效"
               },
               "timeout": {
                 "type": "number",
@@ -550,7 +615,7 @@
               },
               "runtime": {
                 "type": "string",
-                "description": "运行时环境,建议指定为 'Nodejs18.15'，其他可选值：Nodejs18.15，Nodejs16.13，Nodejs14.18，Nodejs12.16，Nodejs10.15，Nodejs8.9"
+                "description": "运行时环境,建议指定为 'Nodejs18.15'，其他可选值：Nodejs20.19，Nodejs18.15，Nodejs16.13，Nodejs14.18，Nodejs12.16，Nodejs10.15，Nodejs8.9"
               },
               "triggers": {
                 "type": "array",
@@ -874,6 +939,156 @@
         "required": [
           "action",
           "name"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "readFunctionLayers",
+      "description": "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "listLayers",
+              "listLayerVersions",
+              "getLayerVersion",
+              "getFunctionLayers"
+            ],
+            "description": "操作类型：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情，getFunctionLayers=查询指定函数当前绑定的层"
+          },
+          "name": {
+            "type": "string",
+            "description": "层名称。listLayerVersions 和 getLayerVersion 操作时必填"
+          },
+          "version": {
+            "type": "number",
+            "description": "层版本号。getLayerVersion 操作时必填"
+          },
+          "runtime": {
+            "type": "string",
+            "description": "运行时筛选。listLayers 操作时可选"
+          },
+          "searchKey": {
+            "type": "string",
+            "description": "层名称搜索关键字。listLayers 操作时可选"
+          },
+          "offset": {
+            "type": "number",
+            "description": "分页偏移。listLayers 操作时可选"
+          },
+          "limit": {
+            "type": "number",
+            "description": "分页数量。listLayers 操作时可选"
+          },
+          "functionName": {
+            "type": "string",
+            "description": "函数名称。getFunctionLayers 操作时必填"
+          },
+          "codeSecret": {
+            "type": "string",
+            "description": "代码保护密钥。getFunctionLayers 操作时可选"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "writeFunctionLayers",
+      "description": "管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "createLayerVersion",
+              "deleteLayerVersion",
+              "attachLayer",
+              "detachLayer",
+              "updateFunctionLayers"
+            ],
+            "description": "操作类型：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=追加绑定层，detachLayer=解绑层，updateFunctionLayers=整体更新函数层数组"
+          },
+          "name": {
+            "type": "string",
+            "description": "层名称。createLayerVersion 和 deleteLayerVersion 操作时必填"
+          },
+          "version": {
+            "type": "number",
+            "description": "层版本号。deleteLayerVersion 操作时必填"
+          },
+          "contentPath": {
+            "type": "string",
+            "description": "层内容路径，可以是目录或 ZIP 文件路径。createLayerVersion 操作时与 base64Content 二选一"
+          },
+          "base64Content": {
+            "type": "string",
+            "description": "层内容的 base64 编码。createLayerVersion 操作时与 contentPath 二选一"
+          },
+          "runtimes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "层适用的运行时列表。createLayerVersion 操作时必填"
+          },
+          "description": {
+            "type": "string",
+            "description": "层版本描述。createLayerVersion 操作时可选"
+          },
+          "licenseInfo": {
+            "type": "string",
+            "description": "许可证信息。createLayerVersion 操作时可选"
+          },
+          "functionName": {
+            "type": "string",
+            "description": "函数名称。attachLayer、detachLayer、updateFunctionLayers 操作时必填"
+          },
+          "layerName": {
+            "type": "string",
+            "description": "要绑定或解绑的层名称。attachLayer 和 detachLayer 操作时必填"
+          },
+          "layerVersion": {
+            "type": "number",
+            "description": "要绑定或解绑的层版本号。attachLayer 和 detachLayer 操作时必填"
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "LayerName": {
+                  "type": "string",
+                  "description": "层名称"
+                },
+                "LayerVersion": {
+                  "type": "number",
+                  "description": "层版本号"
+                }
+              },
+              "required": [
+                "LayerName",
+                "LayerVersion"
+              ],
+              "additionalProperties": false
+            },
+            "description": "目标函数层数组。updateFunctionLayers 操作时必填，顺序即最终顺序"
+          },
+          "codeSecret": {
+            "type": "string",
+            "description": "代码保护密钥。attachLayer 和 detachLayer 操作时可选"
+          }
+        },
+        "required": [
+          "action"
         ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -1209,7 +1424,7 @@
     },
     {
       "name": "downloadTemplate",
-      "description": "自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️\n\n**CRITICAL**: This tool MUST be called FIRST when starting a new project.\n\n支持的模板:\n- react: React + CloudBase 全栈应用模板\n- vue: Vue + CloudBase 全栈应用模板\n- miniprogram: 微信小程序 + 云开发模板  \n- uniapp: UniApp + CloudBase 跨端应用模板\n- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置\n\n支持的IDE类型:\n- all: 下载所有IDE配置\n- cursor: Cursor AI编辑器\n- 其他IDE类型见下方列表\n\n注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数\n- windsurf: WindSurf AI编辑器\n- codebuddy: CodeBuddy AI编辑器\n- claude-code: Claude Code AI编辑器\n- cline: Cline AI编辑器\n- gemini-cli: Gemini CLI\n- opencode: OpenCode AI编辑器\n- qwen-code: 通义灵码\n- baidu-comate: 百度Comate\n- openai-codex-cli: OpenAI Codex CLI\n- augment-code: Augment Code\n- github-copilot: GitHub Copilot\n- roocode: RooCode AI编辑器\n- tongyi-lingma: 通义灵码\n- trae: Trae AI编辑器\n- qoder: Qoder AI编辑器\n- antigravity: Google Antigravity AI编辑器\n- vscode: Visual Studio Code\n- kiro: Kiro AI编辑器\n- aider: Aider AI编辑器\n\n特别说明：\n- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.10.0），便于后续维护和版本追踪\n- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）",
+      "description": "自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️\n\n**CRITICAL**: This tool MUST be called FIRST when starting a new project.\n\n支持的模板:\n- react: React + CloudBase 全栈应用模板\n- vue: Vue + CloudBase 全栈应用模板\n- miniprogram: 微信小程序 + 云开发模板  \n- uniapp: UniApp + CloudBase 跨端应用模板\n- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置\n\n支持的IDE类型:\n- all: 下载所有IDE配置\n- cursor: Cursor AI编辑器\n- 其他IDE类型见下方列表\n\n注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数\n- windsurf: WindSurf AI编辑器\n- codebuddy: CodeBuddy AI编辑器\n- claude-code: Claude Code AI编辑器\n- cline: Cline AI编辑器\n- gemini-cli: Gemini CLI\n- opencode: OpenCode AI编辑器\n- qwen-code: 通义灵码\n- baidu-comate: 百度Comate\n- openai-codex-cli: OpenAI Codex CLI\n- augment-code: Augment Code\n- github-copilot: GitHub Copilot\n- roocode: RooCode AI编辑器\n- tongyi-lingma: 通义灵码\n- trae: Trae AI编辑器\n- qoder: Qoder AI编辑器\n- antigravity: Google Antigravity AI编辑器\n- vscode: Visual Studio Code\n- kiro: Kiro AI编辑器\n- aider: Aider AI编辑器\n\n特别说明：\n- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.13.0），便于后续维护和版本追踪\n- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1723,6 +1938,14 @@
           "path": {
             "type": "string",
             "description": "HTTP 访问路径"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Event",
+              "HTTP"
+            ],
+            "description": "函数类型，Event 为事件型云函数（默认），HTTP 为 HTTP 云函数"
           }
         },
         "required": [
@@ -1774,7 +1997,7 @@
           },
           "resourceId": {
             "type": "string",
-            "description": "资源唯一标识。noSQL 数据库为集合名，SQL 数据库为表名，云函数为函数名，存储为桶名。"
+            "description": "资源唯一标识。noSQL 数据库为集合名，SQL 数据库为表名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。"
           }
         },
         "required": [
@@ -1803,7 +2026,7 @@
           },
           "resourceId": {
             "type": "string",
-            "description": "资源唯一标识。sqlDatabase=表名，noSqlDatabase=集合名，云函数为函数名，存储为桶名。"
+            "description": "资源唯一标识。sqlDatabase=表名，noSqlDatabase=集合名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。"
           },
           "aclTag": {
             "type": "string",
