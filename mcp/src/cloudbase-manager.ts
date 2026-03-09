@@ -4,15 +4,12 @@ import {
     peekLoginState,
     getLoginState,
 } from './auth.js';
-import { _promptAndSetEnvironmentId, type EnvSetupFailureInfo } from './tools/interactive.js';
 import { CloudBaseOptions, Logger } from './types.js';
 import { debug, error } from './utils/logger.js';
 import { buildAuthNextStep, throwToolPayloadError } from './utils/tool-result.js';
-const ENV_ID_TIMEOUT = 600000; // 10 minutes (600 seconds) - matches InteractiveServer timeout
 
 export type EnvCandidate = {
     envId: string;
-    env_id: string;
     alias?: string;
     region?: string;
     status?: string;
@@ -28,7 +25,6 @@ function toEnvCandidates(envList: any[]): EnvCandidate[] {
         .filter((item) => item?.EnvId)
         .map((item) => ({
             envId: item.EnvId,
-            env_id: item.EnvId,
             alias: item.Alias,
             region: item.Region,
             status: item.Status,
@@ -56,7 +52,6 @@ export async function listAvailableEnvCandidates(options?: {
     if (cloudBaseOptions?.envId) {
         return [{
             envId: cloudBaseOptions.envId,
-            env_id: cloudBaseOptions.envId,
         }];
     }
 
@@ -131,8 +126,10 @@ async function throwPendingAuthError() {
 async function throwEnvRequiredError(options?: {
     cloudBaseOptions?: CloudBaseOptions;
     loginState?: any;
+    envCandidates?: EnvCandidate[];
 }) {
-    const envCandidates = await listAvailableEnvCandidates(options);
+    const envCandidates =
+        options?.envCandidates ?? (await listAvailableEnvCandidates(options));
     const singleEnvId = envCandidates.length === 1 ? envCandidates[0].envId : undefined;
     throwToolPayloadError({
         ok: false,
@@ -143,15 +140,15 @@ async function throwEnvRequiredError(options?: {
                 ? `当前已登录，但尚未绑定环境。可直接选择环境 ${singleEnvId}。`
                 : "当前已登录，但尚未绑定环境，请先调用 auth 工具选择环境。",
         env_candidates: envCandidates,
-        next_step: buildAuthNextStep("select_env", {
+        next_step: buildAuthNextStep("set_env", {
             requiredParams: singleEnvId ? undefined : ["envId"],
             suggestedArgs: singleEnvId
                 ? {
-                    action: "select_env",
+                    action: "set_env",
                     envId: singleEnvId,
                 }
                 : {
-                    action: "select_env",
+                    action: "set_env",
                 },
         }),
     });
@@ -170,7 +167,7 @@ class EnvironmentManager {
     }
 
     // 获取环境ID的核心逻辑
-    async getEnvId(mcpServer?: any): Promise<string> {
+    async getEnvId(): Promise<string> {
         // 1. 优先使用内存缓存
         if (this.cachedEnvId) {
             debug('使用内存缓存的环境ID:', { envId: this.cachedEnvId });
@@ -182,19 +179,11 @@ class EnvironmentManager {
             return this.envIdPromise;
         }
 
-        // 3. 开始获取环境ID (pass mcpServer for IDE detection)
-        this.envIdPromise = this._fetchEnvId(mcpServer);
-
-        // 增加超时保护
-        const timeoutPromise = new Promise<string>((_, reject) => {
-            const id = setTimeout(() => {
-                clearTimeout(id);
-                reject(new Error(`EnvId 获取超时（${ENV_ID_TIMEOUT / 1000}秒）`));
-            }, ENV_ID_TIMEOUT);
-        });
+        // 3. 开始获取环境ID
+        this.envIdPromise = this._fetchEnvId();
 
         try {
-            const result = await Promise.race([this.envIdPromise, timeoutPromise]);
+            const result = await this.envIdPromise;
             return result;
         } catch (err) {
             this.envIdPromise = null;
@@ -202,7 +191,7 @@ class EnvironmentManager {
         }
     }
 
-    private async _fetchEnvId(mcpServer?: any): Promise<string> {
+    private async _fetchEnvId(): Promise<string> {
         try {
             // 1. 检查进程环境变量
             if (process.env.CLOUDBASE_ENV_ID) {
@@ -211,51 +200,25 @@ class EnvironmentManager {
                 return this.cachedEnvId;
             }
 
-            // 2. 自动设置环境ID (pass mcpServer for IDE detection)
-            debug('未找到环境ID，尝试自动设置...');
-            let setupResult;
-            try {
-                setupResult = await _promptAndSetEnvironmentId(true, { server: mcpServer });
-            } catch (setupError) {
-                // Preserve original error information
-                const errorObj = setupError instanceof Error ? setupError : new Error(String(setupError));
-                error('自动设置环境ID时发生异常:', {
-                    error: errorObj.message,
-                    stack: errorObj.stack,
-                    name: errorObj.name,
-                });
-                // Re-throw with enhanced context
-                const enhancedError = new Error(`自动设置环境ID失败: ${errorObj.message}`);
-                (enhancedError as any).originalError = errorObj;
-                (enhancedError as any).failureInfo = {
-                    reason: 'unknown_error' as const,
-                    error: errorObj.message,
-                    errorCode: 'SETUP_EXCEPTION',
-                };
-                throw enhancedError;
+            // 2. 如果登录态里已有 envId，直接复用
+            const loginState = await peekLoginState();
+            if (typeof loginState?.envId === 'string' && loginState.envId.length > 0) {
+                debug('使用登录态中的环境ID:', { envId: loginState.envId });
+                this._setCachedEnvId(loginState.envId);
+                return loginState.envId;
             }
 
-            const autoEnvId = setupResult.selectedEnvId;
-
-            if (!autoEnvId) {
-                // Build detailed error message from failure info
-                const errorMessage = this._buildDetailedErrorMessage(setupResult.failureInfo);
-                error('自动设置环境ID失败:', {
-                    reason: setupResult.failureInfo?.reason,
-                    errorCode: setupResult.failureInfo?.errorCode,
-                    error: setupResult.failureInfo?.error,
-                    details: setupResult.failureInfo?.details,
-                });
-
-                // Create error with detailed information
-                const detailedError = new Error(errorMessage);
-                (detailedError as any).failureInfo = setupResult.failureInfo;
-                throw detailedError;
+            // 3. 单环境自动绑定；多环境时返回结构化引导，不再触发交互弹窗
+            const envCandidates = await listAvailableEnvCandidates({ loginState });
+            if (envCandidates.length === 1) {
+                const singleEnvId = envCandidates[0].envId;
+                debug('自动绑定唯一环境:', { envId: singleEnvId });
+                this._setCachedEnvId(singleEnvId);
+                return singleEnvId;
             }
 
-            debug('自动设置环境ID成功:', { envId: autoEnvId });
-            this._setCachedEnvId(autoEnvId);
-            return autoEnvId;
+            await throwEnvRequiredError({ loginState, envCandidates });
+            throw new Error('Unreachable after throwEnvRequiredError');
 
         } catch (err) {
             // Log the error with full context before re-throwing
@@ -278,77 +241,6 @@ class EnvironmentManager {
         this.cachedEnvId = envId;
         process.env.CLOUDBASE_ENV_ID = envId;
         debug('已更新环境ID缓存:', { envId });
-    }
-
-    // Build detailed error message from failure info
-    private _buildDetailedErrorMessage(failureInfo?: EnvSetupFailureInfo): string {
-        if (!failureInfo) {
-            return "CloudBase Environment ID not found after auto setup. Please set CLOUDBASE_ENV_ID or run setupEnvironmentId tool.";
-        }
-
-        const { reason, error: errorMsg, errorCode, helpUrl, details } = failureInfo;
-
-        let message = "CloudBase Environment ID not found after auto setup.\n\n";
-        message += `原因: ${this._getReasonDescription(reason)}\n`;
-
-        if (errorMsg) {
-            message += `错误: ${errorMsg}\n`;
-        }
-
-        if (errorCode) {
-            message += `错误代码: ${errorCode}\n`;
-        }
-
-        // Add specific details based on failure reason
-        if (reason === 'tcb_init_failed' && details?.initTcbError) {
-            const initError = details.initTcbError;
-            if (initError.needRealNameAuth) {
-                message += "\n需要完成实名认证才能使用 CloudBase 服务。\n";
-            }
-            if (initError.needCamAuth) {
-                message += "\n需要 CAM 权限才能使用 CloudBase 服务。\n";
-            }
-        }
-
-        if (reason === 'env_creation_failed' && details?.createEnvError) {
-            const createError = details.createEnvError;
-            message += `\n环境创建失败: ${createError.message || '未知错误'}\n`;
-        }
-
-        if (reason === 'env_query_failed' && details?.queryEnvError) {
-            message += `\n环境查询失败: ${details.queryEnvError}\n`;
-        }
-
-        if (reason === 'timeout' && details?.timeoutDuration) {
-            message += `\n超时时间: ${details.timeoutDuration / 1000} 秒\n`;
-            message += "提示: 请确保浏览器窗口已打开，并在规定时间内完成环境选择。\n";
-        }
-
-        message += "\n解决方案:\n";
-        message += "1. 手动设置环境ID: 设置环境变量 CLOUDBASE_ENV_ID\n";
-        message += "2. 使用工具设置: 运行 setupEnvironmentId 工具\n";
-
-        if (helpUrl) {
-            message += `3. 查看帮助文档: ${helpUrl}\n`;
-        } else {
-            message += "3. 查看帮助文档: https://docs.cloudbase.net/cli-v1/env\n";
-        }
-
-        return message;
-    }
-
-    private _getReasonDescription(reason: EnvSetupFailureInfo['reason']): string {
-        const descriptions: Record<EnvSetupFailureInfo['reason'], string> = {
-            'timeout': '环境选择超时',
-            'cancelled': '用户取消了环境选择',
-            'no_environments': '没有可用环境',
-            'login_failed': '登录失败',
-            'tcb_init_failed': 'CloudBase 服务初始化失败',
-            'env_query_failed': '环境列表查询失败',
-            'env_creation_failed': '环境创建失败',
-            'unknown_error': '未知错误',
-        };
-        return descriptions[reason] || '未知原因';
     }
 
     // 手动设置环境ID（用于外部调用）
@@ -403,7 +295,7 @@ export function getCachedEnvId(): string | null {
 export interface GetManagerOptions {
     requireEnvId?: boolean;
     cloudBaseOptions?: CloudBaseOptions;
-    mcpServer?: any; // Optional MCP server instance for IDE detection (e.g., CodeBuddy)
+    mcpServer?: any; // Reserved for backward compatibility
     authStrategy?: 'fail_fast' | 'ensure';
 }
 
@@ -414,23 +306,47 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
     const {
         requireEnvId = true,
         cloudBaseOptions,
-        mcpServer,
         authStrategy = 'fail_fast',
     } = options;
 
-    // 如果传入了 cloudBaseOptions，直接使用传入的配置
-    if (cloudBaseOptions) {
-        if (authStrategy === 'fail_fast' && requireEnvId && !cloudBaseOptions.envId) {
-            await throwEnvRequiredError({ cloudBaseOptions });
+    const hasDirectCredentials = !!(cloudBaseOptions?.secretId && cloudBaseOptions?.secretKey);
+
+    // 如果传入了完整凭据，优先使用显式 CloudBase 配置
+    if (cloudBaseOptions && hasDirectCredentials) {
+        let resolvedEnvId = cloudBaseOptions.envId;
+        if (requireEnvId && !resolvedEnvId) {
+            const envCandidates = await listAvailableEnvCandidates({ cloudBaseOptions });
+            if (envCandidates.length === 1) {
+                const singleEnvId = envCandidates[0].envId;
+                cloudBaseOptions.envId = singleEnvId;
+                resolvedEnvId = singleEnvId;
+                debug('自动绑定唯一环境(显式配置):', { envId: singleEnvId });
+            } else if (authStrategy === 'fail_fast') {
+                await throwEnvRequiredError({ cloudBaseOptions, envCandidates });
+            } else {
+                throwToolPayloadError({
+                    ok: false,
+                    code: "ENV_REQUIRED",
+                    message: "当前显式 CloudBase 凭据未绑定环境，请补充 envId 或先选择环境。",
+                    env_candidates: envCandidates,
+                    next_step: buildAuthNextStep("set_env", {
+                        suggestedArgs: { action: "set_env" },
+                        requiredParams: ["envId"],
+                    }),
+                });
+            }
         }
+
         debug('使用传入的 CloudBase 配置');
-        return createCloudBaseManagerWithOptions(cloudBaseOptions);
+        return createCloudBaseManagerWithOptions({
+            ...cloudBaseOptions,
+            envId: resolvedEnvId,
+        });
     }
 
     try {
         // Get region from environment variable for auth URL
-        // Note: At this point, cloudBaseOptions is undefined (checked above), so only use env var
-        const region = process.env.TCB_REGION;
+        const region = cloudBaseOptions?.region ?? process.env.TCB_REGION;
         const loginState = authStrategy === 'ensure'
             ? await getLoginState({ region })
             : await peekLoginState();
@@ -449,26 +365,36 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
             token
         } = loginState;
 
-        let finalEnvId: string | undefined;
+        let finalEnvId: string | undefined = cloudBaseOptions?.envId;
         if (requireEnvId) {
-            // Optimize: Check if envManager has cached envId first (fast path)
-            // If cached, use it directly; otherwise check loginEnvId before calling getEnvId()
-            // This avoids unnecessary async calls when we have a valid envId available
-            const cachedEnvId = envManager.getCachedEnvId();
-            if (cachedEnvId) {
-                debug('使用 envManager 缓存的环境ID:', { cachedEnvId });
-                finalEnvId = cachedEnvId;
-            } else if (loginEnvId) {
-                // If no cache but loginState has envId, use it to avoid triggering auto-setup
-                debug('使用 loginState 中的环境ID:', { loginEnvId });
-                finalEnvId = loginEnvId;
-            } else {
-                if (authStrategy === 'fail_fast') {
-                    await throwEnvRequiredError({ loginState });
+            if (!finalEnvId) {
+                // Optimize: Check if envManager has cached envId first (fast path)
+                // If cached, use it directly; otherwise check loginEnvId before calling getEnvId()
+                // This avoids unnecessary async calls when we have a valid envId available
+                const cachedEnvId = envManager.getCachedEnvId() || process.env.CLOUDBASE_ENV_ID;
+                if (cachedEnvId) {
+                    debug('使用 envManager 缓存的环境ID:', { cachedEnvId });
+                    finalEnvId = cachedEnvId;
+                } else if (loginEnvId) {
+                    // If no cache but loginState has envId, use it directly
+                    debug('使用 loginState 中的环境ID:', { loginEnvId });
+                    finalEnvId = loginEnvId;
+                } else {
+                    if (authStrategy === 'fail_fast') {
+                        const envCandidates = await listAvailableEnvCandidates({ loginState });
+                        if (envCandidates.length === 1) {
+                            const singleEnvId = envCandidates[0].envId;
+                            await envManager.setEnvId(singleEnvId);
+                            finalEnvId = singleEnvId;
+                            debug('自动绑定唯一环境:', { envId: singleEnvId });
+                        } else {
+                            await throwEnvRequiredError({ loginState, envCandidates });
+                        }
+                    } else {
+                        // ensure 模式下也保持非交互：单环境自动绑定，多环境返回 ENV_REQUIRED
+                        finalEnvId = await envManager.getEnvId();
+                    }
                 }
-                // Only call envManager.getEnvId() when neither cache nor loginState has envId
-                // This may trigger auto-setup flow (pass mcpServer for IDE detection)
-                finalEnvId = await envManager.getEnvId(mcpServer);
             }
         }
 

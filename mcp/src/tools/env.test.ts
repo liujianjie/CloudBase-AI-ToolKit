@@ -12,7 +12,6 @@ const {
   mockGetCachedEnvId,
   mockListAvailableEnvCandidates,
   mockResetCloudBaseManagerCache,
-  mockPromptAndSetEnvironmentId,
 } = vi.hoisted(() => ({
   mockSupervisorLoginByWebAuth: vi.fn(),
   mockEnsureLogin: vi.fn(),
@@ -23,7 +22,6 @@ const {
   mockGetCachedEnvId: vi.fn(),
   mockListAvailableEnvCandidates: vi.fn(),
   mockResetCloudBaseManagerCache: vi.fn(),
-  mockPromptAndSetEnvironmentId: vi.fn(),
 }));
 
 vi.mock("@cloudbase/toolbox", () => ({
@@ -53,10 +51,6 @@ vi.mock("../cloudbase-manager.js", () => ({
   listAvailableEnvCandidates: mockListAvailableEnvCandidates,
   logCloudBaseResult: vi.fn(),
   resetCloudBaseManagerCache: mockResetCloudBaseManagerCache,
-}));
-
-vi.mock("./interactive.js", () => ({
-  _promptAndSetEnvironmentId: mockPromptAndSetEnvironmentId,
 }));
 
 vi.mock("./rag.js", () => ({
@@ -109,10 +103,6 @@ describe("env tools - auth", () => {
       secretId: "sid",
       secretKey: "skey",
       envId: "env-test",
-    });
-    mockPromptAndSetEnvironmentId.mockResolvedValue({
-      selectedEnvId: "env-picked",
-      cancelled: false,
     });
     ({ tools } = createMockServer());
   });
@@ -195,7 +185,7 @@ describe("env tools - auth", () => {
     });
   });
 
-  it("auth(action=select_env, envId) should accept direct env selection shape", async () => {
+  it("auth(action=set_env, envId) should accept direct env binding", async () => {
     mockPeekLoginState.mockResolvedValue({
       secretId: "sid",
       secretKey: "skey",
@@ -203,13 +193,12 @@ describe("env tools - auth", () => {
     mockListAvailableEnvCandidates.mockResolvedValue([
       {
         envId: "env-test",
-        env_id: "env-test",
         alias: "test",
       },
     ]);
 
     const result = await tools.auth.handler({
-      action: "select_env",
+      action: "set_env",
       envId: "env-test",
     });
     const payload = JSON.parse(result.content[0].text);
@@ -217,34 +206,8 @@ describe("env tools - auth", () => {
     expect(payload).toHaveProperty("code", "ENV_READY");
     expect(payload).toHaveProperty("current_env_id", "env-test");
     expect(payload.next_step).toBeUndefined();
+    expect(payload.env_candidates).toBeUndefined();
     expect(mockEnvManagerSetEnvId).toHaveBeenCalledWith("env-test");
-  });
-
-  it("auth(action=choose_env) should use interactive environment selection", async () => {
-    mockPeekLoginState.mockResolvedValue({
-      secretId: "sid",
-      secretKey: "skey",
-    });
-    mockPromptAndSetEnvironmentId.mockResolvedValue({
-      selectedEnvId: "env-picked",
-      cancelled: false,
-      error: undefined,
-      noEnvs: false,
-      switch: false,
-    });
-
-    const result = await tools.auth.handler({
-      action: "choose_env",
-      forceUpdate: true,
-    });
-    const payload = JSON.parse(result.content[0].text);
-
-    expect(payload).toHaveProperty("code", "ENV_READY");
-    expect(payload).toHaveProperty("current_env_id", "env-picked");
-    expect(payload.next_step).toBeUndefined();
-    expect(mockPromptAndSetEnvironmentId).toHaveBeenCalledWith(true, {
-      server: expect.anything(),
-    });
   });
 
   it("auth(action=logout) should clear session state", async () => {
@@ -260,11 +223,11 @@ describe("env tools - auth", () => {
     expect(mockResetCloudBaseManagerCache).toHaveBeenCalled();
   });
 
-  it("CodeBuddy should only expose status and select_env actions", () => {
+  it("CodeBuddy should only expose status and set_env actions", () => {
     const { tools: codeBuddyTools } = createMockServer("CodeBuddy");
     expect(codeBuddyTools.auth.meta.inputSchema.action.unwrap().options).toEqual([
       "status",
-      "select_env",
+      "set_env",
     ]);
     expect(codeBuddyTools.auth.meta.inputSchema.authMode).toBeUndefined();
     expect(codeBuddyTools.auth.meta.inputSchema.forceUpdate).toBeUndefined();

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToolPayloadError } from "./utils/tool-result.js";
 
+const mockCloudBaseCtor = vi.fn();
 const mockAuthGetProgressState = vi.fn();
 const mockPeekLoginState = vi.fn();
 const mockEnsureLogin = vi.fn();
@@ -14,7 +15,7 @@ vi.mock("./auth.js", () => ({
 }));
 
 vi.mock("@cloudbase/manager-node", () => ({
-  default: vi.fn().mockImplementation(() => ({
+  default: mockCloudBaseCtor.mockImplementation(() => ({
     commonService: vi.fn(() => ({
       call: mockCommonServiceCall,
     })),
@@ -87,7 +88,7 @@ describe("cloudbase manager auth gate", () => {
     });
   });
 
-  it("should fail fast with ENV_REQUIRED when login exists but env is missing", async () => {
+  it("should auto-bind single env when login exists but env is missing", async () => {
     mockPeekLoginState.mockResolvedValue({
       secretId: "sid",
       secretKey: "skey",
@@ -103,6 +104,36 @@ describe("cloudbase manager auth gate", () => {
       ],
     });
 
+    const { getCloudBaseManager, getEnvId } = await import("./cloudbase-manager.js");
+
+    await expect(getCloudBaseManager()).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "sid",
+        secretKey: "skey",
+        token: "token",
+        envId: "env-1",
+      }),
+    );
+    await expect(getEnvId()).resolves.toBe("env-1");
+  });
+
+  it("should fail fast with ENV_REQUIRED when login exists but multiple envs", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+    });
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [
+        { EnvId: "env-1", Alias: "prod", Region: "ap-shanghai" },
+        { EnvId: "env-2", Alias: "dev", Region: "ap-shanghai" },
+      ],
+    });
+
     const { getCloudBaseManager } = await import("./cloudbase-manager.js");
 
     await expect(getCloudBaseManager()).rejects.toMatchObject({
@@ -110,16 +141,239 @@ describe("cloudbase manager auth gate", () => {
       payload: expect.objectContaining({
         code: "ENV_REQUIRED",
         env_candidates: [
-          expect.objectContaining({
-            envId: "env-1",
-            env_id: "env-1",
-          }),
+          expect.objectContaining({ envId: "env-1" }),
+          expect.objectContaining({ envId: "env-2" }),
         ],
         next_step: expect.objectContaining({
           tool: "auth",
-          action: "select_env",
+          action: "set_env",
         }),
       }),
     });
+  });
+
+  it("getEnvId should fail fast with ENV_REQUIRED when login exists but multiple envs", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+    });
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [
+        { EnvId: "env-1", Alias: "prod", Region: "ap-shanghai" },
+        { EnvId: "env-2", Alias: "dev", Region: "ap-shanghai" },
+      ],
+    });
+
+    const { getEnvId } = await import("./cloudbase-manager.js");
+
+    await expect(getEnvId()).rejects.toMatchObject({
+      name: "ToolPayloadError",
+      payload: expect.objectContaining({
+        code: "ENV_REQUIRED",
+        env_candidates: [
+          expect.objectContaining({ envId: "env-1" }),
+          expect.objectContaining({ envId: "env-2" }),
+        ],
+        next_step: expect.objectContaining({
+          tool: "auth",
+          action: "set_env",
+        }),
+      }),
+    });
+  });
+
+  it("should reuse cached env for partial cloudBaseOptions after interactive selection", async () => {
+    const { envManager, getCloudBaseManager } = await import(
+      "./cloudbase-manager.js"
+    );
+
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+    });
+
+    await envManager.setEnvId("env-picked");
+
+    await expect(
+      getCloudBaseManager({
+        cloudBaseOptions: {
+          region: "ap-shanghai",
+        },
+      }),
+    ).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "sid",
+        secretKey: "skey",
+        token: "token",
+        envId: "env-picked",
+        region: "ap-shanghai",
+      }),
+    );
+  });
+
+  it("should prefer explicit cloudBaseOptions envId over cached env", async () => {
+    const { envManager, getCloudBaseManager } = await import(
+      "./cloudbase-manager.js"
+    );
+
+    await envManager.setEnvId("env-cached");
+
+    await expect(
+      getCloudBaseManager({
+        cloudBaseOptions: {
+          secretId: "explicit-sid",
+          secretKey: "explicit-skey",
+          envId: "env-explicit",
+          region: "ap-shanghai",
+        },
+      }),
+    ).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "explicit-sid",
+        secretKey: "explicit-skey",
+        envId: "env-explicit",
+        region: "ap-shanghai",
+      }),
+    );
+  });
+
+  it("should auto-bind single env for explicit credentials", async () => {
+    const { getCloudBaseManager } = await import("./cloudbase-manager.js");
+
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [{ EnvId: "env-explicit-only", Alias: "prod", Region: "ap-shanghai" }],
+    });
+
+    await expect(
+      getCloudBaseManager({
+        cloudBaseOptions: {
+          secretId: "explicit-sid",
+          secretKey: "explicit-skey",
+          region: "ap-shanghai",
+        },
+      }),
+    ).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "explicit-sid",
+        secretKey: "explicit-skey",
+        envId: "env-explicit-only",
+        region: "ap-shanghai",
+      }),
+    );
+  });
+
+  it("should not reuse cached env for explicit credentials with multiple envs", async () => {
+    const { envManager, getCloudBaseManager } = await import(
+      "./cloudbase-manager.js"
+    );
+
+    await envManager.setEnvId("env-cached");
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [
+        { EnvId: "env-1", Alias: "prod", Region: "ap-shanghai" },
+        { EnvId: "env-2", Alias: "dev", Region: "ap-shanghai" },
+      ],
+    });
+
+    await expect(
+      getCloudBaseManager({
+        cloudBaseOptions: {
+          secretId: "explicit-sid",
+          secretKey: "explicit-skey",
+          region: "ap-shanghai",
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "ToolPayloadError",
+      payload: expect.objectContaining({
+        code: "ENV_REQUIRED",
+        env_candidates: [
+          expect.objectContaining({ envId: "env-1" }),
+          expect.objectContaining({ envId: "env-2" }),
+        ],
+      }),
+    });
+  });
+
+  it("should let env-required tools reuse selected env after device auth flow completes", async () => {
+    const { envManager, getCloudBaseManager, getEnvId } = await import(
+      "./cloudbase-manager.js"
+    );
+
+    await expect(getCloudBaseManager()).rejects.toMatchObject({
+      name: "ToolPayloadError",
+      payload: expect.objectContaining({
+        code: "AUTH_REQUIRED",
+      }),
+    });
+
+    mockAuthGetProgressState.mockResolvedValue({
+      status: "PENDING",
+      updatedAt: Date.now(),
+      authChallenge: {
+        user_code: "WDJB-MJHT",
+        verification_uri: "https://example.com/device",
+        device_code: "device-code",
+        expires_in: 600,
+      },
+    });
+
+    await expect(getCloudBaseManager()).rejects.toMatchObject({
+      name: "ToolPayloadError",
+      payload: expect.objectContaining({
+        code: "AUTH_PENDING",
+      }),
+    });
+
+    mockAuthGetProgressState.mockResolvedValue({
+      status: "READY",
+      updatedAt: Date.now(),
+    });
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+    });
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [
+        {
+          EnvId: "env-picked",
+          Alias: "picked",
+          Region: "ap-shanghai",
+        },
+      ],
+    });
+
+    // Single env: getCloudBaseManager auto-binds, no ENV_REQUIRED
+    await expect(getCloudBaseManager()).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "sid",
+        secretKey: "skey",
+        token: "token",
+        envId: "env-picked",
+      }),
+    );
+    await expect(getEnvId()).resolves.toBe("env-picked");
   });
 });

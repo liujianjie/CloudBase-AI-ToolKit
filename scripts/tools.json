@@ -5,7 +5,7 @@
   "tools": [
     {
       "name": "auth",
-      "description": "统一的云开发认证与环境绑定工具。支持查询认证状态、发起认证、显式绑定环境、交互式选择环境和退出登录。",
+      "description": "CloudBase（腾讯云开发）开发阶段登录与环境绑定。登录后即可访问云资源；环境(env)是云函数、数据库、静态托管等资源的隔离单元，绑定环境后其他 MCP 工具才能操作该环境。支持：查询状态、发起登录、绑定环境(set_env)、退出登录。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -14,11 +14,10 @@
             "enum": [
               "status",
               "start_auth",
-              "select_env",
-              "choose_env",
+              "set_env",
               "logout"
             ],
-            "description": "认证动作：status=查询当前状态，start_auth=仅发起认证，select_env=显式绑定环境，choose_env=交互式选择环境，logout=退出登录"
+            "description": "动作：status=查询状态，start_auth=发起登录，set_env=绑定环境(传envId)，logout=退出登录"
           },
           "authMode": {
             "type": "string",
@@ -30,11 +29,7 @@
           },
           "envId": {
             "type": "string",
-            "description": "环境ID。action=select_env 时必填"
-          },
-          "forceUpdate": {
-            "type": "boolean",
-            "description": "是否强制重新触发交互式环境选择"
+            "description": "环境ID(CloudBase 环境唯一标识)，绑定后工具将操作该环境。action=set_env 时必填"
           },
           "confirm": {
             "type": "string",
@@ -955,7 +950,7 @@
     },
     {
       "name": "readFunctionLayers",
-      "description": "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。",
+      "description": "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。返回格式：JSON 包含 success、data（含 action 与对应结果字段）、message；data.layers 或 data.layerVersions 为数组，getFunctionLayers 的 data.layers 每项为 { LayerName, LayerVersion }。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1011,7 +1006,7 @@
     },
     {
       "name": "writeFunctionLayers",
-      "description": "管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。",
+      "description": "管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。返回格式：JSON 包含 success、data（含 action 与结果字段，如 layerVersion、layers）、message、nextActions（建议的后续操作）。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1433,7 +1428,7 @@
     },
     {
       "name": "downloadTemplate",
-      "description": "自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️\n\n**CRITICAL**: This tool MUST be called FIRST when starting a new project.\n\n支持的模板:\n- react: React + CloudBase 全栈应用模板\n- vue: Vue + CloudBase 全栈应用模板\n- miniprogram: 微信小程序 + 云开发模板  \n- uniapp: UniApp + CloudBase 跨端应用模板\n- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置\n\n支持的IDE类型:\n- all: 下载所有IDE配置\n- cursor: Cursor AI编辑器\n- 其他IDE类型见下方列表\n\n注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数\n- windsurf: WindSurf AI编辑器\n- codebuddy: CodeBuddy AI编辑器\n- claude-code: Claude Code AI编辑器\n- cline: Cline AI编辑器\n- gemini-cli: Gemini CLI\n- opencode: OpenCode AI编辑器\n- qwen-code: 通义灵码\n- baidu-comate: 百度Comate\n- openai-codex-cli: OpenAI Codex CLI\n- augment-code: Augment Code\n- github-copilot: GitHub Copilot\n- roocode: RooCode AI编辑器\n- tongyi-lingma: 通义灵码\n- trae: Trae AI编辑器\n- qoder: Qoder AI编辑器\n- antigravity: Google Antigravity AI编辑器\n- vscode: Visual Studio Code\n- kiro: Kiro AI编辑器\n- aider: Aider AI编辑器\n\n特别说明：\n- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.13.0），便于后续维护和版本追踪\n- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）",
+      "description": "自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️\n\n**CRITICAL**: This tool MUST be called FIRST when starting a new project.\n\n支持的模板:\n- react: React + CloudBase 全栈应用模板\n- vue: Vue + CloudBase 全栈应用模板\n- miniprogram: 微信小程序 + 云开发模板  \n- uniapp: UniApp + CloudBase 跨端应用模板\n- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置\n\n支持的IDE类型:\n- all: 下载所有IDE配置\n- cursor: Cursor AI编辑器\n- 其他IDE类型见下方列表\n\n注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数\n- windsurf: WindSurf AI编辑器\n- codebuddy: CodeBuddy AI编辑器\n- claude-code: Claude Code AI编辑器\n- cline: Cline AI编辑器\n- gemini-cli: Gemini CLI\n- opencode: OpenCode AI编辑器\n- qwen-code: 通义灵码\n- baidu-comate: 百度Comate\n- openai-codex-cli: OpenAI Codex CLI\n- augment-code: Augment Code\n- github-copilot: GitHub Copilot\n- roocode: RooCode AI编辑器\n- tongyi-lingma: 通义灵码\n- trae: Trae AI编辑器\n- qoder: Qoder AI编辑器\n- antigravity: Google Antigravity AI编辑器\n- vscode: Visual Studio Code\n- kiro: Kiro AI编辑器\n- aider: Aider AI编辑器\n\n特别说明：\n- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.14.0-beta.1），便于后续维护和版本追踪\n- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）",
       "inputSchema": {
         "type": "object",
         "properties": {

@@ -6,6 +6,7 @@ import { CloudBaseOptions } from '../types.js';
 import { shouldRegisterTool } from './cloud-mode.js';
 import { debug } from './logger.js';
 import { reportToolCall } from './telemetry.js';
+import { isToolPayloadError } from "./tool-result.js";
 
 
 /**
@@ -144,6 +145,12 @@ function createWrappedHandler(name: string, handler: any, server: ExtendedMcpSer
               process.env.NODE_ENV === "test" || process.env.VITEST === "true";
             if (!isTestEnvironment) {
                 server.logger?.({ type: 'errorToolCall', toolName: name, args: sanitizeArgs(args), message: errorMessage, duration: Date.now() - startTime });
+            }
+
+            // Preserve structured tool guidance such as next_step.
+            // These errors are expected control flow and should be serialized by the outer server wrapper.
+            if (isToolPayloadError(error)) {
+                throw error;
             }
 
             // In tests, avoid any extra work that may block (envId lookup, issue link generation, etc.)

@@ -11,7 +11,7 @@
 <table>
 <thead><tr><th>名称</th><th>描述</th></tr></thead>
 <tbody>
-<tr><td><code>auth</code></td><td>统一的云开发认证与环境绑定工具。支持查询认证状态、发起认证、显式绑定环境、交互式选择环境和退出登录。</td></tr>
+<tr><td><code>auth</code></td><td>CloudBase（腾讯云开发）开发阶段登录与环境绑定。登录后即可访问云资源；环境(env)是云函数、数据库、静态托管等资源的隔离单元，绑定环境后其他 MCP 工具才能操作该环境。支持：查询状态、发起登录、绑定环境(set_env)、退出登录。</td></tr>
 <tr><td><code>envQuery</code></td><td>查询云开发环境相关信息，支持查询环境列表、当前环境信息、安全域名和静态网站托管配置。（原工具名：listEnvs/getEnvInfo/getEnvAuthDomains/getWebsiteConfig，为兼容旧AI规则可继续使用这些名称）</td></tr>
 <tr><td><code>envDomainManagement</code></td><td>管理云开发环境的安全域名，支持添加和删除操作。（原工具名：createEnvDomain/deleteEnvDomain，为兼容旧AI规则可继续使用这些名称）</td></tr>
 <tr><td><code>readNoSqlDatabaseStructure</code></td><td>读取 NoSQL 数据库结构</td></tr>
@@ -72,17 +72,16 @@
 ## 详细规格
 
 ### `auth`
-统一的云开发认证与环境绑定工具。支持查询认证状态、发起认证、显式绑定环境、交互式选择环境和退出登录。
+CloudBase（腾讯云开发）开发阶段登录与环境绑定。登录后即可访问云资源；环境(env)是云函数、数据库、静态托管等资源的隔离单元，绑定环境后其他 MCP 工具才能操作该环境。支持：查询状态、发起登录、绑定环境(set_env)、退出登录。
 
 #### 参数
 
 <table>
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
-<tr><td><code>action</code></td><td>string</td><td></td><td>认证动作：status=查询当前状态，start_auth=仅发起认证，select_env=显式绑定环境，choose_env=交互式选择环境，logout=退出登录 可填写的值: "status", "start_auth", "select_env", "choose_env", "logout"</td></tr>
+<tr><td><code>action</code></td><td>string</td><td></td><td>动作：status=查询状态，start_auth=发起登录，set_env=绑定环境(传envId)，logout=退出登录 可填写的值: "status", "start_auth", "set_env", "logout"</td></tr>
 <tr><td><code>authMode</code></td><td>string</td><td></td><td>认证模式：device=设备码授权，web=浏览器回调授权 可填写的值: "device", "web"</td></tr>
-<tr><td><code>envId</code></td><td>string</td><td></td><td>环境ID。action=select_env 时必填</td></tr>
-<tr><td><code>forceUpdate</code></td><td>boolean</td><td></td><td>是否强制重新触发交互式环境选择</td></tr>
+<tr><td><code>envId</code></td><td>string</td><td></td><td>环境ID(CloudBase 环境唯一标识)，绑定后工具将操作该环境。action=set_env 时必填</td></tr>
 <tr><td><code>confirm</code></td><td>string</td><td></td><td>action=logout 时确认操作，传 yes 可填写的值: const "yes"</td></tr>
 </tbody>
 </table>
