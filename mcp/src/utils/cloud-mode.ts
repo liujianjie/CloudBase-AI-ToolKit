@@ -70,8 +70,7 @@ export function shouldRegisterTool(toolName: string): boolean {
   // Cloud-incompatible tools that involve local file operations
   const cloudIncompatibleTools = [
     // Auth tools - local file uploads
-    'login',
-    'logout',
+    'auth',
     
     // Storage tools - local file uploads
     'uploadFile',

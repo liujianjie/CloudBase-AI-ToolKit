@@ -637,6 +637,21 @@ export async function registerRagTools(server: ExtendedMcpServer) {
           ],
         };
       }
+
+      // 向量检索模式下必须提供 id 和 content，避免后端报「知识库名称不能为空」
+      if (mode === "vector") {
+        if (!id) {
+          throw new Error(
+            "知识库名称不能为空: please provide `id` when mode=vector (cloudbase / scf / miniprogram).",
+          );
+        }
+        if (!content || !content.trim()) {
+          throw new Error(
+            "检索内容不能为空: please provide non-empty `content` when mode=vector.",
+          );
+        }
+      }
+
       // 枚举到后端 id 映射
       const backendId =
         KnowledgeBaseIdMap[id as keyof typeof KnowledgeBaseIdMap] || id;

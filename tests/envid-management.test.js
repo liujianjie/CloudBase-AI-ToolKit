@@ -134,7 +134,7 @@ describe('EnvId Management Tests', () => {
   });
 
   describe('File Cache Removal', () => {
-    test('should not use file-based cache (code verification)', async () => {
+    test('should not use file-based cache or legacy interactive env picker (code verification)', async () => {
       const fs = await import('fs');
       const path = await import('path');
       const { fileURLToPath } = await import('url');
@@ -152,9 +152,9 @@ describe('EnvId Management Tests', () => {
       // Should not import file cache functions
       expect(managerCode).not.toMatch(/loadEnvIdFromUserConfig/);
       expect(managerCode).not.toMatch(/saveEnvIdToUserConfig/);
-      
-      // Should import _promptAndSetEnvironmentId (internal function for environment setup)
-      expect(managerCode).toMatch(/_promptAndSetEnvironmentId/);
+
+      // Should also not rely on legacy interactive env picker helper
+      expect(managerCode).not.toMatch(/_promptAndSetEnvironmentId/);
     });
   });
 

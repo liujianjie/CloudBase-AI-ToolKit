@@ -17,7 +17,7 @@ export default defineConfig({
     // 设置根目录
     root: process.cwd(),
     // 包含测试文件
-    include: ['../tests/**/*.test.js'],
+    include: ['../tests/**/*.test.js', 'src/**/*.test.ts'],
     // 显示详细输出
     reporter: 'verbose',
     // 失败时停止

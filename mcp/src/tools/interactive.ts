@@ -211,7 +211,19 @@ export interface EnvSetupFailureInfo {
 // 封装了获取环境、提示选择、保存配置的核心逻辑
 export async function _promptAndSetEnvironmentId(
   autoSelectSingle: boolean,
-  options?: { server?: any; loginFromCloudBaseLoginPage?: boolean; ignoreEnvVars?: boolean },
+  options?: {
+    server?: any;
+    loginFromCloudBaseLoginPage?: boolean;
+    ignoreEnvVars?: boolean;
+    authMode?: "web" | "device";
+    clientId?: string;
+    onDeviceCode?: (info: {
+      user_code: string;
+      verification_uri?: string;
+      device_code: string;
+      expires_in: number;
+    }) => void;
+  },
 ): Promise<{
   selectedEnvId: string | null;
   cancelled: boolean;
@@ -233,6 +245,7 @@ export async function _promptAndSetEnvironmentId(
     hasServerServer: !!server?.server,
     hasServerIde: !!server?.ide,
     ignoreEnvVars: options?.ignoreEnvVars,
+    authMode: options?.authMode,
     optionsKeys: options ? Object.keys(options).join(', ') : 'null',
   });
 
@@ -251,6 +264,9 @@ export async function _promptAndSetEnvironmentId(
     fromCloudBaseLoginPage: options?.loginFromCloudBaseLoginPage,
     ignoreEnvVars: options?.ignoreEnvVars,
     region,
+    authMode: options?.authMode,
+    clientId: options?.clientId,
+    onDeviceCode: options?.onDeviceCode,
   });
   debug("[interactive] Login state:", {
     hasLoginState: !!loginState,

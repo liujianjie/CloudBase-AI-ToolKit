@@ -21,6 +21,7 @@ import { CloudBaseOptions, Logger } from "./types.js";
 import { enableCloudMode } from "./utils/cloud-mode.js";
 import { info } from './utils/logger.js';
 import { isInternationalRegion } from "./utils/tencet-cloud.js";
+import { buildJsonToolResult, isToolPayloadError } from "./utils/tool-result.js";
 import { wrapServerWithTelemetry } from "./utils/tool-wrapper.js";
 
 // 插件定义
@@ -190,6 +191,19 @@ export async function createCloudBaseMcpServer(options?: {
       },
     },
   ) as ExtendedMcpServer;
+
+  const originalRegisterTool = server.registerTool.bind(server);
+  server.registerTool = ((name: string, meta: any, handler: (args: any) => Promise<any>) =>
+    originalRegisterTool(name, meta, async (args: any) => {
+      try {
+        return await handler(args);
+      } catch (error) {
+        if (isToolPayloadError(error)) {
+          return buildJsonToolResult(error.payload);
+        }
+        throw error;
+      }
+    })) as typeof server.registerTool;
 
   // Only set logging handler if logging capability is declared
   if (ide === "CodeBuddy") {

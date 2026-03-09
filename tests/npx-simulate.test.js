@@ -237,7 +237,7 @@ async function testEnvironmentInfo(cliPath) {
     const envTools = toolsResult.tools.filter(
       (t) =>
         t.name.includes("env") ||
-        t.name.includes("login") ||
+        t.name.includes("auth") ||
         t.name.includes("info"),
     );
 
@@ -246,39 +246,37 @@ async function testEnvironmentInfo(cliPath) {
       envTools.map((t) => t.name),
     );
 
-    // Test login tool if available (this is a common environment tool)
-    const loginTool = toolsResult.tools.find((t) => t.name === "login");
-    if (loginTool) {
-      console.log("🔐 测试 login 工具...");
+    // Test auth tool with a non-interactive status query.
+    const authTool = toolsResult.tools.find((t) => t.name === "auth");
+    if (authTool) {
+      console.log("🔐 测试 auth 工具...");
 
       try {
-        const loginResult = await client.callTool({
-          name: "login",
+        const authResult = await client.callTool({
+          name: "auth",
           arguments: {
-            secretId: "test-secret-id",
-            secretKey: "test-secret-key",
-            envId: "test-env-id",
+            action: "status",
           },
         });
 
-        expect(loginResult).toBeDefined();
-        expect(loginResult.content).toBeDefined();
-        expect(Array.isArray(loginResult.content)).toBe(true);
+        expect(authResult).toBeDefined();
+        expect(authResult.content).toBeDefined();
+        expect(Array.isArray(authResult.content)).toBe(true);
 
-        console.log("✅ login 工具执行成功");
+        console.log("✅ auth 工具执行成功");
         console.log(
-          "Login 结果:",
-          loginResult.content[0]?.text?.substring(0, 200) + "...",
+          "Auth 结果:",
+          authResult.content[0]?.text?.substring(0, 200) + "...",
         );
-      } catch (loginError) {
-        // Login might fail with test credentials, which is expected
+      } catch (authError) {
+        // Status query should not trigger interactive login, but keep the test tolerant.
         console.log(
-          "⚠️ login 工具执行失败（使用测试凭据，这是预期的）:",
-          loginError.message,
+          "⚠️ auth 工具执行失败（状态查询）:",
+          authError.message,
         );
       }
     } else {
-      console.log("⚠️ login 工具未找到，跳过测试");
+      console.log("⚠️ auth 工具未找到，跳过测试");
     }
 
     // Test getEnvironmentInfo tool if available
