@@ -82,7 +82,7 @@ jobs:
 
       - name: Commit and push
         run: |
-          git add config/allinone config/codebuddy-plugin/skills
+          git add config/allinone config/codebuddy-plugin/skills config/codebuddy-plugin/rules config/codebuddy-plugin/.codebuddy-plugin
           if git diff --staged --quiet; then
             echo "No changes, skipping."
           else
