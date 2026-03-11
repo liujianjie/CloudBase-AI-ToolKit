@@ -1,6 +1,6 @@
 ---
 name: cloud-functions
-description: Complete guide for CloudBase cloud functions development - supports both Event Functions (Node.js) and HTTP Functions (multi-language Web services). Covers runtime selection, deployment, logging, invocation, scf_bootstrap, SSE, WebSocket, and HTTP access configuration.
+description: Complete guide for CloudBase cloud functions development - supports both Event Functions (Node.js, Python, PHP, Java, Go) and HTTP Functions (all languages via scf_bootstrap). Covers runtime selection, deployment, logging, invocation, scf_bootstrap, SSE, WebSocket, and HTTP access configuration.
 alwaysApply: false
 ---
 
@@ -15,8 +15,8 @@ Use this skill when developing, deploying, and managing CloudBase cloud function
 
 Use this skill for **cloud function operations** when you need to:
 
-- Create and deploy Event Functions (Node.js)
-- Create and deploy HTTP Functions (Node.js/Python/Go/Java)
+- Create and deploy Event Functions (Node.js, Python, PHP, Java, Go)
+- Create and deploy HTTP Functions (all languages via scf_bootstrap)
 - Understand runtime limitations and selection
 - Query function logs and monitor execution
 - Invoke cloud functions from applications
@@ -61,7 +61,7 @@ Use this skill for **cloud function operations** when you need to:
 | Port | No port required | **Must listen on port 9000** |
 | Bootstrap | Not required | Requires `scf_bootstrap` |
 | Connection | Short connection | Supports long connection |
-| Languages | Node.js only | Node.js, Python, Go, Java |
+| Languages | Node.js, Python, PHP, Java, Go | All languages (via scf_bootstrap) |
 | Protocols | N/A | HTTP, SSE, WebSocket |
 | Use Cases | Event processing, scheduled tasks | Web APIs, REST services, real-time streaming |
 
@@ -78,21 +78,51 @@ Once a cloud function is created with a specific runtime, the runtime **cannot b
 1. Delete the existing function
 2. Create a new function with the desired runtime
 
-**Supported Node.js Runtimes:**
+**Supported Runtimes for Event Functions:**
 
-- `Nodejs18.15` (Default, Recommended)
+**Node.js:**
+- `Nodejs20.19`
+- `Nodejs18.15` (Recommended)
 - `Nodejs16.13`
 - `Nodejs14.18`
 - `Nodejs12.16`
 - `Nodejs10.15`
 - `Nodejs8.9`
 
+**Python:**
+- `Python3.10`
+- `Python3.9` (Recommended)
+- `Python3.7`
+- `Python3.6`
+- `Python2.7`
+
+**PHP:**
+- `Php8.0`
+- `Php7.4` (Recommended)
+- `Php7.2`
+
+**Java:**
+- `Java11` (Recommended)
+- `Java8`
+
+**Go:**
+- `Golang1`
+
 **Runtime Selection Guidelines:**
 
-- **Use `Nodejs18.15`** for new projects (default, most modern)
-- Choose older versions only if dependencies require specific Node.js versions
+- **Recommended runtimes**: `Nodejs18.15` (Node.js), `Python3.9` (Python), `Php7.4` (PHP), `Java11` (Java), `Golang1` (Go)
+- Choose older versions only if dependencies require specific versions
 - Consider security updates and support lifecycle
 - Test thoroughly with selected runtime before deployment
+
+**Dependency Management:**
+
+- **Node.js functions**: Dependencies are automatically installed from `package.json`
+- **Python/PHP/Java/Go functions**: Must pre-package dependencies into the function directory
+  - Python: `pip install -r requirements.txt -t .`
+  - PHP: `composer install --no-dev`
+  - Java: `mvn clean package` or `gradle build`
+  - Go: `GOOS=linux GOARCH=amd64 go build -o main`
 
 ### Event Function Structure
 
@@ -130,7 +160,9 @@ Use `updateFunctionCode` tool:
 
 1. **Always specify runtime** explicitly when creating functions
 2. **Use absolute paths** for `functionRootPath`
-3. **Don't upload node_modules** - dependencies installed automatically
+3. **Dependency management**:
+   - Node.js: Don't upload `node_modules` - dependencies installed automatically
+   - Python/PHP/Java/Go: Must pre-package dependencies into function directory
 4. **Test locally** before deployment when possible
 5. **Use environment variables** for configuration, not hardcoded values
 
@@ -593,10 +625,18 @@ exports.main = async (event, context) => {
 ## Best Practices
 
 ### General Best Practices
-1. **Runtime Selection**: Always specify runtime explicitly, use `Nodejs18.15` for new projects
+1. **Runtime Selection**: Always specify runtime explicitly
+   - Node.js: Use `Nodejs18.15` for new projects
+   - Python: Use `Python3.9` for new projects
+   - PHP: Use `Php7.4` for new projects
+   - Java: Use `Java11` for new projects
+   - Go: Use `Golang1`
 2. **Code Organization**: Keep functions focused and single-purpose
 3. **Error Handling**: Always implement proper error handling
 4. **Environment Variables**: Use env vars for configuration, never hardcode secrets
+5. **Dependency Management**:
+   - Node.js: Dependencies auto-installed from `package.json`
+   - Python/PHP/Java/Go: Pre-package dependencies before deployment
 5. **Logging**: Add meaningful logs for debugging
 6. **Testing**: Test functions locally when possible before deployment
 7. **Security**: Implement authentication/authorization for HTTP access

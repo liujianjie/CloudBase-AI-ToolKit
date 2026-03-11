@@ -258,6 +258,25 @@ interface WebSocketMessage {
 }
 ```
 
+## MCP 工具设计规范（Tool design rules）
+
+- **Query / manage 工具模式（按模块控制 tool 数量）**  
+  - 每个逻辑域模块（如 functions、env、storage、database 等）**最多只暴露两个主工具**：  
+    - 查询工具：`queryXxx` —— 严格只读，无副作用，只负责查询/检索。  
+    - 管理工具：`manageXxx` —— 所有写入/变更行为都通过 `action` 字段区分。  
+  - `manageXxx` 工具必须：  
+    - 使用必填的 `action` 字段（string literal union）来区分行为，例如 `"create" | "update" | "delete" | "attachLayer" | "detachLayer"`。  
+    - 按 `action` 分组参数（使用 discriminated union，或在文档中清晰约定每个 action 对应的 payload）。  
+    - 对缺失或未知的 `action` 一律视为无效输入，安全失败。  
+  - **Tool 数量控制**：  
+    - 同一领域内不要为每个细粒度操作创建独立工具（不要堆满 `createX` / `updateX` / `deleteX` 等），优先在现有 `manageXxx` 工具上扩展新的 `action`。  
+  - **安全性与注解（annotations）**：  
+    - 每个工具在元数据中必须显式标注 `readOnly: true | false`，让代理可以区分“安全查看”与“会产生副作用”的调用。  
+    - 危险行为（删除、覆盖、发布、重置等）必须有显式确认参数（`confirm`、`force` 或 `dryRun`），并且默认配置应当是安全的（省略确认参数时不做破坏性操作）。  
+  - **AI 友好性（AI ergonomics）**：  
+    - 在示例、`nextActions` 等提示中，优先推荐只读工具作为默认入口。  
+    - `manageXxx` 的描述必须列出所有支持的 `action`，并说明各自的副作用和所需的确认参数。
+
 ## 核心功能实现
 
 ### 1. 统一交互式对话工具

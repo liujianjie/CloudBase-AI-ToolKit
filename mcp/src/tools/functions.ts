@@ -10,17 +10,69 @@ import { debug } from "../utils/logger.js";
 import { IEnvVariable } from "@cloudbase/manager-node/types/function/types.js";
 import path from "path";
 
-// 支持的 Node.js 运行时列表
-export const SUPPORTED_NODEJS_RUNTIMES = [
-  "Nodejs20.19",
-  "Nodejs18.15",
-  "Nodejs16.13",
-  "Nodejs14.18",
-  "Nodejs12.16",
-  "Nodejs10.15",
-  "Nodejs8.9",
-];
-export const DEFAULT_NODEJS_RUNTIME = "Nodejs18.15";
+// 所有支持的运行时环境(按语言分类)
+export const SUPPORTED_RUNTIMES = {
+  nodejs: [
+    "Nodejs20.19",
+    "Nodejs18.15",
+    "Nodejs16.13",
+    "Nodejs14.18",
+    "Nodejs12.16",
+    "Nodejs10.15",
+    "Nodejs8.9",
+  ],
+  python: [
+    "Python3.10",
+    "Python3.9",
+    "Python3.7",
+    "Python3.6",
+    "Python2.7",
+  ],
+  php: [
+    "Php8.0",
+    "Php7.4",
+    "Php7.2",
+  ],
+  java: [
+    "Java8",
+    "Java11",
+  ],
+  golang: [
+    "Golang1",
+  ],
+} as const;
+
+// 所有支持的运行时(扁平化数组,用于验证)
+export const ALL_SUPPORTED_RUNTIMES = Object.values(SUPPORTED_RUNTIMES).flat();
+
+// 默认运行时
+export const DEFAULT_RUNTIME = "Nodejs18.15";
+
+// 推荐运行时(用于文档和提示)
+export const RECOMMENDED_RUNTIMES = {
+  nodejs: "Nodejs18.15",
+  python: "Python3.9",
+  php: "Php7.4",
+  java: "Java11",
+  golang: "Golang1",
+} as const;
+
+// 保留向后兼容
+export const SUPPORTED_NODEJS_RUNTIMES = SUPPORTED_RUNTIMES.nodejs;
+export const DEFAULT_NODEJS_RUNTIME = DEFAULT_RUNTIME;
+
+/**
+ * 格式化运行时列表(按语言分类)
+ * 用于错误提示和用户引导
+ */
+export function formatRuntimeList(): string {
+  return Object.entries(SUPPORTED_RUNTIMES)
+    .map(([lang, runtimes]) => {
+      const capitalizedLang = lang.charAt(0).toUpperCase() + lang.slice(1);
+      return `  ${capitalizedLang}: ${runtimes.join(', ')}`;
+    })
+    .join('\n');
+}
 
 // Supported trigger types
 export const SUPPORTED_TRIGGER_TYPES = [
@@ -213,7 +265,12 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     "createFunction",
     {
       title: "创建云函数",
-      description: "创建云函数。云函数分为事件型云函数和 HTTP 云函数，请确认你要创建的函数类型。",
+      description:
+        "创建云函数。云函数分为事件型云函数(Event)和 HTTP 云函数。\n\n" +
+        "支持的运行时:\n" +
+        "- Event 函数: Node.js, Python, PHP, Java, Go\n" +
+        "- HTTP 函数: 所有语言(通过 scf_bootstrap 启动脚本)\n\n" +
+        "注意: 运行时创建后不可修改，请谨慎选择。",
       inputSchema: {
         func: z
           .object({
@@ -257,8 +314,18 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
               .string()
               .optional()
               .describe(
-                "运行时环境,建议指定为 'Nodejs18.15'，其他可选值：" +
-                  SUPPORTED_NODEJS_RUNTIMES.join("，"),
+                "运行时环境。Event 函数支持多种运行时:\n" +
+                formatRuntimeList() + "\n\n" +
+                "推荐运行时:\n" +
+                `  Node.js: ${RECOMMENDED_RUNTIMES.nodejs}\n` +
+                `  Python: ${RECOMMENDED_RUNTIMES.python}\n` +
+                `  PHP: ${RECOMMENDED_RUNTIMES.php}\n` +
+                `  Java: ${RECOMMENDED_RUNTIMES.java}\n` +
+                `  Go: ${RECOMMENDED_RUNTIMES.golang}\n\n` +
+                "注意:\n" +
+                "- HTTP 函数已支持所有语言(通过 scf_bootstrap 启动脚本)\n" +
+                "- Node.js 函数会自动安装依赖\n" +
+                "- Python/PHP/Java/Go 函数需要预先打包依赖到函数目录"
               ),
             triggers: z
               .array(
@@ -326,11 +393,15 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       if (!isHttpFunction) {
         // 自动填充默认 runtime
         if (!func.runtime) {
-          func.runtime = DEFAULT_NODEJS_RUNTIME;
+          func.runtime = DEFAULT_RUNTIME;
+          console.log(
+            `未指定 runtime，使用默认值: ${DEFAULT_RUNTIME}\n` +
+            `可选运行时:\n${formatRuntimeList()}`
+          );
         } else {
           // 验证 runtime 格式，防止常见的空格问题
           const normalizedRuntime = func.runtime.replace(/\s+/g, "");
-          if (SUPPORTED_NODEJS_RUNTIMES.includes(normalizedRuntime)) {
+          if (ALL_SUPPORTED_RUNTIMES.includes(normalizedRuntime)) {
             func.runtime = normalizedRuntime;
           } else if (func.runtime.includes(" ")) {
             console.warn(
@@ -341,9 +412,14 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         }
 
         // 验证 runtime 是否有效
-        if (!SUPPORTED_NODEJS_RUNTIMES.includes(func.runtime)) {
+        if (!ALL_SUPPORTED_RUNTIMES.includes(func.runtime)) {
           throw new Error(
-            `不支持的运行时环境: "${func.runtime}"。支持的值：${SUPPORTED_NODEJS_RUNTIMES.join(", ")}`,
+            `不支持的运行时环境: "${func.runtime}"\n\n` +
+            `支持的运行时:\n${formatRuntimeList()}\n\n` +
+            `提示:\n` +
+            `- Node.js 函数会自动安装依赖\n` +
+            `- Python/PHP/Java/Go 函数需要预先打包依赖到函数目录\n` +
+            `- 详细信息请参考文档: https://docs.cloudbase.net/api-reference/manager/node/function#createfunction`
           );
         }
       }
