@@ -15,7 +15,7 @@
  *
  * This will create:
  *   <target-directory>/cloudbase/
- *   ├── SKILL.md                    # Main skill entry
+ *   ├── SKILL.md                    # Main skill entry (from skills-repo-template)
  *   └── references/                 # All sub-skills (copied)
  *       ├── auth-web/SKILL.md       # or README.md with --no-sub-skill
  *       ├── no-sql-web-sdk/
@@ -34,7 +34,7 @@ const TOOLKIT_ROOT = path.resolve(__dirname, '..');
 
 // Source of truth paths (relative to toolkit root)
 const SOURCES = {
-  mainRules: 'config/.cursor/rules/cloudbase-rules.mdc',
+  mainRules: 'scripts/skills-repo-template/cloudbase-guidelines/SKILL.md',
   skillsDir: 'config/.claude/skills',
 };
 
@@ -99,50 +99,27 @@ cloudbase/
 
 `;
 
-// Convert .mdc content to SKILL.md format
-function convertMdcToSkill(mdcContent: string, noSubSkill: boolean): string {
-  // Remove .mdc frontmatter
-  let content = mdcContent.replace(/^---[\s\S]*?---\n/, '');
+// Convert SKILL.md content to allinone SKILL.md format
+function convertMdcToSkill(skillContent: string, noSubSkill: boolean): string {
+  // Replace existing frontmatter with the allinone frontmatter
+  let content = skillContent.replace(/^---[\s\S]*?---\n/, SKILL_FRONTMATTER);
 
   // Determine the sub-skill entry filename
   const subSkillFile = noSubSkill ? SUB_SKILL_FILENAME.noSubSkill : SUB_SKILL_FILENAME.default;
 
-  // Remove the "Rule File Path Resolution Strategy" section (from ## 🗂️ to the next ---)
-  // This section is for multi-IDE compatibility and not needed in allinone skill
+  // Insert the reference guide after the first heading
   content = content.replace(
-    /# CloudBase AI Development Rules Guide\n\n## 🗂️ Rule File Path Resolution Strategy[\s\S]*?---\n\n/,
-    `# CloudBase AI Development Rules Guide\n\n${SIMPLIFIED_REFERENCE_GUIDE}`
+    /(# CloudBase Development Guidelines\n)/,
+    `$1\n${SIMPLIFIED_REFERENCE_GUIDE}`
   );
 
-  // Remove "(using path resolution strategy)" and similar phrases - no longer needed
-  content = content.replace(/\s*\(using path resolution strategy\)/g, '');
-  content = content.replace(/\s*using the path resolution strategy( at the top of this document)?/g, '');
-  content = content.replace(/apply the path resolution strategy from the top of this file:\n1\. Try[^\n]*\n2\. Then[^\n]*\n3\. Use[^\n]*/g,
-    'read the file directly from the `references/` directory');
-
-  // Clean up the "Specific example for auth-tool" multi-IDE path examples
-  content = content.replace(
-    /\*\*Specific example for auth-tool:\*\*\n1\. [^\n]*\(CodeBuddy\)\n2\. [^\n]*\n3\. [^\n]*/g,
-    '**Example:** To read the auth-tool reference, simply open `references/auth-tool/README.md`'
-  );
-
-  // Clean up any remaining "{rule-name}" notation explanations
-  content = content.replace(
-    /When you see `\{rule-name\}` notation in this document,[^\n]*/g,
-    'All reference files are located in the `references/` directory.'
-  );
-
-  // Replace rules/ paths with references/ paths
-  content = content.replace(/rules\/([a-z-]+)\/rule\.md/g, `references/$1/${subSkillFile}`);
-  // Replace `{skill-name}` notation with references path, but skip placeholder `{rule-name}`
-  content = content.replace(/`\{([a-z-]+)\}`/g, (match, name) => {
-    if (name === 'rule-name') {
-      return match; // Keep placeholder as-is
-    }
-    return `\`references/${name}/${subSkillFile}\``;
+  // Replace inline `skill-name` skill references with references/ paths
+  // Match backtick-quoted skill names that correspond to known skill directories
+  content = content.replace(/the `([a-z][a-z0-9-]+)` skill/g, (match, name) => {
+    return `the \`references/${name}/${subSkillFile}\` skill`;
   });
 
-  return SKILL_FRONTMATTER + content;
+  return content;
 }
 
 // Recursively copy directory with optional SKILL.md rename
@@ -199,8 +176,8 @@ async function main() {
   fs.mkdirSync(referencesDir, { recursive: true });
 
   // 3. Generate and write main SKILL.md
-  const mdcPath = path.join(TOOLKIT_ROOT, SOURCES.mainRules);
-  const mdcContent = fs.readFileSync(mdcPath, 'utf-8');
+  const sourcePath = path.join(TOOLKIT_ROOT, SOURCES.mainRules);
+  const mdcContent = fs.readFileSync(sourcePath, 'utf-8');
   const skillContent = convertMdcToSkill(mdcContent, noSubSkill);
 
   fs.writeFileSync(path.join(outputDir, 'SKILL.md'), skillContent);
