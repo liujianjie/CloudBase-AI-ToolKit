@@ -18,6 +18,38 @@ interface ExtendedEnvInfo {
   [key: string]: any;
 }
 
+function isDirectoryUploadTarget(localPath?: string, cloudPath?: string): boolean {
+  if (localPath) {
+    try {
+      if (fs.statSync(localPath).isDirectory()) {
+        return true;
+      }
+    } catch {
+      // Fall back to cloudPath heuristics when local path can't be inspected.
+    }
+  }
+
+  const normalizedCloudPath = (cloudPath ?? '').trim();
+  if (!normalizedCloudPath) return true;
+  if (normalizedCloudPath.endsWith('/')) return true;
+
+  return path.posix.extname(normalizedCloudPath) === '';
+}
+
+function buildHostingAccessUrl(staticDomain?: string, cloudPath?: string, localPath?: string): string {
+  if (!staticDomain) return '';
+
+  const normalizedCloudPath = (cloudPath ?? '').trim().replace(/^\/+|\/+$/g, '');
+  const isDirectory = isDirectoryUploadTarget(localPath, cloudPath);
+
+  if (!normalizedCloudPath) {
+    return `https://${staticDomain}/`;
+  }
+
+  const pathname = isDirectory ? `${normalizedCloudPath}/` : normalizedCloudPath;
+  return `https://${staticDomain}/${pathname}`;
+}
+
 export function registerHostingTools(server: ExtendedMcpServer) {
   // 获取 cloudBaseOptions，如果没有则为 undefined
   const cloudBaseOptions = server.cloudBaseOptions;
@@ -67,7 +99,7 @@ export function registerHostingTools(server: ExtendedMcpServer) {
       const envInfo = await cloudbase.env.getEnvInfo() as ExtendedEnvInfo;
       logCloudBaseResult(server.logger, envInfo);
       const staticDomain = envInfo.EnvInfo?.StaticStorages?.[0]?.StaticDomain;
-      const accessUrl = staticDomain ? `https://${staticDomain}/${cloudPath || ''}` : "";
+      const accessUrl = buildHostingAccessUrl(staticDomain, cloudPath, localPath);
 
       // Send deployment notification to CodeBuddy IDE
       try {
