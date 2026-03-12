@@ -3,6 +3,7 @@ import { getCloudBaseManager, logCloudBaseResult } from "../cloudbase-manager.js
 import { ExtendedMcpServer } from "../server.js";
 
 const CATEGORY = "cloud-api";
+const CLOUDBASE_API_DOC_URL = "https://cloud.tencent.com/document/product/876/34808";
 
 const ALLOWED_SERVICES = [
     "tcb",
@@ -26,7 +27,7 @@ function buildCapiErrorMessage(service: AllowedService, action: string, error: u
         );
     }
 
-    if (/parameter\\s+`?.+`?\\s+is not recognized/i.test(baseMessage)) {
+    if (/parameter\s+`?.+?`?\s+is not recognized/i.test(baseMessage)) {
         suggestions.push("请求参数名与 API 定义不一致，请核对参数字段（区分大小写）并移除未支持字段。");
     }
 
@@ -38,7 +39,7 @@ function buildCapiErrorMessage(service: AllowedService, action: string, error: u
         suggestions.push("请检查 service/action/params 是否与云 API 文档一致后重试。");
     }
 
-    return `[${service}/${action}] 调用失败: ${baseMessage}\n建议：${suggestions.join(" ")}`;
+    return `[${service}/${action}] 调用失败: ${baseMessage}\n建议：${suggestions.join(" ")}\n参考文档：云开发 Cloud API（含云开发依赖资源接口）${CLOUDBASE_API_DOC_URL}`;
 }
 
 /**
