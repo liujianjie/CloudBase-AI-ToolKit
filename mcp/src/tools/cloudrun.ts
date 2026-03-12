@@ -163,6 +163,22 @@ function validateAndNormalizePath(inputPath: string): string {
   return normalizedPath;
 }
 
+function buildManageCloudRunErrorMessage(action: ManageCloudRunInput["action"], serverName: string, error: unknown): string {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  const suggestions: string[] = [];
+
+  if (/已有部署发布任务运行中|部署发布任务运行中/i.test(baseMessage)) {
+    suggestions.push(`服务 \`${serverName}\` 当前已有部署任务在执行，请等待现有任务完成后再重试。`);
+    suggestions.push("如果你确认要覆盖当前流程，可在合适时机使用 `force=true` 再次发起。");
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push("请检查服务状态、部署参数和目标目录后重试。");
+  }
+
+  return `[manageCloudRun/${action}] ${baseMessage}\n建议：${suggestions.join(" ")}`;
+}
+
 /**
  * Format CloudRun service info for display
  */
@@ -568,7 +584,12 @@ for await (let x of res.textStream) {
               deployParams.serverConfig = input.serverConfig;
             }
 
-            const result = await cloudrunService.deploy(deployParams);
+            let result: unknown;
+            try {
+              result = await cloudrunService.deploy(deployParams);
+            } catch (error) {
+              throw new Error(buildManageCloudRunErrorMessage('deploy', input.serverName, error));
+            }
 
             // Generate cloudbaserc.json configuration file
             const currentEnvId = await getEnvId(cloudBaseOptions);

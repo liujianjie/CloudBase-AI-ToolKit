@@ -170,6 +170,70 @@ function processFunctionRootPath(
   return functionRootPath;
 }
 
+function getExpectedFunctionPath(
+  functionRootPath: string | undefined,
+  functionName: string,
+): string | undefined {
+  if (!functionRootPath) return undefined;
+  return path.join(path.normalize(functionRootPath), functionName);
+}
+
+function buildFunctionOperationErrorMessage(
+  operation: "createFunction" | "updateFunctionCode",
+  functionName: string,
+  functionRootPath: string | undefined,
+  error: unknown,
+): string {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  const suggestions: string[] = [];
+  const expectedFunctionPath = getExpectedFunctionPath(functionRootPath, functionName);
+
+  if (/GetFunction.*未找到指定的Function|未找到指定的Function/i.test(baseMessage)) {
+    suggestions.push(`请先确认环境中已存在函数 \`${functionName}\`；如果还未创建，请先执行 \`createFunction\`.`);
+  }
+
+  if (/路径不存在/i.test(baseMessage) && expectedFunctionPath) {
+    suggestions.push(
+      `当前工具会从 \`functionRootPath + 函数名\` 查找代码目录，期望目录是 \`${expectedFunctionPath}\`。`,
+    );
+    suggestions.push("如果你传入的已经是函数目录本身，请改为传它的父目录。");
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push("请检查函数名、目录结构和环境中的函数状态后重试。");
+  }
+
+  return `[${operation}] ${baseMessage}\n建议：${suggestions.join(" ")}`;
+}
+
+function wrapFunctionOperationError(
+  operation: "createFunction" | "updateFunctionCode",
+  functionName: string,
+  functionRootPath: string | undefined,
+  error: unknown,
+): Error {
+  const wrappedError = new Error(
+    buildFunctionOperationErrorMessage(
+      operation,
+      functionName,
+      functionRootPath,
+      error,
+    ),
+  );
+
+  if (error && typeof error === "object") {
+    Object.assign(wrappedError, error);
+  }
+
+  if (error instanceof Error) {
+    wrappedError.name = error.name;
+    wrappedError.stack = error.stack;
+    (wrappedError as Error & { cause?: unknown }).cause = error;
+  }
+
+  return wrappedError;
+}
+
 export function registerFunctionTools(server: ExtendedMcpServer) {
   // 获取 cloudBaseOptions，如果没有则为 undefined
   const cloudBaseOptions = server.cloudBaseOptions;
@@ -435,11 +499,21 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
 
       // 使用闭包中的 cloudBaseOptions
       const cloudbase = await getManager();
-      const result = await cloudbase.functions.createFunction({
-        func,
-        functionRootPath: processedRootPath,
-        force,
-      });
+      let result: unknown;
+      try {
+        result = await cloudbase.functions.createFunction({
+          func,
+          functionRootPath: processedRootPath,
+          force,
+        });
+      } catch (error) {
+        throw wrapFunctionOperationError(
+          "createFunction",
+          func.name,
+          processedRootPath,
+          error,
+        );
+      }
       logCloudBaseResult(server.logger, result);
       return {
         content: [
@@ -510,7 +584,17 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
 
       // 使用闭包中的 cloudBaseOptions
       const cloudbase = await getManager();
-      const result = await cloudbase.functions.updateFunctionCode(updateParams);
+      let result: unknown;
+      try {
+        result = await cloudbase.functions.updateFunctionCode(updateParams);
+      } catch (error) {
+        throw wrapFunctionOperationError(
+          "updateFunctionCode",
+          name,
+          processedRootPath,
+          error,
+        );
+      }
       logCloudBaseResult(server.logger, result);
       return {
         content: [

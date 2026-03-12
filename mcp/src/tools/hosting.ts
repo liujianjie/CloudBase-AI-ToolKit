@@ -50,6 +50,25 @@ function buildHostingAccessUrl(staticDomain?: string, cloudPath?: string, localP
   return `https://${staticDomain}/${pathname}`;
 }
 
+function buildUploadFilesErrorMessage(error: unknown, localPath?: string): string {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  const suggestions: string[] = [];
+
+  if (/路径不存在|无读写权限/i.test(baseMessage)) {
+    if (localPath) {
+      suggestions.push(`请先确认本地路径 \`${localPath}\` 存在且当前进程有读取权限。`);
+    }
+    suggestions.push("如果报错的是构建产物中的某个静态资源文件，请检查构建后的资源引用路径是否正确。");
+    suggestions.push("若站点部署到子路径，请确认 `publicPath`、`base`、`assetPrefix` 等配置没有把资源指向不存在的位置。");
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push("请检查上传目录、文件权限和构建产物完整性后重试。");
+  }
+
+  return `[uploadFiles] ${baseMessage}\n建议：${suggestions.join(" ")}`;
+}
+
 export function registerHostingTools(server: ExtendedMcpServer) {
   // 获取 cloudBaseOptions，如果没有则为 undefined
   const cloudBaseOptions = server.cloudBaseOptions;
@@ -87,13 +106,19 @@ export function registerHostingTools(server: ExtendedMcpServer) {
       ignore?: string | string[]
     }) => {
       const cloudbase = await getManager()
-      const result = await cloudbase.hosting.uploadFiles({
-        localPath,
-        cloudPath,
-        files,
-        ignore
-      });
+      let result: unknown;
+      try {
+        result = await cloudbase.hosting.uploadFiles({
+          localPath,
+          cloudPath,
+          files,
+          ignore
+        });
+      } catch (error) {
+        throw new Error(buildUploadFilesErrorMessage(error, localPath));
+      }
       logCloudBaseResult(server.logger, result);
+      const uploadResult = result as Record<string, unknown>;
 
       // 获取环境信息
       const envInfo = await cloudbase.env.getEnvInfo() as ExtendedEnvInfo;
@@ -143,7 +168,7 @@ export function registerHostingTools(server: ExtendedMcpServer) {
           {
             type: "text",
             text: JSON.stringify({
-              ...result,
+              ...uploadResult,
               staticDomain,
               message: "文件上传成功",
               accessUrl: accessUrl
