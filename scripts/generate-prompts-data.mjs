@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
-import yaml from 'js-yaml';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadYamlModule } from './lib/load-yaml-module.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.join(__dirname, '..');
 const CONFIG_FILE = path.join(ROOT_DIR, 'doc/prompts/config.yaml');
 const OUTPUT_FILE = path.join(ROOT_DIR, 'doc/components/prompts.json');
+const yaml = await loadYamlModule(ROOT_DIR);
 
 /**
  * Generate prompts.json from config.yaml
@@ -50,5 +51,4 @@ function generatePromptsData() {
 }
 
 generatePromptsData();
-
 

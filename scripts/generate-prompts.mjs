@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
-import yaml from 'js-yaml';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadYamlModule } from './lib/load-yaml-module.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +13,7 @@ const SKILLS_DIR = path.join(ROOT_DIR, 'skills');
 const PROMPTS_DIR = path.join(ROOT_DIR, 'doc/prompts');
 const CONFIG_FILE = path.join(PROMPTS_DIR, 'config.yaml');
 const SIDEBAR_FILE = path.join(ROOT_DIR, 'doc/sidebar.json');
+const yaml = await loadYamlModule(ROOT_DIR);
 
 /**
  * Parse frontmatter from markdown content
