@@ -362,6 +362,26 @@ function downloadFile(url: string): Promise<{
   });
 }
 
+function buildDownloadRemoteFileErrorMessage(url: string, error: unknown): string {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  const suggestions: string[] = [];
+
+  if (/HTTP Error:\s*404/i.test(baseMessage)) {
+    suggestions.push("目标 URL 当前返回 404，说明资源链接已失效或路径不正确。");
+    suggestions.push("请先在浏览器中确认该链接可访问，再重新执行下载。");
+  }
+
+  if (/ENOTFOUND|ECONNRESET|ETIMEDOUT|socket hang up/i.test(baseMessage)) {
+    suggestions.push("下载过程中出现网络异常，建议检查本地网络或代理后重试。");
+  }
+
+  if (suggestions.length === 0) {
+    suggestions.push("请检查 URL 是否可访问，以及目标资源是否允许直接下载。");
+  }
+
+  return `[downloadRemoteFile] ${baseMessage}\nURL: ${url}\n建议：${suggestions.join(" ")}`;
+}
+
 export function registerDownloadTools(server: ExtendedMcpServer) {
   server.registerTool(
     "downloadRemoteFile",
@@ -404,7 +424,12 @@ export function registerDownloadTools(server: ExtendedMcpServer) {
       console.log(`📁 相对路径: ${relativePath}`);
       console.log(`📁 最终路径: ${targetPath}`);
 
-      const result = await downloadFileToPath(url, targetPath);
+      let result: Awaited<ReturnType<typeof downloadFileToPath>>;
+      try {
+        result = await downloadFileToPath(url, targetPath);
+      } catch (error) {
+        throw new Error(buildDownloadRemoteFileErrorMessage(url, error));
+      }
 
       return {
         content: [
