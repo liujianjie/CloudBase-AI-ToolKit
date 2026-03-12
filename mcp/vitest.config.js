@@ -1,29 +1,36 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  resolve: {
+    // Help Vitest resolve CommonJS packages correctly
+    conditions: ["node", "import", "module", "require"],
+  },
   test: {
-    // 设置测试环境变量
+    // Test environment variables
     env: {
-      NODE_ENV: 'test',
-      VITEST: 'true',
+      NODE_ENV: "test",
+      VITEST: "true",
       // CLOUDBASE_MCP_TELEMETRY_DISABLED: 'true'
     },
-    // 使用 Node.js 环境进行测试
-    environment: 'node',
-    // 增加测试超时时间
+    // Run tests in Node.js environment
+    environment: "node",
+    // Increase test timeout
     testTimeout: 120000,
-    // 设置并发数
-    threads: false, // 禁用多线程，避免端口冲突
-    // 设置根目录
+    // Concurrency settings
+    threads: false, // Disable worker threads to avoid port conflicts
+    // Root directory
     root: process.cwd(),
-    // 包含测试文件
-    include: ['../tests/**/*.test.js', 'src/**/*.test.ts'],
-    // 显示详细输出
-    reporter: 'verbose',
-    // 失败时停止
+    // Included test files
+    include: ["../tests/**/*.test.js", "src/**/*.test.ts"],
+    // Verbose reporter output
+    reporter: "verbose",
+    // Stop on first failure
     bail: 1,
-    // 测试运行前的设置
+    // Setup hooks
     globalSetup: [],
-    setupFiles: []
-  }
-}); 
+    setupFiles: [],
+    // Externalization settings for CommonJS packages
+    noExternal: [],
+    external: ["@cloudbase/manager-node", "@cloudbase/toolbox"],
+  },
+});
