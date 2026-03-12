@@ -189,6 +189,7 @@ const INTEGRATION_IDE_MAPPING: Record<string, string> = {
   CodeBuddy: "codebuddy",
   CodeBuddyManual: "codebuddy",
   CodeBuddyCode: "codebuddy",
+  CodeBuddyPlugin: "codebuddy",
   "Claude Code": "claude-code",
   CLINE: "cline",
   "Gemini CLI": "gemini-cli",
