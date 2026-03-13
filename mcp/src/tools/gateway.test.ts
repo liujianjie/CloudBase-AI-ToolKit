@@ -122,6 +122,33 @@ describe("gateway tools", () => {
     });
   });
 
+  it("manageGateway(action=createAccess) should default path to targetName when omitted", async () => {
+    const result = await tools.manageGateway.handler({
+      action: "createAccess",
+      targetType: "function",
+      targetName: "helloFn",
+      type: "Event",
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockCreateAccess).toHaveBeenCalledWith({
+      name: "helloFn",
+      path: "/helloFn",
+      type: 1,
+      auth: undefined,
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        action: "createAccess",
+        targetType: "function",
+        targetName: "helloFn",
+        path: "/helloFn",
+      },
+    });
+  });
+
   it("queryGateway(action=getAccess) should aggregate access urls from domains", async () => {
     const result = await tools.queryGateway.handler({
       action: "getAccess",
