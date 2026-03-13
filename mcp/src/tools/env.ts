@@ -55,6 +55,80 @@ export function simplifyEnvList(envList: any[]): any[] {
   });
 }
 
+const DEFAULT_ENV_CANDIDATE_LIMIT = 20;
+const DEFAULT_ENV_FIELDS = [
+  "EnvId",
+  "Alias",
+  "Status",
+  "EnvType",
+  "Region",
+  "PackageName",
+  "IsDefault",
+] as const;
+
+type EnvFieldName = (typeof DEFAULT_ENV_FIELDS)[number];
+
+function selectEnvFields(env: Record<string, any>, fields?: EnvFieldName[]) {
+  const selectedFields = fields && fields.length > 0 ? fields : DEFAULT_ENV_FIELDS;
+  const simplified: Record<string, any> = {};
+
+  for (const field of selectedFields) {
+    if (env[field] !== undefined) {
+      simplified[field] = env[field];
+    }
+  }
+
+  return simplified;
+}
+
+function filterEnvList(envList: Record<string, any>[], filters: { alias?: string; envId?: string }) {
+  const alias = filters.alias?.trim().toLowerCase();
+  const envId = filters.envId?.trim().toLowerCase();
+
+  return envList.filter((env) => {
+    const matchesAlias = alias
+      ? String(env.Alias ?? "").toLowerCase().includes(alias)
+      : true;
+    const matchesEnvId = envId
+      ? String(env.EnvId ?? "").toLowerCase() === envId
+      : true;
+
+    return matchesAlias && matchesEnvId;
+  });
+}
+
+function paginateEnvList(envList: Record<string, any>[], offset?: number, limit?: number) {
+  const safeOffset = Math.max(0, Math.floor(offset ?? 0));
+  const safeLimit = limit === undefined ? undefined : Math.max(1, Math.floor(limit));
+  const items =
+    safeLimit === undefined
+      ? envList.slice(safeOffset)
+      : envList.slice(safeOffset, safeOffset + safeLimit);
+
+  return {
+    total: envList.length,
+    offset: safeOffset,
+    limit: safeLimit ?? envList.length,
+    items,
+  };
+}
+
+function buildEnvCandidatePayload(
+  envCandidates: EnvCandidate[],
+  limit = DEFAULT_ENV_CANDIDATE_LIMIT,
+) {
+  const env_candidates = envCandidates.slice(0, limit);
+
+  return {
+    env_candidates,
+    env_candidates_summary: {
+      total: envCandidates.length,
+      returned: env_candidates.length,
+      truncated: envCandidates.length > env_candidates.length,
+    },
+  };
+}
+
 function formatDeviceAuthHint(deviceAuthInfo?: DeviceFlowAuthInfo): string {
   if (!deviceAuthInfo) {
     return "";
@@ -136,6 +210,45 @@ function buildSetEnvNextStep(envCandidates: EnvCandidate[]) {
       ? { action: "set_env", envId: singleEnvId }
       : { action: "set_env" },
   });
+}
+
+function buildEnvQueryListResult(params: {
+  result: any;
+  cloudBaseOptions: any;
+  hasEnvId: boolean;
+  filters: {
+    alias?: string;
+    envId?: string;
+    limit?: number;
+    offset?: number;
+    fields?: EnvFieldName[];
+  };
+}) {
+  const envList = Array.isArray(params.result?.EnvList) ? params.result.EnvList : [];
+  const shouldRestrictToCurrentEnv =
+    params.hasEnvId && !params.filters.alias && !params.filters.envId;
+  const baseList = shouldRestrictToCurrentEnv
+    ? envList.filter((env: any) => env.EnvId === params.cloudBaseOptions?.envId)
+    : envList;
+  const filteredList = filterEnvList(baseList, {
+    alias: params.filters.alias,
+    envId: params.filters.envId,
+  });
+  const paginated = paginateEnvList(filteredList, params.filters.offset, params.filters.limit);
+
+  return {
+    EnvList: paginated.items.map((env) => selectEnvFields(env, params.filters.fields)),
+    TotalCount: paginated.total,
+    Offset: paginated.offset,
+    Limit: paginated.limit,
+    HasMore: paginated.offset + paginated.items.length < paginated.total,
+    AppliedFilters: {
+      alias: params.filters.alias ?? null,
+      envId: params.filters.envId ?? null,
+      fields: params.filters.fields ?? [...DEFAULT_ENV_FIELDS],
+      currentEnvOnly: shouldRestrictToCurrentEnv,
+    },
+  };
 }
 
 async function getGuidePrompt(server: ExtendedMcpServer): Promise<string> {
@@ -283,7 +396,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             auth_status: authStatus,
             env_status: envStatus,
             current_env_id: envId || null,
-            env_candidates: envCandidates,
+            ...buildEnvCandidatePayload(envCandidates),
             auth_challenge:
               authFlowState.status === "PENDING" && authFlowState.authChallenge
                 ? {
@@ -346,7 +459,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                   ? `认证成功，当前登录态 envId: ${envId}`
                   : "认证成功",
                 auth_challenge: authChallenge(),
-                env_candidates: envCandidates,
+                ...buildEnvCandidatePayload(envCandidates),
                 next_step: envId
                   ? buildAuthNextStep("status", {
                       suggestedArgs: { action: "status" },
@@ -437,7 +550,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
               message:
                 "已发起设备码登录，请在浏览器中打开 verification_uri 并输入 user_code 完成授权。授权完成后请再次调用 auth(action=\"status\")。",
               auth_challenge: authChallenge(),
-              env_candidates: envCandidates,
+              ...buildEnvCandidatePayload(envCandidates),
               next_step: buildAuthNextStep("status", {
                 suggestedArgs: { action: "status" },
               }),
@@ -471,7 +584,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             code: "AUTH_READY",
             message: envId ? `认证成功，当前登录态 envId: ${envId}` : "认证成功",
             auth_challenge: authChallenge(),
-            env_candidates: envCandidates,
+            ...buildEnvCandidatePayload(envCandidates),
             next_step: envId
               ? buildAuthNextStep("status", {
                   suggestedArgs: { action: "status" },
@@ -499,7 +612,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
               ok: false,
               code: "INVALID_ARGS",
               message: "action=set_env 时必须提供 envId",
-              env_candidates: envCandidates,
+              ...buildEnvCandidatePayload(envCandidates),
               next_step: buildSetEnvNextStep(envCandidates),
             });
           }
@@ -510,7 +623,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
               ok: false,
               code: "INVALID_ARGS",
               message: `未找到环境: ${envId}`,
-              env_candidates: envCandidates,
+              ...buildEnvCandidatePayload(envCandidates),
               next_step: buildSetEnvNextStep(envCandidates),
             });
           }
@@ -580,6 +693,14 @@ export function registerEnvTools(server: ExtendedMcpServer) {
           .describe(
             "查询类型：list=环境列表，info=当前环境信息，domains=安全域名列表，hosting=静态网站托管配置",
           ),
+        alias: z.string().optional().describe("按环境别名筛选。action=list 时可选"),
+        envId: z.string().optional().describe("按环境 ID 精确筛选。action=list 时可选"),
+        limit: z.number().int().positive().optional().describe("返回数量上限。action=list 时可选"),
+        offset: z.number().int().min(0).optional().describe("分页偏移。action=list 时可选"),
+        fields: z
+          .array(z.enum(DEFAULT_ENV_FIELDS))
+          .optional()
+          .describe("返回字段白名单。action=list 时可选"),
       },
       annotations: {
         readOnlyHint: true,
@@ -587,7 +708,21 @@ export function registerEnvTools(server: ExtendedMcpServer) {
         category: "env",
       },
     },
-    async ({ action }: { action: "list" | "info" | "domains" | "hosting" }) => {
+    async ({
+      action,
+      alias,
+      envId,
+      limit,
+      offset,
+      fields,
+    }: {
+      action: "list" | "info" | "domains" | "hosting";
+      alias?: string;
+      envId?: string;
+      limit?: number;
+      offset?: number;
+      fields?: EnvFieldName[];
+    }) => {
       try {
         let result;
 
@@ -621,10 +756,6 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                 result = await cloudbaseList.env.listEnvs();
                 logCloudBaseResult(server.logger, result);
               }
-              // Apply field simplification for MCP tool response to reduce token consumption
-              if (result && Array.isArray(result.EnvList)) {
-                result.EnvList = simplifyEnvList(result.EnvList);
-              }
             } catch (error) {
               debug("获取环境列表时出错，尝试降级到 listEnvs():", error instanceof Error ? error : new Error(String(error)));
               // Fallback to original method on error
@@ -636,10 +767,6 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                 });
                 result = await cloudbaseList.env.listEnvs();
                 logCloudBaseResult(server.logger, result);
-                // Apply field simplification for fallback response as well
-                if (result && Array.isArray(result.EnvList)) {
-                  result.EnvList = simplifyEnvList(result.EnvList);
-                }
               } catch (fallbackError) {
                 const toolPayloadResult = toolPayloadErrorToResult(fallbackError);
                 if (toolPayloadResult) {
@@ -660,9 +787,18 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                 };
               }
             }
-            if (hasEnvId && result && Array.isArray(result.EnvList) && result.EnvList.length > 1) {
-              result.EnvList = result.EnvList.filter((env: any) => env.EnvId === cloudBaseOptions?.envId);
-            }
+            result = buildEnvQueryListResult({
+              result,
+              cloudBaseOptions,
+              hasEnvId,
+              filters: {
+                alias,
+                envId,
+                limit,
+                offset,
+                fields,
+              },
+            });
             break;
 
           case "info":

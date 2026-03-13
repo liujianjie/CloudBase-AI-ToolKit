@@ -11,6 +11,7 @@ const {
   mockEnvManagerSetEnvId,
   mockGetCachedEnvId,
   mockListAvailableEnvCandidates,
+  mockGetCloudBaseManager,
   mockResetCloudBaseManagerCache,
 } = vi.hoisted(() => ({
   mockSupervisorLoginByWebAuth: vi.fn(),
@@ -21,6 +22,7 @@ const {
   mockEnvManagerSetEnvId: vi.fn(),
   mockGetCachedEnvId: vi.fn(),
   mockListAvailableEnvCandidates: vi.fn(),
+  mockGetCloudBaseManager: vi.fn(),
   mockResetCloudBaseManagerCache: vi.fn(),
 }));
 
@@ -47,7 +49,7 @@ vi.mock("../cloudbase-manager.js", () => ({
     setEnvId: mockEnvManagerSetEnvId,
   },
   getCachedEnvId: mockGetCachedEnvId,
-  getCloudBaseManager: vi.fn(),
+  getCloudBaseManager: mockGetCloudBaseManager,
   listAvailableEnvCandidates: mockListAvailableEnvCandidates,
   logCloudBaseResult: vi.fn(),
   resetCloudBaseManagerCache: mockResetCloudBaseManagerCache,
@@ -244,5 +246,134 @@ describe("env tools - auth", () => {
       action: "status",
     });
   });
+
+  it("auth(action=status) should truncate env candidates and expose summary", async () => {
+    mockListAvailableEnvCandidates.mockResolvedValue(
+      Array.from({ length: 25 }, (_, index) => ({
+        envId: `env-${index + 1}`,
+        alias: `alias-${index + 1}`,
+      })),
+    );
+
+    const result = await tools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.env_candidates).toHaveLength(20);
+    expect(payload.env_candidates_summary).toMatchObject({
+      total: 25,
+      returned: 20,
+      truncated: true,
+    });
+  });
 });
 
+describe("env tools - envQuery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCachedEnvId.mockReturnValue(null);
+    mockListAvailableEnvCandidates.mockResolvedValue([]);
+    mockGetAuthProgressState.mockResolvedValue({
+      status: "IDLE",
+      updatedAt: Date.now(),
+    });
+    mockPeekLoginState.mockResolvedValue(null);
+    mockEnsureLogin.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      envId: "env-test",
+    });
+  });
+
+  it("envQuery(list) should support alias filters, pagination and field selection", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      commonService: vi.fn(() => ({
+        call: vi.fn().mockResolvedValue({
+          EnvList: [
+            {
+              EnvId: "env-test",
+              Alias: "alpha",
+              Status: "NORMAL",
+              EnvType: "baas",
+              Region: "ap-guangzhou",
+              PackageName: "pkg-a",
+              IsDefault: true,
+            },
+            {
+              EnvId: "env-extra",
+              Alias: "alpha-beta",
+              Status: "NORMAL",
+              EnvType: "baas",
+              Region: "ap-shanghai",
+              PackageName: "pkg-b",
+              IsDefault: false,
+            },
+            {
+              EnvId: "env-other",
+              Alias: "gamma",
+              Status: "SUSPENDED",
+              EnvType: "weda",
+              Region: "ap-beijing",
+            },
+          ],
+        }),
+      })),
+      env: {
+        listEnvs: vi.fn(),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.envQuery.handler({
+      action: "list",
+      alias: "alpha",
+      offset: 1,
+      limit: 1,
+      fields: ["EnvId", "Alias"],
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.EnvList).toEqual([
+      {
+        EnvId: "env-extra",
+        Alias: "alpha-beta",
+      },
+    ]);
+    expect(payload.TotalCount).toBe(2);
+    expect(payload.Offset).toBe(1);
+    expect(payload.Limit).toBe(1);
+    expect(payload.HasMore).toBe(false);
+    expect(payload.AppliedFilters).toMatchObject({
+      alias: "alpha",
+      envId: null,
+      fields: ["EnvId", "Alias"],
+      currentEnvOnly: false,
+    });
+  });
+
+  it("envQuery(list) should keep current-env restriction only when no explicit filter is provided", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      commonService: vi.fn(() => ({
+        call: vi.fn().mockResolvedValue({
+          EnvList: [
+            { EnvId: "env-test", Alias: "bound" },
+            { EnvId: "env-other", Alias: "other" },
+          ],
+        }),
+      })),
+      env: {
+        listEnvs: vi.fn(),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const unfiltered = JSON.parse((await tools.envQuery.handler({ action: "list" })).content[0].text);
+    const filtered = JSON.parse(
+      (await tools.envQuery.handler({ action: "list", envId: "env-other" })).content[0].text,
+    );
+
+    expect(unfiltered.EnvList).toEqual([{ EnvId: "env-test", Alias: "bound" }]);
+    expect(unfiltered.AppliedFilters.currentEnvOnly).toBe(true);
+    expect(filtered.EnvList).toEqual([{ EnvId: "env-other", Alias: "other" }]);
+    expect(filtered.AppliedFilters.currentEnvOnly).toBe(false);
+  });
+});
