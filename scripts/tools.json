@@ -493,58 +493,108 @@
       }
     },
     {
-      "name": "getFunctionList",
-      "description": "获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称，并可通过 include 补充返回层信息、代码下载链接等附加字段）",
+      "name": "queryFunctions",
+      "description": "函数域统一只读入口。通过更自解释的 action 查询函数列表、函数详情、日志、层、触发器、HTTP 访问和代码下载地址。",
       "inputSchema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
             "enum": [
-              "list",
-              "detail"
+              "listFunctions",
+              "getFunctionDetail",
+              "listFunctionLogs",
+              "getFunctionLogDetail",
+              "listFunctionLayers",
+              "listLayers",
+              "listLayerVersions",
+              "getLayerVersionDetail",
+              "listFunctionTriggers",
+              "getFunctionAccess",
+              "getFunctionDownloadUrl"
             ],
-            "description": "操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数）"
+            "description": "只读操作类型，例如 listFunctions、getFunctionDetail、getFunctionAccess"
+          },
+          "functionName": {
+            "type": "string",
+            "description": "函数名称。函数相关 action 必填"
           },
           "limit": {
             "type": "number",
-            "description": "范围（list 操作时使用）"
+            "description": "分页数量。列表类 action 可选"
           },
           "offset": {
             "type": "number",
-            "description": "偏移（list 操作时使用）"
-          },
-          "name": {
-            "type": "string",
-            "description": "要查询的函数名称。当 action='detail' 时，此参数为必填项，必须提供已存在的函数名称。可通过 action='list' 操作获取可用的函数名称列表"
-          },
-          "include": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "layers",
-                "downloadUrl",
-                "all"
-              ]
-            },
-            "description": "仅 action='detail' 时使用。补充返回字段：layers=显式返回当前绑定的 Layers，downloadUrl=附带代码包临时下载链接，all=返回上述全部补充字段"
+            "description": "分页偏移。列表类 action 可选"
           },
           "codeSecret": {
             "type": "string",
-            "description": "代码保护密钥（detail 和 downloadUrl 补充信息使用）"
+            "description": "代码保护密钥"
+          },
+          "startTime": {
+            "type": "string",
+            "description": "日志查询开始时间"
+          },
+          "endTime": {
+            "type": "string",
+            "description": "日志查询结束时间"
+          },
+          "requestId": {
+            "type": "string",
+            "description": "日志 requestId。获取日志详情时必填"
+          },
+          "qualifier": {
+            "type": "string",
+            "description": "函数版本，日志查询时可选"
+          },
+          "runtime": {
+            "type": "string",
+            "description": "层查询的运行时筛选"
+          },
+          "searchKey": {
+            "type": "string",
+            "description": "层名称搜索关键字"
+          },
+          "layerName": {
+            "type": "string",
+            "description": "层名称。层相关 action 必填"
+          },
+          "layerVersion": {
+            "type": "number",
+            "description": "层版本号。获取层版本详情时必填"
           }
         },
+        "required": [
+          "action"
+        ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
     {
-      "name": "createFunction",
-      "description": "创建云函数。云函数分为事件型云函数(Event)和 HTTP 云函数。\n\n支持的运行时:\n- Event 函数: Node.js, Python, PHP, Java, Go\n- HTTP 函数: 所有语言(通过 scf_bootstrap 启动脚本)\n\n注意: 运行时创建后不可修改，请谨慎选择。",
+      "name": "manageFunctions",
+      "description": "函数域统一写入口。通过 action 管理函数创建、代码更新、配置更新、触发器、层绑定和 HTTP 访问。危险操作需要显式 confirm=true。",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "createFunction",
+              "updateFunctionCode",
+              "updateFunctionConfig",
+              "invokeFunction",
+              "createFunctionTrigger",
+              "deleteFunctionTrigger",
+              "createLayerVersion",
+              "deleteLayerVersion",
+              "attachLayer",
+              "detachLayer",
+              "updateFunctionLayers",
+              "createFunctionAccess"
+            ],
+            "description": "写操作类型，例如 createFunction、updateFunctionCode、attachLayer"
+          },
           "func": {
             "type": "object",
             "properties": {
@@ -558,7 +608,7 @@
                   "Event",
                   "HTTP"
                 ],
-                "description": "函数类型，Event 为事件型云函数，HTTP 为 HTTP 云函数"
+                "description": "函数类型"
               },
               "protocolType": {
                 "type": "string",
@@ -566,7 +616,7 @@
                   "HTTP",
                   "WS"
                 ],
-                "description": "HTTP 云函数的协议类型，HTTP 为 HTTP 协议（默认），WS 为 WebSocket 协议，仅当 type 为 HTTP 时有效"
+                "description": "HTTP 云函数协议类型"
               },
               "protocolParams": {
                 "type": "object",
@@ -576,30 +626,25 @@
                     "properties": {
                       "idleTimeOut": {
                         "type": "number",
-                        "description": "WebSocket 空闲超时时间（秒），默认 15 秒"
+                        "description": "WebSocket 空闲超时时间（秒）"
                       }
                     },
-                    "additionalProperties": false,
-                    "description": "WebSocket 协议参数"
+                    "additionalProperties": false
                   }
                 },
-                "additionalProperties": false,
-                "description": "协议参数配置，仅当 protocolType 为 WS 时有效"
+                "additionalProperties": false
               },
               "instanceConcurrencyConfig": {
                 "type": "object",
                 "properties": {
                   "dynamicEnabled": {
-                    "type": "boolean",
-                    "description": "是否启用动态并发，默认 false"
+                    "type": "boolean"
                   },
                   "maxConcurrency": {
-                    "type": "number",
-                    "description": "最大并发数，默认 10"
+                    "type": "number"
                   }
                 },
-                "additionalProperties": false,
-                "description": "多并发配置，仅当 type 为 HTTP 时有效"
+                "additionalProperties": false
               },
               "timeout": {
                 "type": "number",
@@ -631,7 +676,7 @@
               },
               "runtime": {
                 "type": "string",
-                "description": "运行时环境。Event 函数支持多种运行时:\n  Nodejs: Nodejs20.19, Nodejs18.15, Nodejs16.13, Nodejs14.18, Nodejs12.16, Nodejs10.15, Nodejs8.9\n  Python: Python3.10, Python3.9, Python3.7, Python3.6, Python2.7\n  Php: Php8.0, Php7.4, Php7.2\n  Java: Java8, Java11\n  Golang: Golang1\n\n推荐运行时:\n  Node.js: Nodejs18.15\n  Python: Python3.9\n  PHP: Php7.4\n  Java: Java11\n  Go: Golang1\n\n注意:\n- HTTP 函数已支持所有语言(通过 scf_bootstrap 启动脚本)\n- Node.js 函数会自动安装依赖\n- Python/PHP/Java/Go 函数需要预先打包依赖到函数目录"
+                "description": "运行时环境。Event 函数支持多种运行时:\n  Nodejs: Nodejs20.19, Nodejs18.15, Nodejs16.13, Nodejs14.18, Nodejs12.16, Nodejs10.15, Nodejs8.9\n  Python: Python3.10, Python3.9, Python3.7, Python3.6, Python2.7\n  Php: Php8.0, Php7.4, Php7.2\n  Java: Java8, Java11\n  Golang: Golang1\n\n推荐运行时:\n  Node.js: Nodejs18.15\n  Python: Python3.9\n  PHP: Php7.4\n  Java: Java11\n  Go: Golang1"
               },
               "triggers": {
                 "type": "array",
@@ -640,18 +685,18 @@
                   "properties": {
                     "name": {
                       "type": "string",
-                      "description": "Trigger name"
+                      "description": "触发器名称"
                     },
                     "type": {
                       "type": "string",
                       "enum": [
                         "timer"
                       ],
-                      "description": "Trigger type, currently only supports 'timer'"
+                      "description": "触发器类型"
                     },
                     "config": {
                       "type": "string",
-                      "description": "Trigger configuration. For timer triggers, use cron expression format: second minute hour day month week year. IMPORTANT: Must include exactly 7 fields (second minute hour day month week year). Examples: '0 0 2 1 * * *' (monthly), '0 30 9 * * * *' (daily at 9:30 AM)"
+                      "description": "触发器配置，timer 使用 7 段 cron：second minute hour day month week year"
                     }
                   },
                   "required": [
@@ -661,7 +706,7 @@
                   ],
                   "additionalProperties": false
                 },
-                "description": "Trigger configuration array"
+                "description": "触发器配置数组"
               },
               "handler": {
                 "type": "string",
@@ -703,7 +748,358 @@
                   ],
                   "additionalProperties": false
                 },
-                "description": "Layer配置"
+                "description": "Layer 配置"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "description": "createFunction 操作的函数配置"
+          },
+          "functionRootPath": {
+            "type": "string",
+            "description": "函数根目录（父目录绝对路径）"
+          },
+          "force": {
+            "type": "boolean",
+            "description": "createFunction 时是否覆盖"
+          },
+          "functionName": {
+            "type": "string",
+            "description": "函数名称。大多数 action 使用该字段作为统一目标"
+          },
+          "zipFile": {
+            "type": "string",
+            "description": "代码包的 base64 编码"
+          },
+          "handler": {
+            "type": "string",
+            "description": "函数入口"
+          },
+          "timeout": {
+            "type": "number",
+            "description": "配置更新时的超时时间"
+          },
+          "envVariables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "配置更新时要合并的环境变量"
+          },
+          "vpc": {
+            "$ref": "#/properties/func/properties/vpc",
+            "description": "配置更新时的 VPC 信息"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "invokeFunction 的调用参数"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/func/properties/triggers/items"
+            },
+            "description": "createFunctionTrigger 的触发器列表"
+          },
+          "triggerName": {
+            "type": "string",
+            "description": "deleteFunctionTrigger 的目标触发器名称"
+          },
+          "layerName": {
+            "type": "string",
+            "description": "层名称"
+          },
+          "layerVersion": {
+            "type": "number",
+            "description": "层版本号"
+          },
+          "contentPath": {
+            "type": "string",
+            "description": "层内容路径，可为目录或 ZIP 文件"
+          },
+          "base64Content": {
+            "type": "string",
+            "description": "层内容的 base64 编码"
+          },
+          "runtimes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "层适用的运行时列表"
+          },
+          "description": {
+            "type": "string",
+            "description": "层版本描述"
+          },
+          "licenseInfo": {
+            "type": "string",
+            "description": "层许可证信息"
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "layerName": {
+                  "type": "string",
+                  "description": "层名称"
+                },
+                "layerVersion": {
+                  "type": "number",
+                  "description": "层版本号"
+                }
+              },
+              "required": [
+                "layerName",
+                "layerVersion"
+              ],
+              "additionalProperties": false
+            },
+            "description": "updateFunctionLayers 的目标层列表，顺序即最终顺序"
+          },
+          "codeSecret": {
+            "type": "string",
+            "description": "层绑定时的代码保护密钥"
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "危险操作确认开关"
+          },
+          "path": {
+            "type": "string",
+            "description": "createFunctionAccess 的访问路径，默认 /{functionName}"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Event",
+              "HTTP"
+            ],
+            "description": "createFunctionAccess 的函数类型"
+          },
+          "auth": {
+            "type": "boolean",
+            "description": "createFunctionAccess 是否开启鉴权"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "getFunctionList",
+      "description": "兼容入口。推荐优先使用 queryFunctions。action=list 返回函数列表，action=detail 返回函数详情，并兼容 include=downloadUrl。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "list",
+              "detail"
+            ],
+            "description": "list=获取函数列表，detail=获取函数详情"
+          },
+          "limit": {
+            "type": "number",
+            "description": "列表分页数量"
+          },
+          "offset": {
+            "type": "number",
+            "description": "列表分页偏移"
+          },
+          "name": {
+            "type": "string",
+            "description": "函数名称。detail 时必填"
+          },
+          "include": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "layers",
+                "downloadUrl",
+                "all"
+              ]
+            },
+            "description": "detail 的兼容扩展字段"
+          },
+          "codeSecret": {
+            "type": "string",
+            "description": "代码保护密钥"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "createFunction",
+      "description": "兼容入口。推荐优先使用 manageFunctions action=createFunction。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "func": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "函数名称"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Event",
+                  "HTTP"
+                ],
+                "description": "函数类型"
+              },
+              "protocolType": {
+                "type": "string",
+                "enum": [
+                  "HTTP",
+                  "WS"
+                ],
+                "description": "HTTP 云函数协议类型"
+              },
+              "protocolParams": {
+                "type": "object",
+                "properties": {
+                  "wsParams": {
+                    "type": "object",
+                    "properties": {
+                      "idleTimeOut": {
+                        "type": "number",
+                        "description": "WebSocket 空闲超时时间（秒）"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "instanceConcurrencyConfig": {
+                "type": "object",
+                "properties": {
+                  "dynamicEnabled": {
+                    "type": "boolean"
+                  },
+                  "maxConcurrency": {
+                    "type": "number"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "timeout": {
+                "type": "number",
+                "description": "函数超时时间"
+              },
+              "envVariables": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "环境变量"
+              },
+              "vpc": {
+                "type": "object",
+                "properties": {
+                  "vpcId": {
+                    "type": "string"
+                  },
+                  "subnetId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vpcId",
+                  "subnetId"
+                ],
+                "additionalProperties": false,
+                "description": "私有网络配置"
+              },
+              "runtime": {
+                "type": "string",
+                "description": "运行时环境。Event 函数支持多种运行时:\n  Nodejs: Nodejs20.19, Nodejs18.15, Nodejs16.13, Nodejs14.18, Nodejs12.16, Nodejs10.15, Nodejs8.9\n  Python: Python3.10, Python3.9, Python3.7, Python3.6, Python2.7\n  Php: Php8.0, Php7.4, Php7.2\n  Java: Java8, Java11\n  Golang: Golang1\n\n推荐运行时:\n  Node.js: Nodejs18.15\n  Python: Python3.9\n  PHP: Php7.4\n  Java: Java11\n  Go: Golang1"
+              },
+              "triggers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "触发器名称"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "timer"
+                      ],
+                      "description": "触发器类型"
+                    },
+                    "config": {
+                      "type": "string",
+                      "description": "触发器配置，timer 使用 7 段 cron：second minute hour day month week year"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "type",
+                    "config"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "触发器配置数组"
+              },
+              "handler": {
+                "type": "string",
+                "description": "函数入口"
+              },
+              "ignore": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ],
+                "description": "忽略文件"
+              },
+              "isWaitInstall": {
+                "type": "boolean",
+                "description": "是否等待依赖安装"
+              },
+              "layers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Layer 配置"
               }
             },
             "required": [
@@ -714,7 +1110,7 @@
           },
           "functionRootPath": {
             "type": "string",
-            "description": "函数根目录（云函数目录的父目录），这里需要传操作系统上文件的绝对路径，注意：不要包含函数名本身，例如函数名为 'hello'，应传入 '/path/to/cloudfunctions'，而不是 '/path/to/cloudfunctions/hello'"
+            "description": "函数根目录父目录"
           },
           "force": {
             "type": "boolean",
@@ -731,7 +1127,7 @@
     },
     {
       "name": "updateFunctionCode",
-      "description": "更新已存在函数的代码。注意：此工具仅用于更新代码，不支持修改函数配置（如 runtime）。如果需要修改 runtime，需要删除函数后使用 createFunction 重新创建。",
+      "description": "兼容入口。推荐优先使用 manageFunctions action=updateFunctionCode。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -741,7 +1137,15 @@
           },
           "functionRootPath": {
             "type": "string",
-            "description": "函数根目录（云函数目录的父目录），这里需要传操作系统上文件的绝对路径"
+            "description": "函数根目录（父目录绝对路径）"
+          },
+          "zipFile": {
+            "type": "string",
+            "description": "代码包的 base64 编码"
+          },
+          "handler": {
+            "type": "string",
+            "description": "函数入口"
           }
         },
         "required": [
@@ -754,7 +1158,7 @@
     },
     {
       "name": "updateFunctionConfig",
-      "description": "更新云函数配置",
+      "description": "兼容入口。推荐优先使用 manageFunctions action=updateFunctionConfig。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -791,14 +1195,13 @@
                   "subnetId"
                 ],
                 "additionalProperties": false,
-                "description": "VPC配置"
+                "description": "VPC 配置"
               }
             },
             "required": [
               "name"
             ],
-            "additionalProperties": false,
-            "description": "函数配置"
+            "additionalProperties": false
           }
         },
         "required": [
@@ -810,7 +1213,7 @@
     },
     {
       "name": "invokeFunction",
-      "description": "调用云函数",
+      "description": "兼容入口。推荐优先使用 manageFunctions action=invokeFunction。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -833,7 +1236,7 @@
     },
     {
       "name": "getFunctionLogs",
-      "description": "获取云函数日志基础信息（LogList），如需日志详情请用 RequestId 调用 getFunctionLogDetail 工具。此接口基于 manger-node 4.4.0+ 的 getFunctionLogsV2 实现，不返回具体日志内容。参数 offset+limit 不得大于 10000，startTime/endTime 间隔不得超过一天。",
+      "description": "兼容入口。推荐优先使用 queryFunctions action=listFunctionLogs。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -843,27 +1246,27 @@
           },
           "offset": {
             "type": "number",
-            "description": "数据的偏移量，Offset+Limit 不能大于 10000"
+            "description": "分页偏移"
           },
           "limit": {
             "type": "number",
-            "description": "返回数据的长度，Offset+Limit 不能大于 10000"
+            "description": "分页数量"
           },
           "startTime": {
             "type": "string",
-            "description": "查询的具体日期，例如：2017-05-16 20:00:00，只能与 EndTime 相差一天之内"
+            "description": "日志查询开始时间"
           },
           "endTime": {
             "type": "string",
-            "description": "查询的具体日期，例如：2017-05-16 20:59:59，只能与 StartTime 相差一天之内"
+            "description": "日志查询结束时间"
           },
           "requestId": {
             "type": "string",
-            "description": "执行该函数对应的 requestId"
+            "description": "函数执行 requestId"
           },
           "qualifier": {
             "type": "string",
-            "description": "函数版本，默认为 $LATEST"
+            "description": "函数版本"
           }
         },
         "required": [
@@ -875,21 +1278,21 @@
     },
     {
       "name": "getFunctionLogDetail",
-      "description": "根据 getFunctionLogs 返回的 RequestId 查询日志详情。参数 startTime、endTime、requestId，返回日志内容（LogJson 等）。仅支持 manger-node 4.4.0+。",
+      "description": "兼容入口。推荐优先使用 queryFunctions action=getFunctionLogDetail。",
       "inputSchema": {
         "type": "object",
         "properties": {
           "startTime": {
             "type": "string",
-            "description": "查询的具体日期，例如：2017-05-16 20:00:00，只能与 EndTime 相差一天之内"
+            "description": "日志查询开始时间"
           },
           "endTime": {
             "type": "string",
-            "description": "查询的具体日期，例如：2017-05-16 20:59:59，只能与 StartTime 相差一天之内"
+            "description": "日志查询结束时间"
           },
           "requestId": {
             "type": "string",
-            "description": "执行该函数对应的 requestId"
+            "description": "函数执行 requestId"
           }
         },
         "required": [
@@ -901,7 +1304,7 @@
     },
     {
       "name": "manageFunctionTriggers",
-      "description": "创建或删除云函数触发器，通过 action 参数区分操作类型",
+      "description": "兼容入口。推荐优先使用 manageFunctions action=createFunctionTrigger 或 deleteFunctionTrigger。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -911,11 +1314,11 @@
               "create",
               "delete"
             ],
-            "description": "操作类型：create=创建触发器，delete=删除触发器"
+            "description": "create=创建触发器，delete=删除触发器"
           },
           "name": {
             "type": "string",
-            "description": "函数名"
+            "description": "函数名称"
           },
           "triggers": {
             "type": "array",
@@ -924,18 +1327,18 @@
               "properties": {
                 "name": {
                   "type": "string",
-                  "description": "Trigger name"
+                  "description": "触发器名称"
                 },
                 "type": {
                   "type": "string",
                   "enum": [
                     "timer"
                   ],
-                  "description": "Trigger type, currently only supports 'timer'"
+                  "description": "触发器类型"
                 },
                 "config": {
                   "type": "string",
-                  "description": "Trigger configuration. For timer triggers, use cron expression format: second minute hour day month week year. IMPORTANT: Must include exactly 7 fields (second minute hour day month week year). Examples: '0 0 2 1 * * *' (monthly), '0 30 9 * * * *' (daily at 9:30 AM)"
+                  "description": "触发器配置，timer 使用 7 段 cron：second minute hour day month week year"
                 }
               },
               "required": [
@@ -945,11 +1348,11 @@
               ],
               "additionalProperties": false
             },
-            "description": "触发器配置数组（创建时必需）"
+            "description": "创建触发器时的配置数组"
           },
           "triggerName": {
             "type": "string",
-            "description": "触发器名称（删除时必需）"
+            "description": "删除触发器时必填"
           }
         },
         "required": [
@@ -962,7 +1365,7 @@
     },
     {
       "name": "readFunctionLayers",
-      "description": "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。返回格式：JSON 包含 success、data（含 action 与对应结果字段）、message；data.layers 或 data.layerVersions 为数组，getFunctionLayers 的 data.layers 每项为 { LayerName, LayerVersion }。",
+      "description": "兼容入口。推荐优先使用 queryFunctions。支持 listLayers、listLayerVersions、getLayerVersion、getFunctionLayers。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -974,39 +1377,39 @@
               "getLayerVersion",
               "getFunctionLayers"
             ],
-            "description": "操作类型：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情，getFunctionLayers=查询指定函数当前绑定的层"
+            "description": "查询层或函数绑定层的兼容 action"
           },
           "name": {
             "type": "string",
-            "description": "层名称。listLayerVersions 和 getLayerVersion 操作时必填"
+            "description": "层名称。listLayerVersions/getLayerVersion 时必填"
           },
           "version": {
             "type": "number",
-            "description": "层版本号。getLayerVersion 操作时必填"
+            "description": "层版本号。getLayerVersion 时必填"
           },
           "runtime": {
             "type": "string",
-            "description": "运行时筛选。listLayers 操作时可选"
+            "description": "运行时筛选"
           },
           "searchKey": {
             "type": "string",
-            "description": "层名称搜索关键字。listLayers 操作时可选"
+            "description": "层名称搜索关键字"
           },
           "offset": {
             "type": "number",
-            "description": "分页偏移。listLayers 操作时可选"
+            "description": "分页偏移"
           },
           "limit": {
             "type": "number",
-            "description": "分页数量。listLayers 操作时可选"
+            "description": "分页数量"
           },
           "functionName": {
             "type": "string",
-            "description": "函数名称。getFunctionLayers 操作时必填"
+            "description": "函数名称。getFunctionLayers 时必填"
           },
           "codeSecret": {
             "type": "string",
-            "description": "代码保护密钥。getFunctionLayers 操作时可选"
+            "description": "代码保护密钥"
           }
         },
         "required": [
@@ -1018,7 +1421,7 @@
     },
     {
       "name": "writeFunctionLayers",
-      "description": "管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。返回格式：JSON 包含 success、data（含 action 与结果字段，如 layerVersion、layers）、message、nextActions（建议的后续操作）。",
+      "description": "兼容入口。推荐优先使用 manageFunctions。支持 createLayerVersion、deleteLayerVersion、attachLayer、detachLayer、updateFunctionLayers。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1031,50 +1434,50 @@
               "detachLayer",
               "updateFunctionLayers"
             ],
-            "description": "操作类型：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=追加绑定层，detachLayer=解绑层，updateFunctionLayers=整体更新函数层数组"
+            "description": "云函数层写操作的兼容 action"
           },
           "name": {
             "type": "string",
-            "description": "层名称。createLayerVersion 和 deleteLayerVersion 操作时必填"
+            "description": "层名称。createLayerVersion/deleteLayerVersion 时必填"
           },
           "version": {
             "type": "number",
-            "description": "层版本号。deleteLayerVersion 操作时必填"
+            "description": "层版本号。deleteLayerVersion 时必填"
           },
           "contentPath": {
             "type": "string",
-            "description": "层内容路径，可以是目录或 ZIP 文件路径。createLayerVersion 操作时与 base64Content 二选一"
+            "description": "层内容路径"
           },
           "base64Content": {
             "type": "string",
-            "description": "层内容的 base64 编码。createLayerVersion 操作时与 contentPath 二选一"
+            "description": "层内容的 base64 编码"
           },
           "runtimes": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "层适用的运行时列表。createLayerVersion 操作时必填"
+            "description": "层适用的运行时列表"
           },
           "description": {
             "type": "string",
-            "description": "层版本描述。createLayerVersion 操作时可选"
+            "description": "层版本描述"
           },
           "licenseInfo": {
             "type": "string",
-            "description": "许可证信息。createLayerVersion 操作时可选"
+            "description": "许可证信息"
           },
           "functionName": {
             "type": "string",
-            "description": "函数名称。attachLayer、detachLayer、updateFunctionLayers 操作时必填"
+            "description": "函数名称"
           },
           "layerName": {
             "type": "string",
-            "description": "要绑定或解绑的层名称。attachLayer 和 detachLayer 操作时必填"
+            "description": "要绑定或解绑的层名称"
           },
           "layerVersion": {
             "type": "number",
-            "description": "要绑定或解绑的层版本号。attachLayer 和 detachLayer 操作时必填"
+            "description": "要绑定或解绑的层版本号"
           },
           "layers": {
             "type": "array",
@@ -1096,11 +1499,11 @@
               ],
               "additionalProperties": false
             },
-            "description": "目标函数层数组。updateFunctionLayers 操作时必填，顺序即最终顺序"
+            "description": "目标函数层数组"
           },
           "codeSecret": {
             "type": "string",
-            "description": "代码保护密钥。attachLayer 和 detachLayer 操作时可选"
+            "description": "代码保护密钥"
           }
         },
         "required": [

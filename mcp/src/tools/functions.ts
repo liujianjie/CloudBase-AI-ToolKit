@@ -10,7 +10,6 @@ import { debug } from "../utils/logger.js";
 import { IEnvVariable } from "@cloudbase/manager-node/types/function/types.js";
 import path from "path";
 
-// 所有支持的运行时环境(按语言分类)
 export const SUPPORTED_RUNTIMES = {
   nodejs: [
     "Nodejs20.19",
@@ -42,13 +41,9 @@ export const SUPPORTED_RUNTIMES = {
   ],
 } as const;
 
-// 所有支持的运行时(扁平化数组,用于验证)
 export const ALL_SUPPORTED_RUNTIMES = Object.values(SUPPORTED_RUNTIMES).flat();
-
-// 默认运行时
 export const DEFAULT_RUNTIME = "Nodejs18.15";
 
-// 推荐运行时(用于文档和提示)
 export const RECOMMENDED_RUNTIMES = {
   nodejs: "Nodejs18.15",
   python: "Python3.9",
@@ -57,40 +52,33 @@ export const RECOMMENDED_RUNTIMES = {
   golang: "Golang1",
 } as const;
 
-// 保留向后兼容
 export const SUPPORTED_NODEJS_RUNTIMES = SUPPORTED_RUNTIMES.nodejs;
 export const DEFAULT_NODEJS_RUNTIME = DEFAULT_RUNTIME;
 
-/**
- * 格式化运行时列表(按语言分类)
- * 用于错误提示和用户引导
- */
 export function formatRuntimeList(): string {
   return Object.entries(SUPPORTED_RUNTIMES)
     .map(([lang, runtimes]) => {
       const capitalizedLang = lang.charAt(0).toUpperCase() + lang.slice(1);
-      return `  ${capitalizedLang}: ${runtimes.join(', ')}`;
+      return `  ${capitalizedLang}: ${runtimes.join(", ")}`;
     })
-    .join('\n');
+    .join("\n");
 }
 
-// Supported trigger types
 export const SUPPORTED_TRIGGER_TYPES = [
-  "timer", // Timer trigger
+  "timer",
 ] as const;
 
 export type TriggerType = (typeof SUPPORTED_TRIGGER_TYPES)[number];
 
-// Trigger configuration examples
 export const TRIGGER_CONFIG_EXAMPLES = {
   timer: {
     description:
       "Timer trigger configuration using cron expression format: second minute hour day month week year",
     examples: [
-      "0 0 2 1 * * *", // Execute at 2:00 AM on the 1st of every month
-      "0 30 9 * * * *", // Execute at 9:30 AM every day
-      "0 0 12 * * * *", // Execute at 12:00 PM every day
-      "0 0 0 1 1 * *", // Execute at midnight on January 1st every year
+      "0 0 2 1 * * *",
+      "0 30 9 * * * *",
+      "0 0 12 * * * *",
+      "0 0 0 1 1 * *",
     ],
   },
 };
@@ -110,13 +98,187 @@ export const WRITE_FUNCTION_LAYER_ACTIONS = [
   "updateFunctionLayers",
 ] as const;
 
+export const QUERY_FUNCTION_ACTIONS = [
+  "listFunctions",
+  "getFunctionDetail",
+  "listFunctionLogs",
+  "getFunctionLogDetail",
+  "listFunctionLayers",
+  "listLayers",
+  "listLayerVersions",
+  "getLayerVersionDetail",
+  "listFunctionTriggers",
+  "getFunctionAccess",
+  "getFunctionDownloadUrl",
+] as const;
+
+export const MANAGE_FUNCTION_ACTIONS = [
+  "createFunction",
+  "updateFunctionCode",
+  "updateFunctionConfig",
+  "invokeFunction",
+  "createFunctionTrigger",
+  "deleteFunctionTrigger",
+  "createLayerVersion",
+  "deleteLayerVersion",
+  "attachLayer",
+  "detachLayer",
+  "updateFunctionLayers",
+  "createFunctionAccess",
+] as const;
+
 type ReadFunctionLayerAction = (typeof READ_FUNCTION_LAYER_ACTIONS)[number];
 type WriteFunctionLayerAction = (typeof WRITE_FUNCTION_LAYER_ACTIONS)[number];
+type QueryFunctionsAction = (typeof QUERY_FUNCTION_ACTIONS)[number];
+type ManageFunctionsAction = (typeof MANAGE_FUNCTION_ACTIONS)[number];
 
 type FunctionLayerInput = {
   LayerName: string;
   LayerVersion: number;
 };
+
+type FunctionToolEnvelope = {
+  success: boolean;
+  data: Record<string, unknown>;
+  message: string;
+  nextActions?: Array<{
+    tool: string;
+    action: string;
+    reason: string;
+  }>;
+};
+
+type QueryFunctionsInput = {
+  action: QueryFunctionsAction;
+  functionName?: string;
+  limit?: number;
+  offset?: number;
+  codeSecret?: string;
+  startTime?: string;
+  endTime?: string;
+  requestId?: string;
+  qualifier?: string;
+  runtime?: string;
+  searchKey?: string;
+  layerName?: string;
+  layerVersion?: number;
+};
+
+type ManageFunctionsInput = {
+  action: ManageFunctionsAction;
+  func?: Record<string, unknown>;
+  functionRootPath?: string;
+  force?: boolean;
+  functionName?: string;
+  zipFile?: string;
+  handler?: string;
+  timeout?: number;
+  envVariables?: Record<string, string>;
+  vpc?: {
+    vpcId: string;
+    subnetId: string;
+  };
+  params?: Record<string, unknown>;
+  triggers?: Array<{
+    name: string;
+    type: TriggerType;
+    config: string;
+  }>;
+  triggerName?: string;
+  layerName?: string;
+  layerVersion?: number;
+  contentPath?: string;
+  base64Content?: string;
+  runtimes?: string[];
+  description?: string;
+  licenseInfo?: string;
+  layers?: Array<{
+    layerName?: string;
+    layerVersion?: number;
+    LayerName?: string;
+    LayerVersion?: number;
+  }>;
+  codeSecret?: string;
+  confirm?: boolean;
+  path?: string;
+  type?: "Event" | "HTTP";
+  auth?: boolean;
+};
+
+const VPC_SCHEMA = z.object({
+  vpcId: z.string(),
+  subnetId: z.string(),
+});
+
+const TRIGGER_SCHEMA = z.object({
+  name: z.string().describe("触发器名称"),
+  type: z.enum(SUPPORTED_TRIGGER_TYPES).describe("触发器类型"),
+  config: z
+    .string()
+    .describe(
+      "触发器配置，timer 使用 7 段 cron：second minute hour day month week year",
+    ),
+});
+
+const CREATE_FUNCTION_SCHEMA = z.object({
+  name: z.string().describe("函数名称"),
+  type: z.enum(["Event", "HTTP"]).optional().describe("函数类型"),
+  protocolType: z.enum(["HTTP", "WS"]).optional().describe("HTTP 云函数协议类型"),
+  protocolParams: z
+    .object({
+      wsParams: z
+        .object({
+          idleTimeOut: z.number().optional().describe("WebSocket 空闲超时时间（秒）"),
+        })
+        .optional(),
+    })
+    .optional(),
+  instanceConcurrencyConfig: z
+    .object({
+      dynamicEnabled: z.boolean().optional(),
+      maxConcurrency: z.number().optional(),
+    })
+    .optional(),
+  timeout: z.number().optional().describe("函数超时时间"),
+  envVariables: z.record(z.string()).optional().describe("环境变量"),
+  vpc: VPC_SCHEMA.optional().describe("私有网络配置"),
+  runtime: z
+    .string()
+    .optional()
+    .describe(
+      "运行时环境。Event 函数支持多种运行时:\n" +
+        formatRuntimeList() +
+        "\n\n推荐运行时:\n" +
+        `  Node.js: ${RECOMMENDED_RUNTIMES.nodejs}\n` +
+        `  Python: ${RECOMMENDED_RUNTIMES.python}\n` +
+        `  PHP: ${RECOMMENDED_RUNTIMES.php}\n` +
+        `  Java: ${RECOMMENDED_RUNTIMES.java}\n` +
+        `  Go: ${RECOMMENDED_RUNTIMES.golang}`,
+    ),
+  triggers: z.array(TRIGGER_SCHEMA).optional().describe("触发器配置数组"),
+  handler: z.string().optional().describe("函数入口"),
+  ignore: z.union([z.string(), z.array(z.string())]).optional().describe("忽略文件"),
+  isWaitInstall: z.boolean().optional().describe("是否等待依赖安装"),
+  layers: z
+    .array(
+      z.object({
+        name: z.string(),
+        version: z.number(),
+      }),
+    )
+    .optional()
+    .describe("Layer 配置"),
+});
+
+const LEGACY_LAYER_SCHEMA = z.object({
+  LayerName: z.string().describe("层名称"),
+  LayerVersion: z.number().describe("层版本号"),
+});
+
+const MANAGE_LAYER_SCHEMA = z.object({
+  layerName: z.string().describe("层名称"),
+  layerVersion: z.number().describe("层版本号"),
+});
 
 function jsonContent(body: unknown) {
   return {
@@ -143,12 +305,6 @@ function normalizeFunctionLayers(layers: unknown): FunctionLayerInput[] {
     .filter((layer) => Boolean(layer.LayerName) && Number.isFinite(layer.LayerVersion));
 }
 
-/**
- * 处理函数根目录路径，确保不包含函数名
- * @param functionRootPath 用户输入的路径
- * @param functionName 函数名称
- * @returns 处理后的根目录路径
- */
 function processFunctionRootPath(
   functionRootPath: string | undefined,
   functionName: string,
@@ -157,8 +313,6 @@ function processFunctionRootPath(
 
   const normalizedPath = path.normalize(functionRootPath);
   const lastDir = path.basename(normalizedPath);
-
-  // 如果路径的最后一级目录名与函数名相同，说明用户可能传入了包含函数名的路径
   if (lastDir === functionName) {
     const parentPath = path.dirname(normalizedPath);
     console.warn(
@@ -189,7 +343,9 @@ function buildFunctionOperationErrorMessage(
   const expectedFunctionPath = getExpectedFunctionPath(functionRootPath, functionName);
 
   if (/GetFunction.*未找到指定的Function|未找到指定的Function/i.test(baseMessage)) {
-    suggestions.push(`请先确认环境中已存在函数 \`${functionName}\`；如果还未创建，请先执行 \`createFunction\`.`);
+    suggestions.push(
+      `请先确认环境中已存在函数 \`${functionName}\`；如果还未创建，请先执行 \`createFunction\`。`,
+    );
   }
 
   if (/路径不存在/i.test(baseMessage) && expectedFunctionPath) {
@@ -235,44 +391,1101 @@ function wrapFunctionOperationError(
 }
 
 export function registerFunctionTools(server: ExtendedMcpServer) {
-  // 获取 cloudBaseOptions，如果没有则为 undefined
   const cloudBaseOptions = server.cloudBaseOptions;
-
-  // 创建闭包函数来获取 CloudBase Manager
   const getManager = () => getCloudBaseManager({ cloudBaseOptions });
 
-  // getFunctionList - 获取云函数列表或详情(推荐)
+  const buildEnvelope = (
+    data: Record<string, unknown>,
+    message: string,
+    nextActions?: FunctionToolEnvelope["nextActions"],
+  ): FunctionToolEnvelope => ({
+    success: true,
+    data,
+    message,
+    ...(nextActions?.length ? { nextActions } : {}),
+  });
+
+  const buildErrorEnvelope = (
+    error: unknown,
+    errorCode?: string,
+  ): Record<string, unknown> => ({
+    success: false,
+    data: {},
+    message: error instanceof Error ? error.message : String(error),
+    ...(errorCode ? { errorCode } : {}),
+  });
+
+  const withEnvelope = async (handler: () => Promise<FunctionToolEnvelope>) => {
+    try {
+      return jsonContent(await handler());
+    } catch (error) {
+      return jsonContent(buildErrorEnvelope(error));
+    }
+  };
+
+  const withLegacyRaw = async (handler: () => Promise<FunctionToolEnvelope>) => {
+    const envelope = await handler();
+    return jsonContent(envelope.data.raw ?? envelope.data);
+  };
+
+  const withLegacyEnvelope = async (
+    handler: () => Promise<FunctionToolEnvelope>,
+    action: string,
+  ) => {
+    const envelope = await handler();
+    return jsonContent({
+      ...envelope,
+      data: {
+        ...envelope.data,
+        action,
+      },
+    });
+  };
+
+  const requireConfirm = (action: string, confirm?: boolean) => {
+    if (!confirm) {
+      throw new Error(`${action} 是危险操作，请显式传入 confirm=true 后再执行`);
+    }
+  };
+
+  const validateLogRange = (
+    startTime?: string,
+    endTime?: string,
+    offset?: number,
+    limit?: number,
+  ) => {
+    if ((offset || 0) + (limit || 0) > 10000) {
+      throw new Error("offset+limit 不能大于 10000");
+    }
+
+    if (startTime && endTime) {
+      const start = new Date(startTime).getTime();
+      const end = new Date(endTime).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end)) {
+        throw new Error("startTime 和 endTime 必须是有效的日期时间字符串");
+      }
+      if (end - start > 24 * 60 * 60 * 1000) {
+        throw new Error("startTime 和 endTime 间隔不能超过一天");
+      }
+    }
+  };
+
+  const normalizeManageLayers = (
+    layers: ManageFunctionsInput["layers"],
+  ): FunctionLayerInput[] =>
+    normalizeFunctionLayers(
+      (layers ?? []).map((layer) => ({
+        LayerName: layer.layerName ?? layer.LayerName,
+        LayerVersion: layer.layerVersion ?? layer.LayerVersion,
+      })),
+    );
+
+  const getFunctionAccessSummary = async (functionName: string) => {
+    const cloudbase = await getManager();
+    const [accessList, domainList] = await Promise.all([
+      cloudbase.access.getAccessList({ name: functionName }),
+      cloudbase.access.getDomainList(),
+    ]);
+
+    logCloudBaseResult(server.logger, accessList);
+    logCloudBaseResult(server.logger, domainList);
+
+    const domains = [
+      domainList.DefaultDomain,
+      ...(domainList.ServiceSet || []).map((item) => item.Domain),
+    ].filter(Boolean) as string[];
+
+    const urls = Array.from(
+      new Set(
+        (accessList.APISet || []).flatMap((api) =>
+          domains.map((domain) => {
+            const normalizedPath = api.Path?.startsWith("/")
+              ? api.Path
+              : `/${api.Path ?? ""}`;
+            return `https://${domain}${normalizedPath}`;
+          }),
+        ),
+      ),
+    );
+
+    return {
+      apis: accessList.APISet || [],
+      total: accessList.Total || 0,
+      domains,
+      urls,
+      enableService: accessList.EnableService ?? domainList.EnableService,
+      raw: {
+        accessList,
+        domainList,
+      },
+    };
+  };
+
+  const handleQueryFunctions = async (
+    input: QueryFunctionsInput,
+  ): Promise<FunctionToolEnvelope> => {
+    switch (input.action) {
+    case "listFunctions": {
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionList(
+        input.limit,
+        input.offset,
+      );
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functions: result.Functions || [],
+          totalCount: result.TotalCount || 0,
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取 ${result.Functions?.length || 0} 个云函数`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "getFunctionDetail",
+            reason: "查看单个函数详情",
+          },
+          {
+            tool: "manageFunctions",
+            action: "createFunction",
+            reason: "创建新的云函数",
+          },
+        ],
+      );
+    }
+    case "getFunctionDetail": {
+      if (!input.functionName) {
+        throw new Error("getFunctionDetail 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionDetail(
+        input.functionName,
+        input.codeSecret,
+      );
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          functionDetail: result,
+          layers: normalizeFunctionLayers(result.Layers),
+          triggers: result.Triggers || [],
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取函数 ${input.functionName} 的详情`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listFunctionLogs",
+            reason: "查看该函数的执行日志",
+          },
+          {
+            tool: "manageFunctions",
+            action: "updateFunctionConfig",
+            reason: "更新该函数配置",
+          },
+        ],
+      );
+    }
+    case "listFunctionLogs": {
+      if (!input.functionName) {
+        throw new Error("listFunctionLogs 操作时，functionName 参数是必需的");
+      }
+      validateLogRange(
+        input.startTime,
+        input.endTime,
+        input.offset,
+        input.limit,
+      );
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionLogsV2({
+        name: input.functionName,
+        offset: input.offset,
+        limit: input.limit,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        requestId: input.requestId,
+        qualifier: input.qualifier,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          logs: result.LogList || [],
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取函数 ${input.functionName} 的日志列表`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "getFunctionLogDetail",
+            reason: "按 requestId 查看单条日志详情",
+          },
+        ],
+      );
+    }
+    case "getFunctionLogDetail": {
+      if (!input.requestId) {
+        throw new Error("getFunctionLogDetail 操作时，requestId 参数是必需的");
+      }
+      validateLogRange(input.startTime, input.endTime);
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionLogDetail({
+        startTime: input.startTime,
+        endTime: input.endTime,
+        logRequestId: input.requestId,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          requestId: input.requestId,
+          logDetail: result,
+          raw: result,
+        },
+        `已获取 requestId=${input.requestId} 的日志详情`,
+      );
+    }
+    case "listFunctionLayers": {
+      if (!input.functionName) {
+        throw new Error("listFunctionLayers 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionDetail(
+        input.functionName,
+        input.codeSecret,
+      );
+      logCloudBaseResult(server.logger, result);
+      const layers = normalizeFunctionLayers(result.Layers);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          layers,
+          count: layers.length,
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取函数 ${input.functionName} 当前绑定的层`,
+        [
+          {
+            tool: "manageFunctions",
+            action: "attachLayer",
+            reason: "为该函数追加绑定层",
+          },
+          {
+            tool: "manageFunctions",
+            action: "updateFunctionLayers",
+            reason: "整体调整层顺序或绑定列表",
+          },
+        ],
+      );
+    }
+    case "listLayers": {
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.listLayers({
+        offset: input.offset,
+        limit: input.limit,
+        runtime: input.runtime,
+        searchKey: input.searchKey,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          layers: result.Layers || [],
+          totalCount: result.TotalCount || 0,
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取 ${result.Layers?.length || 0} 条层记录`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listLayerVersions",
+            reason: "查看某个层的版本列表",
+          },
+          {
+            tool: "manageFunctions",
+            action: "createLayerVersion",
+            reason: "发布新的层版本",
+          },
+        ],
+      );
+    }
+    case "listLayerVersions": {
+      if (!input.layerName) {
+        throw new Error("listLayerVersions 操作时，layerName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.listLayerVersions({
+        name: input.layerName,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          layerName: input.layerName,
+          layerVersions: result.LayerVersions || [],
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取层 ${input.layerName} 的版本列表`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "getLayerVersionDetail",
+            reason: "查看某个层版本详情",
+          },
+          {
+            tool: "manageFunctions",
+            action: "attachLayer",
+            reason: "将某个层版本绑定到函数",
+          },
+        ],
+      );
+    }
+    case "getLayerVersionDetail": {
+      if (!input.layerName) {
+        throw new Error("getLayerVersionDetail 操作时，layerName 参数是必需的");
+      }
+      if (typeof input.layerVersion !== "number") {
+        throw new Error("getLayerVersionDetail 操作时，layerVersion 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getLayerVersion({
+        name: input.layerName,
+        version: input.layerVersion,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          layerName: input.layerName,
+          layerVersion: input.layerVersion,
+          layerVersionDetail: result,
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取层 ${input.layerName} 版本 ${input.layerVersion} 的详情`,
+        [
+          {
+            tool: "manageFunctions",
+            action: "attachLayer",
+            reason: "绑定该层版本到函数",
+          },
+          {
+            tool: "manageFunctions",
+            action: "deleteLayerVersion",
+            reason: "删除该层版本",
+          },
+        ],
+      );
+    }
+    case "listFunctionTriggers": {
+      if (!input.functionName) {
+        throw new Error("listFunctionTriggers 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionDetail(
+        input.functionName,
+        input.codeSecret,
+      );
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          triggers: result.Triggers || [],
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取函数 ${input.functionName} 的触发器列表`,
+        [
+          {
+            tool: "manageFunctions",
+            action: "createFunctionTrigger",
+            reason: "创建新的触发器",
+          },
+          {
+            tool: "manageFunctions",
+            action: "deleteFunctionTrigger",
+            reason: "删除指定触发器",
+          },
+        ],
+      );
+    }
+    case "getFunctionAccess": {
+      if (!input.functionName) {
+        throw new Error("getFunctionAccess 操作时，functionName 参数是必需的");
+      }
+      const result = await getFunctionAccessSummary(input.functionName);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          apis: result.apis,
+          total: result.total,
+          domains: result.domains,
+          urls: result.urls,
+          enableService: result.enableService,
+          raw: result.raw,
+        },
+        `已获取函数 ${input.functionName} 的 HTTP 访问配置`,
+        [
+          {
+            tool: "manageFunctions",
+            action: "createFunctionAccess",
+            reason: "创建新的 HTTP 访问路径",
+          },
+        ],
+      );
+    }
+    case "getFunctionDownloadUrl": {
+      if (!input.functionName) {
+        throw new Error("getFunctionDownloadUrl 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionDownloadUrl(
+        input.functionName,
+        input.codeSecret,
+      );
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          downloadUrl: result.Url,
+          codeSha256: result.CodeSha256,
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已获取函数 ${input.functionName} 的代码下载链接`,
+      );
+    }
+    default:
+      throw new Error(`不支持的操作类型: ${input.action}`);
+    }
+  };
+
+  const handleManageFunctions = async (
+    input: ManageFunctionsInput,
+  ): Promise<FunctionToolEnvelope> => {
+    switch (input.action) {
+    case "createFunction": {
+      if (!input.func?.name || typeof input.func.name !== "string") {
+        throw new Error("createFunction 操作时，func.name 参数是必需的");
+      }
+      const cloudbase = await getManager();
+
+      const func = { ...input.func };
+      const functionName = String(func.name);
+      debug(
+        `[createFunction] name=${functionName}, type=${String(func.type || "Event")}`,
+      );
+
+      if (func.type !== "HTTP") {
+        if (!func.runtime || typeof func.runtime !== "string") {
+          func.runtime = DEFAULT_RUNTIME;
+        } else {
+          const normalizedRuntime = func.runtime.replace(/\s+/g, "");
+          if ((ALL_SUPPORTED_RUNTIMES as readonly string[]).includes(normalizedRuntime)) {
+            func.runtime = normalizedRuntime;
+          } else if (func.runtime.includes(" ")) {
+            console.warn(
+              `检测到 runtime 参数包含空格: "${func.runtime}"，已自动移除空格`,
+            );
+            func.runtime = normalizedRuntime;
+          }
+        }
+
+        if (
+          typeof func.runtime !== "string" ||
+          !(ALL_SUPPORTED_RUNTIMES as readonly string[]).includes(func.runtime)
+        ) {
+          throw new Error(
+            `不支持的运行时环境: "${String(func.runtime)}"\n\n支持的运行时:\n${formatRuntimeList()}`,
+          );
+        }
+      }
+
+      func.installDependency = true;
+      const processedRootPath = processFunctionRootPath(
+        input.functionRootPath,
+        functionName,
+      );
+
+      let result: unknown;
+      try {
+        result = await cloudbase.functions.createFunction({
+          func,
+          functionRootPath: processedRootPath,
+          force: Boolean(input.force),
+        } as any);
+      } catch (error) {
+        throw wrapFunctionOperationError(
+          "createFunction",
+          functionName,
+          processedRootPath,
+          error,
+        );
+      }
+
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName,
+          raw: result as Record<string, unknown>,
+        },
+        `已创建函数 ${functionName}`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "getFunctionDetail",
+            reason: "确认函数配置",
+          },
+          {
+            tool: "queryFunctions",
+            action: "listFunctionTriggers",
+            reason: "检查函数触发器",
+          },
+        ],
+      );
+    }
+    case "updateFunctionCode": {
+      if (!input.functionName) {
+        throw new Error("updateFunctionCode 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+
+      const processedRootPath = processFunctionRootPath(
+        input.functionRootPath,
+        input.functionName,
+      );
+      const updateParams: Record<string, unknown> = {
+        func: {
+          name: input.functionName,
+          installDependency: true,
+          ...(input.handler ? { handler: input.handler } : {}),
+        },
+        functionRootPath: processedRootPath,
+      };
+
+      if (input.zipFile) {
+        updateParams.zipFile = input.zipFile;
+      }
+
+      let result: unknown;
+      try {
+        result = await cloudbase.functions.updateFunctionCode(updateParams as any);
+      } catch (error) {
+        throw wrapFunctionOperationError(
+          "updateFunctionCode",
+          input.functionName,
+          processedRootPath,
+          error,
+        );
+      }
+
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          raw: result as Record<string, unknown>,
+        },
+        `已更新函数 ${input.functionName} 的代码`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "getFunctionDetail",
+            reason: "确认最新函数配置",
+          },
+        ],
+      );
+    }
+    case "updateFunctionConfig": {
+      if (!input.functionName) {
+        throw new Error("updateFunctionConfig 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+
+      const functionDetail = await cloudbase.functions.getFunctionDetail(
+        input.functionName,
+      );
+      const currentVpc =
+        typeof functionDetail.VpcConfig === "object" &&
+        functionDetail.VpcConfig !== null &&
+        functionDetail.VpcConfig.SubnetId &&
+        functionDetail.VpcConfig.VpcId
+          ? {
+              subnetId: functionDetail.VpcConfig.SubnetId,
+              vpcId: functionDetail.VpcConfig.VpcId,
+            }
+          : undefined;
+
+      const result = await cloudbase.functions.updateFunctionConfig({
+        name: input.functionName,
+        envVariables: Object.assign(
+          {},
+          (functionDetail.Environment?.Variables || []).reduce(
+            (
+              acc: Record<string, string | number | boolean>,
+              curr: IEnvVariable,
+            ) => {
+              acc[curr.Key] = curr.Value;
+              return acc;
+            },
+            {},
+          ),
+          input.envVariables ?? {},
+        ),
+        timeout: input.timeout ?? functionDetail.Timeout,
+        vpc: Object.assign({}, currentVpc, input.vpc ?? {}),
+      });
+
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          raw: result,
+        },
+        `已更新函数 ${input.functionName} 的配置`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "getFunctionDetail",
+            reason: "确认配置变更结果",
+          },
+        ],
+      );
+    }
+    case "invokeFunction": {
+      if (!input.functionName) {
+        throw new Error("invokeFunction 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      try {
+        const result = await cloudbase.functions.invokeFunction(
+          input.functionName,
+          input.params,
+        );
+        logCloudBaseResult(server.logger, result);
+        return buildEnvelope(
+          {
+            action: input.action,
+            functionName: input.functionName,
+            invokeResult: result,
+            raw: result,
+          },
+          `已调用函数 ${input.functionName}`,
+          [
+            {
+              tool: "queryFunctions",
+              action: "listFunctionLogs",
+              reason: "查看本次调用日志",
+            },
+          ],
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        if (
+          errorMessage.includes("Function not found") ||
+          errorMessage.includes("函数不存在")
+        ) {
+          throw new Error(
+            `${errorMessage}\n\nTip: "invokeFunction" 只能调用已部署的云函数。数据库操作请使用对应的数据工具。`,
+          );
+        }
+        throw error;
+      }
+    }
+    case "createFunctionTrigger": {
+      if (!input.functionName) {
+        throw new Error("createFunctionTrigger 操作时，functionName 参数是必需的");
+      }
+      if (!input.triggers?.length) {
+        throw new Error("createFunctionTrigger 操作时，triggers 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.createFunctionTriggers(
+        input.functionName,
+        input.triggers,
+      );
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          raw: result,
+        },
+        `已为函数 ${input.functionName} 创建触发器`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listFunctionTriggers",
+            reason: "确认触发器已生效",
+          },
+        ],
+      );
+    }
+    case "deleteFunctionTrigger": {
+      if (!input.functionName) {
+        throw new Error("deleteFunctionTrigger 操作时，functionName 参数是必需的");
+      }
+      if (!input.triggerName) {
+        throw new Error("deleteFunctionTrigger 操作时，triggerName 参数是必需的");
+      }
+      requireConfirm(input.action, input.confirm);
+      const cloudbase = await getManager();
+      await cloudbase.functions.deleteFunctionTrigger(
+        input.functionName,
+        input.triggerName,
+      );
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          triggerName: input.triggerName,
+          raw: {},
+        },
+        `已删除函数 ${input.functionName} 的触发器 ${input.triggerName}`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listFunctionTriggers",
+            reason: "确认剩余触发器列表",
+          },
+        ],
+      );
+    }
+    case "createLayerVersion": {
+      if (!input.layerName) {
+        throw new Error("createLayerVersion 操作时，layerName 参数是必需的");
+      }
+      if (!input.runtimes?.length) {
+        throw new Error("createLayerVersion 操作时，runtimes 参数是必需的");
+      }
+      if (!input.contentPath && !input.base64Content) {
+        throw new Error(
+          "createLayerVersion 操作时，contentPath 和 base64Content 至少需要提供一个",
+        );
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.createLayer({
+        name: input.layerName,
+        contentPath: input.contentPath,
+        base64Content: input.base64Content,
+        runtimes: input.runtimes,
+        description: input.description,
+        licenseInfo: input.licenseInfo,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          layerName: input.layerName,
+          layerVersion: result.LayerVersion,
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已创建层 ${input.layerName} 的新版本`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listLayerVersions",
+            reason: "查看该层的全部版本",
+          },
+        ],
+      );
+    }
+    case "deleteLayerVersion": {
+      if (!input.layerName) {
+        throw new Error("deleteLayerVersion 操作时，layerName 参数是必需的");
+      }
+      if (typeof input.layerVersion !== "number") {
+        throw new Error("deleteLayerVersion 操作时，layerVersion 参数是必需的");
+      }
+      requireConfirm(input.action, input.confirm);
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.deleteLayerVersion({
+        name: input.layerName,
+        version: input.layerVersion,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          layerName: input.layerName,
+          layerVersion: input.layerVersion,
+          raw: result,
+        },
+        `已删除层 ${input.layerName} 的版本 ${input.layerVersion}`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listLayerVersions",
+            reason: "确认剩余层版本",
+          },
+        ],
+      );
+    }
+    case "attachLayer":
+    case "detachLayer":
+    case "updateFunctionLayers": {
+      if (!input.functionName) {
+        throw new Error(`${input.action} 操作时，functionName 参数是必需的`);
+      }
+      const cloudbase = await getManager();
+      const envId = await getEnvId(cloudBaseOptions);
+
+      if (input.action === "attachLayer") {
+        if (!input.layerName) {
+          throw new Error("attachLayer 操作时，layerName 参数是必需的");
+        }
+        if (typeof input.layerVersion !== "number") {
+          throw new Error("attachLayer 操作时，layerVersion 参数是必需的");
+        }
+        const result = await cloudbase.functions.attachLayer({
+          envId,
+          functionName: input.functionName,
+          layerName: input.layerName,
+          layerVersion: input.layerVersion,
+          codeSecret: input.codeSecret,
+        });
+        logCloudBaseResult(server.logger, result);
+        const detail = await cloudbase.functions.getFunctionDetail(
+          input.functionName,
+          input.codeSecret,
+        );
+        return buildEnvelope(
+          {
+            action: input.action,
+            functionName: input.functionName,
+            layers: normalizeFunctionLayers(detail.Layers),
+            requestId: result.RequestId,
+            raw: result,
+          },
+          `已将层 ${input.layerName}:${input.layerVersion} 绑定到函数 ${input.functionName}`,
+          [
+            {
+              tool: "queryFunctions",
+              action: "listFunctionLayers",
+              reason: "确认函数当前绑定层列表",
+            },
+          ],
+        );
+      }
+
+      if (input.action === "detachLayer") {
+        if (!input.layerName) {
+          throw new Error("detachLayer 操作时，layerName 参数是必需的");
+        }
+        if (typeof input.layerVersion !== "number") {
+          throw new Error("detachLayer 操作时，layerVersion 参数是必需的");
+        }
+        requireConfirm(input.action, input.confirm);
+        const result = await cloudbase.functions.unAttachLayer({
+          envId,
+          functionName: input.functionName,
+          layerName: input.layerName,
+          layerVersion: input.layerVersion,
+          codeSecret: input.codeSecret,
+        });
+        logCloudBaseResult(server.logger, result);
+        const detail = await cloudbase.functions.getFunctionDetail(
+          input.functionName,
+          input.codeSecret,
+        );
+        return buildEnvelope(
+          {
+            action: input.action,
+            functionName: input.functionName,
+            layers: normalizeFunctionLayers(detail.Layers),
+            requestId: result.RequestId,
+            raw: result,
+          },
+          `已从函数 ${input.functionName} 解绑层 ${input.layerName}:${input.layerVersion}`,
+          [
+            {
+              tool: "queryFunctions",
+              action: "listFunctionLayers",
+              reason: "确认解绑后的层列表",
+            },
+          ],
+        );
+      }
+
+      const normalizedLayers = normalizeManageLayers(input.layers);
+      if (!normalizedLayers.length) {
+        throw new Error(
+          "updateFunctionLayers 操作时，layers 参数必须包含有效的 layerName 和 layerVersion",
+        );
+      }
+      const result = await cloudbase.functions.updateFunctionLayer({
+        envId,
+        functionName: input.functionName,
+        layers: normalizedLayers,
+      });
+      logCloudBaseResult(server.logger, result);
+      const detail = await cloudbase.functions.getFunctionDetail(
+        input.functionName,
+      );
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          layers: normalizeFunctionLayers(detail.Layers),
+          requestId: result.RequestId,
+          raw: result,
+        },
+        `已更新函数 ${input.functionName} 的层绑定列表`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listFunctionLayers",
+            reason: "确认最新层顺序和绑定结果",
+          },
+        ],
+      );
+    }
+    case "createFunctionAccess": {
+      if (!input.functionName) {
+        throw new Error("createFunctionAccess 操作时，functionName 参数是必需的");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.access.createAccess({
+        name: input.functionName,
+        path: input.path || `/${input.functionName}`,
+        type: ((input.type || "Event") === "HTTP" ? 6 : 1) as 1 | 2,
+        auth: input.auth,
+      });
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          path: input.path || `/${input.functionName}`,
+          raw: result,
+        },
+        `已为函数 ${input.functionName} 创建 HTTP 访问路径`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "getFunctionAccess",
+            reason: "查看当前 HTTP 访问配置",
+          },
+        ],
+      );
+    }
+    default:
+      throw new Error(`不支持的操作类型: ${input.action}`);
+    }
+  };
+
+  server.registerTool?.(
+    "queryFunctions",
+    {
+      title: "查询云函数域资源",
+      description:
+        "函数域统一只读入口。通过更自解释的 action 查询函数列表、函数详情、日志、层、触发器、HTTP 访问和代码下载地址。",
+      inputSchema: {
+        action: z
+          .enum(QUERY_FUNCTION_ACTIONS)
+          .describe("只读操作类型，例如 listFunctions、getFunctionDetail、getFunctionAccess"),
+        functionName: z.string().optional().describe("函数名称。函数相关 action 必填"),
+        limit: z.number().optional().describe("分页数量。列表类 action 可选"),
+        offset: z.number().optional().describe("分页偏移。列表类 action 可选"),
+        codeSecret: z.string().optional().describe("代码保护密钥"),
+        startTime: z.string().optional().describe("日志查询开始时间"),
+        endTime: z.string().optional().describe("日志查询结束时间"),
+        requestId: z.string().optional().describe("日志 requestId。获取日志详情时必填"),
+        qualifier: z.string().optional().describe("函数版本，日志查询时可选"),
+        runtime: z.string().optional().describe("层查询的运行时筛选"),
+        searchKey: z.string().optional().describe("层名称搜索关键字"),
+        layerName: z.string().optional().describe("层名称。层相关 action 必填"),
+        layerVersion: z.number().optional().describe("层版本号。获取层版本详情时必填"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: true,
+        category: "functions",
+      },
+    },
+    async (input: QueryFunctionsInput) => withEnvelope(() => handleQueryFunctions(input)),
+  );
+
+  server.registerTool?.(
+    "manageFunctions",
+    {
+      title: "管理云函数域资源",
+      description:
+        "函数域统一写入口。通过 action 管理函数创建、代码更新、配置更新、触发器、层绑定和 HTTP 访问。危险操作需要显式 confirm=true。",
+      inputSchema: {
+        action: z
+          .enum(MANAGE_FUNCTION_ACTIONS)
+          .describe("写操作类型，例如 createFunction、updateFunctionCode、attachLayer"),
+        func: CREATE_FUNCTION_SCHEMA.optional().describe("createFunction 操作的函数配置"),
+        functionRootPath: z.string().optional().describe("函数根目录（父目录绝对路径）"),
+        force: z.boolean().optional().describe("createFunction 时是否覆盖"),
+        functionName: z.string().optional().describe("函数名称。大多数 action 使用该字段作为统一目标"),
+        zipFile: z.string().optional().describe("代码包的 base64 编码"),
+        handler: z.string().optional().describe("函数入口"),
+        timeout: z.number().optional().describe("配置更新时的超时时间"),
+        envVariables: z.record(z.string()).optional().describe("配置更新时要合并的环境变量"),
+        vpc: VPC_SCHEMA.optional().describe("配置更新时的 VPC 信息"),
+        params: z.record(z.any()).optional().describe("invokeFunction 的调用参数"),
+        triggers: z.array(TRIGGER_SCHEMA).optional().describe("createFunctionTrigger 的触发器列表"),
+        triggerName: z.string().optional().describe("deleteFunctionTrigger 的目标触发器名称"),
+        layerName: z.string().optional().describe("层名称"),
+        layerVersion: z.number().optional().describe("层版本号"),
+        contentPath: z.string().optional().describe("层内容路径，可为目录或 ZIP 文件"),
+        base64Content: z.string().optional().describe("层内容的 base64 编码"),
+        runtimes: z.array(z.string()).optional().describe("层适用的运行时列表"),
+        description: z.string().optional().describe("层版本描述"),
+        licenseInfo: z.string().optional().describe("层许可证信息"),
+        layers: z
+          .array(MANAGE_LAYER_SCHEMA)
+          .optional()
+          .describe("updateFunctionLayers 的目标层列表，顺序即最终顺序"),
+        codeSecret: z.string().optional().describe("层绑定时的代码保护密钥"),
+        confirm: z.boolean().optional().describe("危险操作确认开关"),
+        path: z.string().optional().describe("createFunctionAccess 的访问路径，默认 /{functionName}"),
+        type: z.enum(["Event", "HTTP"]).optional().describe("createFunctionAccess 的函数类型"),
+        auth: z.boolean().optional().describe("createFunctionAccess 是否开启鉴权"),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+        category: "functions",
+      },
+    },
+    async (input: ManageFunctionsInput) => withEnvelope(() => handleManageFunctions(input)),
+  );
+
   server.registerTool?.(
     "getFunctionList",
     {
       title: "查询云函数列表或详情",
       description:
-        "获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称，并可通过 include 补充返回层信息、代码下载链接等附加字段）",
+        "兼容入口。推荐优先使用 queryFunctions。action=list 返回函数列表，action=detail 返回函数详情，并兼容 include=downloadUrl。",
       inputSchema: {
-        action: z
-          .enum(["list", "detail"])
-          .optional()
-          .describe(
-            "操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数）",
-          ),
-        limit: z.number().optional().describe("范围（list 操作时使用）"),
-        offset: z.number().optional().describe("偏移（list 操作时使用）"),
-        name: z
-          .string()
-          .optional()
-          .describe(
-            "要查询的函数名称。当 action='detail' 时，此参数为必填项，必须提供已存在的函数名称。可通过 action='list' 操作获取可用的函数名称列表",
-          ),
-        include: z
-          .array(z.enum(["layers", "downloadUrl", "all"]))
-          .optional()
-          .describe(
-            "仅 action='detail' 时使用。补充返回字段：layers=显式返回当前绑定的 Layers，downloadUrl=附带代码包临时下载链接，all=返回上述全部补充字段",
-          ),
-        codeSecret: z
-          .string()
-          .optional()
-          .describe("代码保护密钥（detail 和 downloadUrl 补充信息使用）"),
+        action: z.enum(["list", "detail"]).optional().describe("list=获取函数列表，detail=获取函数详情"),
+        limit: z.number().optional().describe("列表分页数量"),
+        offset: z.number().optional().describe("列表分页偏移"),
+        name: z.string().optional().describe("函数名称。detail 时必填"),
+        include: z.array(z.enum(["layers", "downloadUrl", "all"])).optional().describe("detail 的兼容扩展字段"),
+        codeSecret: z.string().optional().describe("代码保护密钥"),
       },
       annotations: {
         readOnlyHint: true,
@@ -295,165 +1508,50 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       include?: Array<"layers" | "downloadUrl" | "all">;
       codeSecret?: string;
     }) => {
-      // 使用闭包中的 cloudBaseOptions
-      const cloudbase = await getManager();
-
       if (action === "list") {
-        const result = await cloudbase.functions.getFunctionList(limit, offset);
-        logCloudBaseResult(server.logger, result);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } else if (action === "detail") {
-        if (!name) {
-          throw new Error("获取函数详情时，name 参数是必需的");
-        }
-        const result = await cloudbase.functions.getFunctionDetail(
-          name,
-          codeSecret,
+        return withLegacyRaw(() =>
+          handleQueryFunctions({
+            action: "listFunctions",
+            limit,
+            offset,
+          }),
         );
-        const includeSet = new Set(include ?? []);
-        const detailResult: typeof result & { DownloadUrl?: string } = {
-          ...result,
-        };
-
-        if (includeSet.has("downloadUrl") || includeSet.has("all")) {
-          const downloadResult = await cloudbase.functions.getFunctionDownloadUrl(
-            name,
-            codeSecret,
-          );
-          detailResult.DownloadUrl =
-            typeof downloadResult === "string"
-              ? downloadResult
-              : downloadResult.Url;
-        }
-
-        logCloudBaseResult(server.logger, detailResult);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(detailResult, null, 2),
-            },
-          ],
-        };
-      } else {
-        throw new Error(`不支持的操作类型: ${action}`);
       }
+
+      if (!name) {
+        throw new Error("获取函数详情时，name 参数是必需的");
+      }
+
+      const detailEnvelope = await handleQueryFunctions({
+        action: "getFunctionDetail",
+        functionName: name,
+        codeSecret,
+      });
+      const detail = {
+        ...(detailEnvelope.data.raw as Record<string, unknown>),
+      };
+      const includeSet = new Set(include ?? []);
+      if (includeSet.has("downloadUrl") || includeSet.has("all")) {
+        const downloadEnvelope = await handleQueryFunctions({
+          action: "getFunctionDownloadUrl",
+          functionName: name,
+          codeSecret,
+        });
+        detail.DownloadUrl = downloadEnvelope.data.downloadUrl;
+      }
+
+      return jsonContent(detail);
     },
   );
 
-  // createFunction - 创建云函数 (cloud-incompatible)
   server.registerTool(
     "createFunction",
     {
       title: "创建云函数",
-      description:
-        "创建云函数。云函数分为事件型云函数(Event)和 HTTP 云函数。\n\n" +
-        "支持的运行时:\n" +
-        "- Event 函数: Node.js, Python, PHP, Java, Go\n" +
-        "- HTTP 函数: 所有语言(通过 scf_bootstrap 启动脚本)\n\n" +
-        "注意: 运行时创建后不可修改，请谨慎选择。",
+      description: "兼容入口。推荐优先使用 manageFunctions action=createFunction。",
       inputSchema: {
-        func: z
-          .object({
-            name: z.string().describe("函数名称"),
-            type: z
-              .enum(["Event", "HTTP"])
-              .optional()
-              .describe("函数类型，Event 为事件型云函数，HTTP 为 HTTP 云函数"),
-            protocolType: z
-              .enum(["HTTP", "WS"])
-              .optional()
-              .describe("HTTP 云函数的协议类型，HTTP 为 HTTP 协议（默认），WS 为 WebSocket 协议，仅当 type 为 HTTP 时有效"),
-            protocolParams: z
-              .object({
-                wsParams: z
-                  .object({
-                    idleTimeOut: z.number().optional().describe("WebSocket 空闲超时时间（秒），默认 15 秒"),
-                  })
-                  .optional()
-                  .describe("WebSocket 协议参数"),
-              })
-              .optional()
-              .describe("协议参数配置，仅当 protocolType 为 WS 时有效"),
-            instanceConcurrencyConfig: z
-              .object({
-                dynamicEnabled: z.boolean().optional().describe("是否启用动态并发，默认 false"),
-                maxConcurrency: z.number().optional().describe("最大并发数，默认 10"),
-              })
-              .optional()
-              .describe("多并发配置，仅当 type 为 HTTP 时有效"),
-            timeout: z.number().optional().describe("函数超时时间"),
-            envVariables: z.record(z.string()).optional().describe("环境变量"),
-            vpc: z
-              .object({
-                vpcId: z.string(),
-                subnetId: z.string(),
-              })
-              .optional()
-              .describe("私有网络配置"),
-            runtime: z
-              .string()
-              .optional()
-              .describe(
-                "运行时环境。Event 函数支持多种运行时:\n" +
-                formatRuntimeList() + "\n\n" +
-                "推荐运行时:\n" +
-                `  Node.js: ${RECOMMENDED_RUNTIMES.nodejs}\n` +
-                `  Python: ${RECOMMENDED_RUNTIMES.python}\n` +
-                `  PHP: ${RECOMMENDED_RUNTIMES.php}\n` +
-                `  Java: ${RECOMMENDED_RUNTIMES.java}\n` +
-                `  Go: ${RECOMMENDED_RUNTIMES.golang}\n\n` +
-                "注意:\n" +
-                "- HTTP 函数已支持所有语言(通过 scf_bootstrap 启动脚本)\n" +
-                "- Node.js 函数会自动安装依赖\n" +
-                "- Python/PHP/Java/Go 函数需要预先打包依赖到函数目录"
-              ),
-            triggers: z
-              .array(
-                z.object({
-                  name: z.string().describe("Trigger name"),
-                  type: z
-                    .enum(SUPPORTED_TRIGGER_TYPES)
-                    .describe("Trigger type, currently only supports 'timer'"),
-                  config: z
-                    .string()
-                    .describe(
-                      "Trigger configuration. For timer triggers, use cron expression format: second minute hour day month week year. IMPORTANT: Must include exactly 7 fields (second minute hour day month week year). Examples: '0 0 2 1 * * *' (monthly), '0 30 9 * * * *' (daily at 9:30 AM)",
-                    ),
-                }),
-              )
-              .optional()
-              .describe("Trigger configuration array"),
-            handler: z.string().optional().describe("函数入口"),
-            ignore: z
-              .union([z.string(), z.array(z.string())])
-              .optional()
-              .describe("忽略文件"),
-            isWaitInstall: z.boolean().optional().describe("是否等待依赖安装"),
-            layers: z
-              .array(
-                z.object({
-                  name: z.string(),
-                  version: z.number(),
-                }),
-              )
-              .optional()
-              .describe("Layer配置"),
-          })
-          .describe("函数配置"),
-        functionRootPath: z
-          .string()
-          .optional()
-          .describe(
-            "函数根目录（云函数目录的父目录），这里需要传操作系统上文件的绝对路径，注意：不要包含函数名本身，例如函数名为 'hello'，应传入 '/path/to/cloudfunctions'，而不是 '/path/to/cloudfunctions/hello'",
-          ),
+        func: CREATE_FUNCTION_SCHEMA.describe("函数配置"),
+        functionRootPath: z.string().optional().describe("函数根目录父目录"),
         force: z.boolean().describe("是否覆盖"),
       },
       annotations: {
@@ -469,104 +1567,30 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       functionRootPath,
       force,
     }: {
-      func: any;
+      func: Record<string, unknown>;
       functionRootPath?: string;
       force: boolean;
-    }) => {
-      debug(`[createFunction] name=${func.name}, type=${func.type || "Event"}`);
-
-      // HTTP 云函数跳过 runtime 验证，Event 云函数进行验证
-      const isHttpFunction = func.type === "HTTP";
-
-      if (!isHttpFunction) {
-        // 自动填充默认 runtime
-        if (!func.runtime) {
-          func.runtime = DEFAULT_RUNTIME;
-          console.log(
-            `未指定 runtime，使用默认值: ${DEFAULT_RUNTIME}\n` +
-            `可选运行时:\n${formatRuntimeList()}`
-          );
-        } else {
-          // 验证 runtime 格式，防止常见的空格问题
-          const normalizedRuntime = func.runtime.replace(/\s+/g, "");
-          if (ALL_SUPPORTED_RUNTIMES.includes(normalizedRuntime)) {
-            func.runtime = normalizedRuntime;
-          } else if (func.runtime.includes(" ")) {
-            console.warn(
-              `检测到 runtime 参数包含空格: "${func.runtime}"，已自动移除空格`,
-            );
-            func.runtime = normalizedRuntime;
-          }
-        }
-
-        // 验证 runtime 是否有效
-        if (!ALL_SUPPORTED_RUNTIMES.includes(func.runtime)) {
-          throw new Error(
-            `不支持的运行时环境: "${func.runtime}"\n\n` +
-            `支持的运行时:\n${formatRuntimeList()}\n\n` +
-            `提示:\n` +
-            `- Node.js 函数会自动安装依赖\n` +
-            `- Python/PHP/Java/Go 函数需要预先打包依赖到函数目录\n` +
-            `- 详细信息请参考文档: https://docs.cloudbase.net/api-reference/manager/node/function#createfunction`
-          );
-        }
-      }
-
-      // 强制设置 installDependency 为 true（不暴露给AI）
-      func.installDependency = true;
-
-      // 处理函数根目录路径，确保不包含函数名
-      const processedRootPath = processFunctionRootPath(
-        functionRootPath,
-        func.name,
-      );
-
-      // 使用闭包中的 cloudBaseOptions
-      const cloudbase = await getManager();
-      let result: unknown;
-      try {
-        result = await cloudbase.functions.createFunction({
+    }) =>
+      withLegacyRaw(() =>
+        handleManageFunctions({
+          action: "createFunction",
           func,
-          functionRootPath: processedRootPath,
+          functionRootPath,
           force,
-        });
-      } catch (error) {
-        throw wrapFunctionOperationError(
-          "createFunction",
-          func.name,
-          processedRootPath,
-          error,
-        );
-      }
-      logCloudBaseResult(server.logger, result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    },
+        }),
+      ),
   );
 
-  // updateFunctionCode - 更新函数代码 (cloud-incompatible)
   server.registerTool(
     "updateFunctionCode",
     {
       title: "更新云函数代码",
-      description:
-        "更新已存在函数的代码。注意：此工具仅用于更新代码，不支持修改函数配置（如 runtime）。如果需要修改 runtime，需要删除函数后使用 createFunction 重新创建。",
+      description: "兼容入口。推荐优先使用 manageFunctions action=updateFunctionCode。",
       inputSchema: {
         name: z.string().describe("函数名称"),
-        functionRootPath: z
-          .string()
-          .describe(
-            "函数根目录（云函数目录的父目录），这里需要传操作系统上文件的绝对路径",
-          ),
-        // zipFile: z.string().optional().describe("Base64编码的函数包"),
-        // handler: z.string().optional().describe("函数入口"),
-        // runtime: z.string().optional().describe("运行时（可选值：" + SUPPORTED_NODEJS_RUNTIMES.join('，') + "，默认 Nodejs 18.15)")
+        functionRootPath: z.string().describe("函数根目录（父目录绝对路径）"),
+        zipFile: z.string().optional().describe("代码包的 base64 编码"),
+        handler: z.string().optional().describe("函数入口"),
       },
       annotations: {
         readOnlyHint: false,
@@ -586,73 +1610,30 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       functionRootPath?: string;
       zipFile?: string;
       handler?: string;
-    }) => {
-      // 处理函数根目录路径，确保不包含函数名
-      const processedRootPath = processFunctionRootPath(functionRootPath, name);
-
-      // 构建更新参数，强制设置 installDependency 为 true（不暴露给AI）
-      // 注意：不包含 runtime 参数，因为云开发平台不支持修改已存在函数的 runtime
-      const updateParams: any = {
-        func: {
-          name,
-          installDependency: true,
-          ...(handler && { handler }),
-        },
-        functionRootPath: processedRootPath,
-      };
-
-      // 如果提供了zipFile，则添加到参数中
-      if (zipFile) {
-        updateParams.zipFile = zipFile;
-      }
-
-      // 使用闭包中的 cloudBaseOptions
-      const cloudbase = await getManager();
-      let result: unknown;
-      try {
-        result = await cloudbase.functions.updateFunctionCode(updateParams);
-      } catch (error) {
-        throw wrapFunctionOperationError(
-          "updateFunctionCode",
-          name,
-          processedRootPath,
-          error,
-        );
-      }
-      logCloudBaseResult(server.logger, result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    },
+    }) =>
+      withLegacyRaw(() =>
+        handleManageFunctions({
+          action: "updateFunctionCode",
+          functionName: name,
+          functionRootPath,
+          zipFile,
+          handler,
+        }),
+      ),
   );
 
-  // updateFunctionConfig - 更新函数配置
   server.registerTool?.(
     "updateFunctionConfig",
     {
       title: "更新云函数配置",
-      description: "更新云函数配置",
+      description: "兼容入口。推荐优先使用 manageFunctions action=updateFunctionConfig。",
       inputSchema: {
-        funcParam: z
-          .object({
-            name: z.string().describe("函数名称"),
-            timeout: z.number().optional().describe("超时时间"),
-            envVariables: z.record(z.string()).optional().describe("环境变量"),
-            vpc: z
-              .object({
-                vpcId: z.string(),
-                subnetId: z.string(),
-              })
-              .optional()
-              .describe("VPC配置"),
-            // runtime: z.string().optional().describe("运行时（可选值：" + SUPPORTED_NODEJS_RUNTIMES.join('，') + "，默认 Nodejs 18.15)")
-          })
-          .describe("函数配置"),
+        funcParam: z.object({
+          name: z.string().describe("函数名称"),
+          timeout: z.number().optional().describe("超时时间"),
+          envVariables: z.record(z.string()).optional().describe("环境变量"),
+          vpc: VPC_SCHEMA.optional().describe("VPC 配置"),
+        }),
       },
       annotations: {
         readOnlyHint: false,
@@ -662,64 +1643,35 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         category: "functions",
       },
     },
-    async ({ funcParam }: { funcParam: any }) => {
-      // 自动填充默认 runtime
-      // if (!funcParam.runtime) {
-      //   funcParam.runtime = DEFAULT_NODEJS_RUNTIME;
-      // }
-      // 使用闭包中的 cloudBaseOptions
-      const cloudbase = await getManager();
-      const functionDetail = await cloudbase.functions.getFunctionDetail(
-        funcParam.name,
-      );
-      functionDetail.Environment;
-      const vpc =
-        typeof functionDetail.VpcConfig === "object" &&
-        functionDetail.VpcConfig !== null &&
-        functionDetail.VpcConfig.SubnetId &&
-        functionDetail.VpcConfig.VpcId
-          ? {
-              subnetId: functionDetail.VpcConfig.SubnetId,
-              vpcId: functionDetail.VpcConfig.VpcId,
-            }
-          : undefined;
-      const result = await cloudbase.functions.updateFunctionConfig({
-        name: funcParam.name,
-        envVariables: Object.assign(
-          {},
-          functionDetail.Environment.Variables.reduce(
-            (
-              acc: Record<string, string | number | boolean>,
-              curr: IEnvVariable,
-            ) => {
-              acc[curr.Key] = curr.Value;
-              return acc;
-            },
-            {},
-          ),
-          funcParam.envVariables ?? {},
-        ),
-        timeout: funcParam.timeout ?? functionDetail.Timeout,
-        vpc: Object.assign({}, vpc, funcParam.vpc ?? {}),
-      });
-      logCloudBaseResult(server.logger, result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
+    async ({
+      funcParam,
+    }: {
+      funcParam: {
+        name: string;
+        timeout?: number;
+        envVariables?: Record<string, string>;
+        vpc?: {
+          vpcId: string;
+          subnetId: string;
+        };
       };
-    },
+    }) =>
+      withLegacyRaw(() =>
+        handleManageFunctions({
+          action: "updateFunctionConfig",
+          functionName: funcParam.name,
+          timeout: funcParam.timeout,
+          envVariables: funcParam.envVariables,
+          vpc: funcParam.vpc,
+        }),
+      ),
   );
 
-  // invokeFunction - 调用函数
   server.registerTool?.(
     "invokeFunction",
     {
       title: "调用云函数",
-      description: "调用云函数",
+      description: "兼容入口。推荐优先使用 manageFunctions action=invokeFunction。",
       inputSchema: {
         name: z.string().describe("函数名称"),
         params: z.record(z.any()).optional().describe("调用参数"),
@@ -737,73 +1689,30 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       params,
     }: {
       name: string;
-      params?: Record<string, any>;
-    }) => {
-      // 使用闭包中的 cloudBaseOptions
-      try {
-        const cloudbase = await getManager();
-        const result = await cloudbase.functions.invokeFunction(name, params);
-        logCloudBaseResult(server.logger, result);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-
-        if (
-          errorMessage.includes("Function not found") ||
-          errorMessage.includes("函数不存在")
-        ) {
-          throw new Error(
-            `${errorMessage}\n\n` +
-              `Tip: "invokeFunction" can only call deployed cloud functions. ` +
-              `For database operations (such as creating collections), ` +
-              `please use the appropriate database tools instead.`,
-          );
-        }
-
-        throw error;
-      }
-    },
+      params?: Record<string, unknown>;
+    }) =>
+      withLegacyRaw(() =>
+        handleManageFunctions({
+          action: "invokeFunction",
+          functionName: name,
+          params,
+        }),
+      ),
   );
 
-  // getFunctionLogs - 获取云函数日志（新版，参数直接展开）
   server.registerTool?.(
     "getFunctionLogs",
     {
-      title: "获取云函数日志（新版）",
-      description:
-        "获取云函数日志基础信息（LogList），如需日志详情请用 RequestId 调用 getFunctionLogDetail 工具。此接口基于 manger-node 4.4.0+ 的 getFunctionLogsV2 实现，不返回具体日志内容。参数 offset+limit 不得大于 10000，startTime/endTime 间隔不得超过一天。",
+      title: "获取云函数日志",
+      description: "兼容入口。推荐优先使用 queryFunctions action=listFunctionLogs。",
       inputSchema: {
         name: z.string().describe("函数名称"),
-        offset: z
-          .number()
-          .optional()
-          .describe("数据的偏移量，Offset+Limit 不能大于 10000"),
-        limit: z
-          .number()
-          .optional()
-          .describe("返回数据的长度，Offset+Limit 不能大于 10000"),
-        startTime: z
-          .string()
-          .optional()
-          .describe(
-            "查询的具体日期，例如：2017-05-16 20:00:00，只能与 EndTime 相差一天之内",
-          ),
-        endTime: z
-          .string()
-          .optional()
-          .describe(
-            "查询的具体日期，例如：2017-05-16 20:59:59，只能与 StartTime 相差一天之内",
-          ),
-        requestId: z.string().optional().describe("执行该函数对应的 requestId"),
-        qualifier: z.string().optional().describe("函数版本，默认为 $LATEST"),
+        offset: z.number().optional().describe("分页偏移"),
+        limit: z.number().optional().describe("分页数量"),
+        startTime: z.string().optional().describe("日志查询开始时间"),
+        endTime: z.string().optional().describe("日志查询结束时间"),
+        requestId: z.string().optional().describe("函数执行 requestId"),
+        qualifier: z.string().optional().describe("函数版本"),
       },
       annotations: {
         readOnlyHint: true,
@@ -819,60 +1728,38 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       endTime,
       requestId,
       qualifier,
-    }) => {
-      if ((offset || 0) + (limit || 0) > 10000) {
-        throw new Error("offset+limit 不能大于 10000");
-      }
-      if (startTime && endTime) {
-        const start = new Date(startTime).getTime();
-        const end = new Date(endTime).getTime();
-        if (end - start > 24 * 60 * 60 * 1000) {
-          throw new Error("startTime 和 endTime 间隔不能超过一天");
-        }
-      }
-      const cloudbase = await getManager();
-      const result = await cloudbase.functions.getFunctionLogsV2({
-        name,
-        offset,
-        limit,
-        startTime,
-        endTime,
-        requestId,
-        qualifier,
-      });
-      logCloudBaseResult(server.logger, result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    },
+    }: {
+      name: string;
+      offset?: number;
+      limit?: number;
+      startTime?: string;
+      endTime?: string;
+      requestId?: string;
+      qualifier?: string;
+    }) =>
+      withLegacyRaw(() =>
+        handleQueryFunctions({
+          action: "listFunctionLogs",
+          functionName: name,
+          offset,
+          limit,
+          startTime,
+          endTime,
+          requestId,
+          qualifier,
+        }),
+      ),
   );
 
-  // getFunctionLogDetail - 查询日志详情（参数直接展开）
   server.registerTool?.(
     "getFunctionLogDetail",
     {
       title: "获取云函数日志详情",
-      description:
-        "根据 getFunctionLogs 返回的 RequestId 查询日志详情。参数 startTime、endTime、requestId，返回日志内容（LogJson 等）。仅支持 manger-node 4.4.0+。",
+      description: "兼容入口。推荐优先使用 queryFunctions action=getFunctionLogDetail。",
       inputSchema: {
-        startTime: z
-          .string()
-          .optional()
-          .describe(
-            "查询的具体日期，例如：2017-05-16 20:00:00，只能与 EndTime 相差一天之内",
-          ),
-        endTime: z
-          .string()
-          .optional()
-          .describe(
-            "查询的具体日期，例如：2017-05-16 20:59:59，只能与 StartTime 相差一天之内",
-          ),
-        requestId: z.string().describe("执行该函数对应的 requestId"),
+        startTime: z.string().optional().describe("日志查询开始时间"),
+        endTime: z.string().optional().describe("日志查询结束时间"),
+        requestId: z.string().describe("函数执行 requestId"),
       },
       annotations: {
         readOnlyHint: true,
@@ -880,60 +1767,36 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         category: "functions",
       },
     },
-    async ({ startTime, endTime, requestId }) => {
-      if (startTime && endTime) {
-        const start = new Date(startTime).getTime();
-        const end = new Date(endTime).getTime();
-        if (end - start > 24 * 60 * 60 * 1000) {
-          throw new Error("startTime 和 endTime 间隔不能超过一天");
-        }
-      }
-      const cloudbase = await getManager();
-      const result = await cloudbase.functions.getFunctionLogDetail({
-        startTime,
-        endTime,
-        logRequestId: requestId,
-      });
-      logCloudBaseResult(server.logger, result);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    },
+    async ({
+      startTime,
+      endTime,
+      requestId,
+    }: {
+      startTime?: string;
+      endTime?: string;
+      requestId: string;
+    }) =>
+      withLegacyRaw(() =>
+        handleQueryFunctions({
+          action: "getFunctionLogDetail",
+          startTime,
+          endTime,
+          requestId,
+        }),
+      ),
   );
 
-  // manageFunctionTriggers - 管理云函数触发器（创建/删除）
   server.registerTool?.(
     "manageFunctionTriggers",
     {
       title: "管理云函数触发器",
-      description: "创建或删除云函数触发器，通过 action 参数区分操作类型",
+      description:
+        "兼容入口。推荐优先使用 manageFunctions action=createFunctionTrigger 或 deleteFunctionTrigger。",
       inputSchema: {
-        action: z
-          .enum(["create", "delete"])
-          .describe("操作类型：create=创建触发器，delete=删除触发器"),
-        name: z.string().describe("函数名"),
-        triggers: z
-          .array(
-            z.object({
-              name: z.string().describe("Trigger name"),
-              type: z
-                .enum(SUPPORTED_TRIGGER_TYPES)
-                .describe("Trigger type, currently only supports 'timer'"),
-              config: z
-                .string()
-                .describe(
-                  "Trigger configuration. For timer triggers, use cron expression format: second minute hour day month week year. IMPORTANT: Must include exactly 7 fields (second minute hour day month week year). Examples: '0 0 2 1 * * *' (monthly), '0 30 9 * * * *' (daily at 9:30 AM)",
-                ),
-            }),
-          )
-          .optional()
-          .describe("触发器配置数组（创建时必需）"),
-        triggerName: z.string().optional().describe("触发器名称（删除时必需）"),
+        action: z.enum(["create", "delete"]).describe("create=创建触发器，delete=删除触发器"),
+        name: z.string().describe("函数名称"),
+        triggers: z.array(TRIGGER_SCHEMA).optional().describe("创建触发器时的配置数组"),
+        triggerName: z.string().optional().describe("删除触发器时必填"),
       },
       annotations: {
         readOnlyHint: false,
@@ -951,50 +1814,29 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     }: {
       action: "create" | "delete";
       name: string;
-      triggers?: any[];
+      triggers?: Array<{
+        name: string;
+        type: TriggerType;
+        config: string;
+      }>;
       triggerName?: string;
-    }) => {
-      // 使用闭包中的 cloudBaseOptions
-      const cloudbase = await getManager();
-
-      if (action === "create") {
-        if (!triggers || triggers.length === 0) {
-          throw new Error("创建触发器时，triggers 参数是必需的");
-        }
-        const result = await cloudbase.functions.createFunctionTriggers(
-          name,
-          triggers,
-        );
-        logCloudBaseResult(server.logger, result);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } else if (action === "delete") {
-        if (!triggerName) {
-          throw new Error("删除触发器时，triggerName 参数是必需的");
-        }
-        const result = await cloudbase.functions.deleteFunctionTrigger(
-          name,
-          triggerName,
-        );
-        logCloudBaseResult(server.logger, result);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } else {
-        throw new Error(`不支持的操作类型: ${action}`);
-      }
-    },
+    }) =>
+      withLegacyRaw(() =>
+        handleManageFunctions(
+          action === "create"
+            ? {
+                action: "createFunctionTrigger",
+                functionName: name,
+                triggers,
+              }
+            : {
+                action: "deleteFunctionTrigger",
+                functionName: name,
+                triggerName,
+                confirm: true,
+              },
+        ),
+      ),
   );
 
   server.registerTool?.(
@@ -1002,39 +1844,17 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     {
       title: "查询云函数层信息",
       description:
-        "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。返回格式：JSON 包含 success、data（含 action 与对应结果字段）、message；data.layers 或 data.layerVersions 为数组，getFunctionLayers 的 data.layers 每项为 { LayerName, LayerVersion }。",
+        "兼容入口。推荐优先使用 queryFunctions。支持 listLayers、listLayerVersions、getLayerVersion、getFunctionLayers。",
       inputSchema: {
-        action: z
-          .enum(READ_FUNCTION_LAYER_ACTIONS)
-          .describe(
-            "操作类型：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情，getFunctionLayers=查询指定函数当前绑定的层",
-          ),
-        name: z
-          .string()
-          .optional()
-          .describe("层名称。listLayerVersions 和 getLayerVersion 操作时必填"),
-        version: z
-          .number()
-          .optional()
-          .describe("层版本号。getLayerVersion 操作时必填"),
-        runtime: z
-          .string()
-          .optional()
-          .describe("运行时筛选。listLayers 操作时可选"),
-        searchKey: z
-          .string()
-          .optional()
-          .describe("层名称搜索关键字。listLayers 操作时可选"),
-        offset: z.number().optional().describe("分页偏移。listLayers 操作时可选"),
-        limit: z.number().optional().describe("分页数量。listLayers 操作时可选"),
-        functionName: z
-          .string()
-          .optional()
-          .describe("函数名称。getFunctionLayers 操作时必填"),
-        codeSecret: z
-          .string()
-          .optional()
-          .describe("代码保护密钥。getFunctionLayers 操作时可选"),
+        action: z.enum(READ_FUNCTION_LAYER_ACTIONS).describe("查询层或函数绑定层的兼容 action"),
+        name: z.string().optional().describe("层名称。listLayerVersions/getLayerVersion 时必填"),
+        version: z.number().optional().describe("层版本号。getLayerVersion 时必填"),
+        runtime: z.string().optional().describe("运行时筛选"),
+        searchKey: z.string().optional().describe("层名称搜索关键字"),
+        offset: z.number().optional().describe("分页偏移"),
+        limit: z.number().optional().describe("分页数量"),
+        functionName: z.string().optional().describe("函数名称。getFunctionLayers 时必填"),
+        codeSecret: z.string().optional().describe("代码保护密钥"),
       },
       annotations: {
         readOnlyHint: true,
@@ -1064,116 +1884,60 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       codeSecret?: string;
     }) => {
       if (action === "listLayers") {
-        const cloudbase = await getManager();
-        const result = await cloudbase.functions.listLayers({
-          offset,
-          limit,
-          runtime,
-          searchKey,
-        });
-        logCloudBaseResult(server.logger, result);
-        return jsonContent({
-          success: true,
-          data: {
-            action,
-            layers: result.Layers || [],
-            totalCount: result.TotalCount || 0,
-            requestId: result.RequestId,
-          },
-          message: `Successfully retrieved ${result.Layers?.length || 0} layer entries`,
-          nextActions: [
-            { tool: "readFunctionLayers", action: "listLayerVersions", reason: "List versions of a layer" },
-            { tool: "writeFunctionLayers", action: "createLayerVersion", reason: "Create a new layer version" },
-          ],
-        });
+        return withLegacyEnvelope(
+          () =>
+            handleQueryFunctions({
+              action: "listLayers",
+              runtime,
+              searchKey,
+              offset,
+              limit,
+            }),
+          action,
+        );
       }
 
       if (action === "listLayerVersions") {
         if (!name) {
           throw new Error("查询层版本列表时，name 参数是必需的");
         }
-
-        const cloudbase = await getManager();
-        const result = await cloudbase.functions.listLayerVersions({ name });
-        logCloudBaseResult(server.logger, result);
-        return jsonContent({
-          success: true,
-          data: {
-            action,
-            name,
-            layerVersions: result.LayerVersions || [],
-            requestId: result.RequestId,
-          },
-          message: `Successfully retrieved ${result.LayerVersions?.length || 0} versions for layer '${name}'`,
-          nextActions: [
-            { tool: "readFunctionLayers", action: "getLayerVersion", reason: "Get version details and download info" },
-            { tool: "writeFunctionLayers", action: "attachLayer", reason: "Bind this layer to a function" },
-          ],
-        });
+        return withLegacyEnvelope(
+          () =>
+            handleQueryFunctions({
+              action: "listLayerVersions",
+              layerName: name,
+            }),
+          action,
+        );
       }
 
       if (action === "getLayerVersion") {
         if (!name) {
           throw new Error("查询层版本详情时，name 参数是必需的");
         }
-        if (typeof version !== "number") {
-          throw new Error("查询层版本详情时，version 参数是必需的");
-        }
-
-        const cloudbase = await getManager();
-        const result = await cloudbase.functions.getLayerVersion({
-          name,
-          version,
-        });
-        logCloudBaseResult(server.logger, result);
-        return jsonContent({
-          success: true,
-          data: {
-            action,
-            name,
-            version,
-            layerVersion: result,
-            downloadInfo: {
-              location: result.Location,
-              codeSha256: result.CodeSha256,
-            },
-            requestId: result.RequestId,
-          },
-          message: `Successfully retrieved details for layer '${name}' version ${version}`,
-          nextActions: [
-            { tool: "writeFunctionLayers", action: "attachLayer", reason: "Bind this layer version to a function" },
-            { tool: "writeFunctionLayers", action: "deleteLayerVersion", reason: "Delete this layer version" },
-          ],
-        });
+        return withLegacyEnvelope(
+          () =>
+            handleQueryFunctions({
+              action: "getLayerVersionDetail",
+              layerName: name,
+              layerVersion: version,
+            }),
+          action,
+        );
       }
 
       if (!functionName) {
         throw new Error("查询函数层配置时，functionName 参数是必需的");
       }
-
-      const cloudbase = await getManager();
-      const result = await cloudbase.functions.getFunctionDetail(
-        functionName,
-        codeSecret,
+      return withLegacyEnvelope(
+        () =>
+          handleQueryFunctions({
+            action: "listFunctionLayers",
+            functionName,
+            codeSecret,
+          }),
+        action,
       );
-      logCloudBaseResult(server.logger, result);
-      const layers = normalizeFunctionLayers(result.Layers);
-      return jsonContent({
-        success: true,
-        data: {
-          action,
-          functionName,
-          layers,
-          count: layers.length,
-          requestId: result.RequestId,
-        },
-        message: `Successfully retrieved ${layers.length} bound layers for function '${functionName}'`,
-        nextActions: [
-          { tool: "writeFunctionLayers", action: "attachLayer", reason: "Add a layer to this function" },
-          { tool: "writeFunctionLayers", action: "detachLayer", reason: "Remove a layer from this function" },
-          { tool: "writeFunctionLayers", action: "updateFunctionLayers", reason: "Replace or reorder bound layers" },
-        ],
-      });
     },
   );
 
@@ -1182,66 +1946,21 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     {
       title: "管理云函数层",
       description:
-        "管理云函数层和函数层绑定。通过 action 区分操作：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=给函数追加绑定层，detachLayer=解绑函数层，updateFunctionLayers=整体更新函数层数组以调整顺序或批量更新。返回格式：JSON 包含 success、data（含 action 与结果字段，如 layerVersion、layers）、message、nextActions（建议的后续操作）。",
+        "兼容入口。推荐优先使用 manageFunctions。支持 createLayerVersion、deleteLayerVersion、attachLayer、detachLayer、updateFunctionLayers。",
       inputSchema: {
-        action: z
-          .enum(WRITE_FUNCTION_LAYER_ACTIONS)
-          .describe(
-            "操作类型：createLayerVersion=创建层版本，deleteLayerVersion=删除层版本，attachLayer=追加绑定层，detachLayer=解绑层，updateFunctionLayers=整体更新函数层数组",
-          ),
-        name: z
-          .string()
-          .optional()
-          .describe("层名称。createLayerVersion 和 deleteLayerVersion 操作时必填"),
-        version: z
-          .number()
-          .optional()
-          .describe("层版本号。deleteLayerVersion 操作时必填"),
-        contentPath: z
-          .string()
-          .optional()
-          .describe("层内容路径，可以是目录或 ZIP 文件路径。createLayerVersion 操作时与 base64Content 二选一"),
-        base64Content: z
-          .string()
-          .optional()
-          .describe("层内容的 base64 编码。createLayerVersion 操作时与 contentPath 二选一"),
-        runtimes: z
-          .array(z.string())
-          .optional()
-          .describe("层适用的运行时列表。createLayerVersion 操作时必填"),
-        description: z
-          .string()
-          .optional()
-          .describe("层版本描述。createLayerVersion 操作时可选"),
-        licenseInfo: z
-          .string()
-          .optional()
-          .describe("许可证信息。createLayerVersion 操作时可选"),
-        functionName: z
-          .string()
-          .optional()
-          .describe("函数名称。attachLayer、detachLayer、updateFunctionLayers 操作时必填"),
-        layerName: z
-          .string()
-          .optional()
-          .describe("要绑定或解绑的层名称。attachLayer 和 detachLayer 操作时必填"),
-        layerVersion: z
-          .number()
-          .optional()
-          .describe("要绑定或解绑的层版本号。attachLayer 和 detachLayer 操作时必填"),
-        layers: z
-          .array(
-            z.object({
-              LayerName: z.string().describe("层名称"),
-              LayerVersion: z.number().describe("层版本号"),
-            }),
-          )
-          .optional()
-          .describe("目标函数层数组。updateFunctionLayers 操作时必填，顺序即最终顺序"),
-        codeSecret: z
-          .string()
-          .optional()
-          .describe("代码保护密钥。attachLayer 和 detachLayer 操作时可选"),
+        action: z.enum(WRITE_FUNCTION_LAYER_ACTIONS).describe("云函数层写操作的兼容 action"),
+        name: z.string().optional().describe("层名称。createLayerVersion/deleteLayerVersion 时必填"),
+        version: z.number().optional().describe("层版本号。deleteLayerVersion 时必填"),
+        contentPath: z.string().optional().describe("层内容路径"),
+        base64Content: z.string().optional().describe("层内容的 base64 编码"),
+        runtimes: z.array(z.string()).optional().describe("层适用的运行时列表"),
+        description: z.string().optional().describe("层版本描述"),
+        licenseInfo: z.string().optional().describe("许可证信息"),
+        functionName: z.string().optional().describe("函数名称"),
+        layerName: z.string().optional().describe("要绑定或解绑的层名称"),
+        layerVersion: z.number().optional().describe("要绑定或解绑的层版本号"),
+        layers: z.array(LEGACY_LAYER_SCHEMA).optional().describe("目标函数层数组"),
+        codeSecret: z.string().optional().describe("代码保护密钥"),
       },
       annotations: {
         readOnlyHint: false,
@@ -1280,384 +1999,54 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       layers?: FunctionLayerInput[];
       codeSecret?: string;
     }) => {
-      if (action === "createLayerVersion") {
-        if (!name) {
-          throw new Error("创建层版本时，name 参数是必需的");
-        }
-        if (!runtimes || runtimes.length === 0) {
-          throw new Error("创建层版本时，runtimes 参数是必需的");
-        }
-        if (!contentPath && !base64Content) {
-          throw new Error(
-            "创建层版本时，contentPath 和 base64Content 至少需要提供一个",
-          );
-        }
+      const mappedInput: ManageFunctionsInput =
+        action === "createLayerVersion"
+          ? {
+              action,
+              layerName: name,
+              contentPath,
+              base64Content,
+              runtimes,
+              description,
+              licenseInfo,
+            }
+          : action === "deleteLayerVersion"
+            ? {
+                action,
+                layerName: name,
+                layerVersion: version,
+                confirm: true,
+              }
+            : action === "attachLayer"
+              ? {
+                  action,
+                  functionName,
+                  layerName,
+                  layerVersion,
+                  codeSecret,
+                }
+              : action === "detachLayer"
+                ? {
+                    action,
+                    functionName,
+                    layerName,
+                    layerVersion,
+                    codeSecret,
+                    confirm: true,
+                  }
+                : {
+                    action,
+                    functionName,
+                    layers: (layers || []).map((layer) => ({
+                      layerName: layer.LayerName,
+                      layerVersion: layer.LayerVersion,
+                    })),
+                  };
 
-        const cloudbase = await getManager();
-        const result = await cloudbase.functions.createLayer({
-          name,
-          contentPath,
-          base64Content,
-          runtimes,
-          description,
-          licenseInfo,
-        });
-        logCloudBaseResult(server.logger, result);
-        return jsonContent({
-          success: true,
-          data: {
-            action,
-            name,
-            layerVersion: result.LayerVersion,
-            requestId: result.RequestId,
-          },
-          message: `Successfully created a new version for layer '${name}'`,
-          nextActions: [
-            { tool: "readFunctionLayers", action: "listLayerVersions", reason: "List all versions of this layer" },
-            { tool: "writeFunctionLayers", action: "attachLayer", reason: "Bind this version to a function" },
-          ],
-        });
-      }
-
-      if (action === "deleteLayerVersion") {
-        if (!name) {
-          throw new Error("删除层版本时，name 参数是必需的");
-        }
-        if (typeof version !== "number") {
-          throw new Error("删除层版本时，version 参数是必需的");
-        }
-
-        const cloudbase = await getManager();
-        const result = await cloudbase.functions.deleteLayerVersion({
-          name,
-          version,
-        });
-        logCloudBaseResult(server.logger, result);
-        return jsonContent({
-          success: true,
-          data: {
-            action,
-            name,
-            version,
-            requestId: result.RequestId,
-          },
-          message: `Successfully deleted layer '${name}' version ${version}`,
-          nextActions: [
-            { tool: "readFunctionLayers", action: "listLayers", reason: "List remaining layers" },
-          ],
-        });
-      }
-
-      if (
-        action === "attachLayer" ||
-        action === "detachLayer" ||
-        action === "updateFunctionLayers"
-      ) {
-        if (!functionName) {
-          throw new Error(`${action} 操作时，functionName 参数是必需的`);
-        }
-      }
-
-      const envId = await getEnvId(cloudBaseOptions);
-      const cloudbase = await getManager();
-
-      if (action === "attachLayer") {
-        if (!layerName) {
-          throw new Error("attachLayer 操作时，layerName 参数是必需的");
-        }
-        if (typeof layerVersion !== "number") {
-          throw new Error("attachLayer 操作时，layerVersion 参数是必需的");
-        }
-
-        const result = await cloudbase.functions.attachLayer({
-          envId,
-          functionName: functionName as string,
-          layerName,
-          layerVersion,
-          codeSecret,
-        });
-        logCloudBaseResult(server.logger, result);
-        const detail = await cloudbase.functions.getFunctionDetail(
-          functionName as string,
-          codeSecret,
-        );
-        const boundLayers = normalizeFunctionLayers(detail.Layers);
-        return jsonContent({
-          success: true,
-          data: {
-            action,
-            functionName,
-            layers: boundLayers,
-            requestId: result.RequestId,
-          },
-          message: `Successfully attached layer '${layerName}' version ${layerVersion} to function '${functionName}'`,
-          nextActions: [
-            { tool: "readFunctionLayers", action: "getFunctionLayers", reason: "Verify bound layers" },
-            { tool: "writeFunctionLayers", action: "detachLayer", reason: "Remove this layer from function" },
-          ],
-        });
-      }
-
-      if (action === "detachLayer") {
-        if (!layerName) {
-          throw new Error("detachLayer 操作时，layerName 参数是必需的");
-        }
-        if (typeof layerVersion !== "number") {
-          throw new Error("detachLayer 操作时，layerVersion 参数是必需的");
-        }
-
-        const result = await cloudbase.functions.unAttachLayer({
-          envId,
-          functionName: functionName as string,
-          layerName,
-          layerVersion,
-          codeSecret,
-        });
-        logCloudBaseResult(server.logger, result);
-        const detail = await cloudbase.functions.getFunctionDetail(
-          functionName as string,
-          codeSecret,
-        );
-        const boundLayers = normalizeFunctionLayers(detail.Layers);
-        return jsonContent({
-          success: true,
-          data: {
-            action,
-            functionName,
-            layers: boundLayers,
-            requestId: result.RequestId,
-          },
-          message: `Successfully detached layer '${layerName}' version ${layerVersion} from function '${functionName}'`,
-          nextActions: [
-            { tool: "readFunctionLayers", action: "getFunctionLayers", reason: "Verify current bound layers" },
-          ],
-        });
-      }
-
-      if (!layers || layers.length === 0) {
-        throw new Error("updateFunctionLayers 操作时，layers 参数是必需的");
-      }
-
-      const normalizedLayers = normalizeFunctionLayers(layers);
-      if (normalizedLayers.length === 0) {
-        throw new Error(
-          "updateFunctionLayers 操作时，layers 参数必须包含有效的 LayerName 和 LayerVersion",
-        );
-      }
-
-      const result = await cloudbase.functions.updateFunctionLayer({
-        envId,
-        functionName: functionName as string,
-        layers: normalizedLayers,
-      });
-      logCloudBaseResult(server.logger, result);
-      const detail = await cloudbase.functions.getFunctionDetail(
-        functionName as string,
+      return withLegacyEnvelope(
+        () => handleManageFunctions(mappedInput),
+        action,
       );
-      const boundLayers = normalizeFunctionLayers(detail.Layers);
-      return jsonContent({
-        success: true,
-        data: {
-          action,
-          functionName,
-          layers: boundLayers,
-          requestId: result.RequestId,
-        },
-        message: `Successfully updated bound layers for function '${functionName}'`,
-        nextActions: [
-          { tool: "readFunctionLayers", action: "getFunctionLayers", reason: "Verify updated layer order" },
-        ],
-      });
     },
   );
-
-  // // Layer相关功能
-  // // createLayer - 创建Layer
-  // server.tool(
-  //   "createLayer",
-  //   "创建Layer",
-  //   {
-  //     options: z.object({
-  //       contentPath: z.string().optional().describe("Layer内容路径"),
-  //       base64Content: z.string().optional().describe("base64编码的内容"),
-  //       name: z.string().describe("Layer名称"),
-  //       runtimes: z.array(z.string()).describe("运行时列表"),
-  //       description: z.string().optional().describe("描述"),
-  //       licenseInfo: z.string().optional().describe("许可证信息")
-  //     }).describe("Layer配置")
-  //   },
-  //   async ({ options }) => {
-  //     const cloudbase = await getCloudBaseManager()
-  //     const result = await cloudbase.functions.createLayer(options);
-  //     return {
-  //       content: [
-  //         {
-  //           type: "text",
-  //           text: JSON.stringify(result, null, 2)
-  //         }
-  //       ]
-  //     };
-  //   }
-  // );
-
-  // // listLayers - 获取Layer列表
-  // server.tool(
-  //   "listLayers",
-  //   "获取Layer列表",
-  //   {
-  //     options: z.object({
-  //       offset: z.number().optional().describe("偏移"),
-  //       limit: z.number().optional().describe("数量限制"),
-  //       runtime: z.string().optional().describe("运行时"),
-  //       searchKey: z.string().optional().describe("搜索关键字")
-  //     }).optional().describe("查询选项")
-  //   },
-  //   async ({ options }) => {
-  //     const cloudbase = await getCloudBaseManager()
-  //     const result = await cloudbase.functions.listLayers(options || {});
-  //     return {
-  //       content: [
-  //         {
-  //           type: "text",
-  //           text: JSON.stringify(result, null, 2)
-  //         }
-  //       ]
-  //     };
-  //   }
-  // );
-
-  // // getLayerVersion - 获取Layer版本详情
-  // server.tool(
-  //   "getLayerVersion",
-  //   "获取Layer版本详情",
-  //   {
-  //     options: z.object({
-  //       name: z.string().describe("Layer名称"),
-  //       version: z.number().describe("版本号")
-  //     }).describe("查询选项")
-  //   },
-  //   async ({ options }) => {
-  //     const cloudbase = await getCloudBaseManager()
-  //     const result = await cloudbase.functions.getLayerVersion(options);
-  //     return {
-  //       content: [
-  //         {
-  //           type: "text",
-  //           text: JSON.stringify(result, null, 2)
-  //         }
-  //       ]
-  //     };
-  //   }
-  // );
-
-  // // 版本管理相关功能
-  // // publishVersion - 发布新版本
-  // server.tool(
-  //   "publishVersion",
-  //   "发布函数新版本",
-  //   {
-  //     options: z.object({
-  //       functionName: z.string().describe("函数名称"),
-  //       description: z.string().optional().describe("版本描述")
-  //     }).describe("发布选项")
-  //   },
-  //   async ({ options }) => {
-  //     const cloudbase = await getCloudBaseManager()
-  //     const result = await cloudbase.functions.publishVersion(options);
-  //     return {
-  //       content: [
-  //         {
-  //           type: "text",
-  //           text: JSON.stringify(result, null, 2)
-  //         }
-  //       ]
-  //     };
-  //   }
-  // );
-
-  // // listVersionByFunction - 获取版本列表
-  // server.tool(
-  //   "listVersionByFunction",
-  //   "获取函数版本列表",
-  //   {
-  //     options: z.object({
-  //       functionName: z.string().describe("函数名称"),
-  //       offset: z.number().optional().describe("偏移"),
-  //       limit: z.number().optional().describe("数量限制"),
-  //       order: z.string().optional().describe("排序方式"),
-  //       orderBy: z.string().optional().describe("排序字段")
-  //     }).describe("查询选项")
-  //   },
-  //   async ({ options }) => {
-  //     const cloudbase = await getCloudBaseManager()
-  //     const result = await cloudbase.functions.listVersionByFunction(options);
-  //     return {
-  //       content: [
-  //         {
-  //           type: "text",
-  //           text: JSON.stringify(result, null, 2)
-  //         }
-  //       ]
-  //     };
-  //   }
-  // );
-
-  // // 别名配置相关功能
-  // // updateFunctionAliasConfig - 更新别名配置
-  // server.tool(
-  //   "updateFunctionAliasConfig",
-  //   "更新函数别名配置",
-  //   {
-  //     options: z.object({
-  //       functionName: z.string().describe("函数名称"),
-  //       name: z.string().describe("别名名称"),
-  //       functionVersion: z.string().describe("函数版本"),
-  //       description: z.string().optional().describe("描述"),
-  //       routingConfig: z.object({
-  //         AddtionVersionMatchs: z.array(z.object({
-  //           Version: z.string(),
-  //           Key: z.string(),
-  //           Method: z.string(),
-  //           Expression: z.string()
-  //         }))
-  //       }).optional().describe("路由配置")
-  //     }).describe("别名配置")
-  //   },
-  //   async ({ options }) => {
-  //     const cloudbase = await getCloudBaseManager()
-  //     const result = await cloudbase.functions.updateFunctionAliasConfig(options);
-  //     return {
-  //       content: [
-  //         {
-  //           type: "text",
-  //           text: JSON.stringify(result, null, 2)
-  //         }
-  //       ]
-  //     };
-  //   }
-  // );
-
-  // // getFunctionAlias - 获取别名配置
-  // server.tool(
-  //   "getFunctionAlias",
-  //   "获取函数别名配置",
-  //   {
-  //     options: z.object({
-  //       functionName: z.string().describe("函数名称"),
-  //       name: z.string().describe("别名名称")
-  //     }).describe("查询选项")
-  //   },
-  //   async ({ options }) => {
-  //     const cloudbase = await getCloudBaseManager()
-  //     const result = await cloudbase.functions.getFunctionAlias(options);
-  //     return {
-  //       content: [
-  //         {
-  //           type: "text",
-  //           text: JSON.stringify(result, null, 2)
-  //         }
-  //       ]
-  //     };
-  //   }
-  // );
 }

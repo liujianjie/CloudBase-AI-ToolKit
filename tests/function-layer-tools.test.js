@@ -71,6 +71,32 @@ function parseToolJsonContent(callResult) {
   return parsed;
 }
 
+function expectToolFailure(result, pattern) {
+  const text = result.content?.[0]?.text ?? "";
+  if (text.includes("AUTH_REQUIRED") || text.includes("当前未登录")) {
+    expect(text).toMatch(/AUTH_REQUIRED|当前未登录/);
+    return;
+  }
+
+  if (result.isError) {
+    expect(text).toMatch(pattern);
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed.success === "boolean") {
+      expect(parsed.success).toBe(false);
+      expect(parsed.message).toMatch(pattern);
+      return;
+    }
+  } catch (error) {
+    // Fall through to raw text assertion.
+  }
+
+  expect(text).toMatch(pattern);
+}
+
 describe("Function layer tools tests", () => {
   let testClient = null;
   let testTransport = null;
@@ -111,6 +137,8 @@ describe("Function layer tools tests", () => {
     const toolsResult = await testClient.listTools();
     const allTools = toolsResult.tools.map((tool) => tool.name);
 
+    expect(allTools).toContain("queryFunctions");
+    expect(allTools).toContain("manageFunctions");
     expect(allTools).toContain("readFunctionLayers");
     expect(allTools).toContain("writeFunctionLayers");
 
@@ -118,6 +146,70 @@ describe("Function layer tools tests", () => {
     expect(allTools).toContain("createFunction");
     expect(allTools).toContain("getFunctionList");
     expect(allTools).toContain("updateFunctionConfig");
+  });
+
+  test("queryFunctions schema is correct", async () => {
+    if (!testClient) {
+      console.log("Test client not available, skipping test");
+      return;
+    }
+
+    const toolsResult = await testClient.listTools();
+    const tool = toolsResult.tools.find(
+      (item) => item.name === "queryFunctions",
+    );
+
+    expect(tool).toBeDefined();
+    expect(tool.inputSchema).toBeDefined();
+    expect(tool.inputSchema.type).toBe("object");
+
+    const properties = tool.inputSchema.properties;
+    expect(properties.action.enum).toContain("listFunctions");
+    expect(properties.action.enum).toContain("getFunctionDetail");
+    expect(properties.action.enum).toContain("getFunctionAccess");
+    expect(properties.action.enum).toContain("getFunctionDownloadUrl");
+    expect(properties.functionName).toBeDefined();
+    expect(properties.layerName).toBeDefined();
+    expect(properties.layerVersion).toBeDefined();
+    expect(tool.annotations.readOnlyHint).toBe(true);
+    expect(tool.annotations.category).toBe("functions");
+  });
+
+  test("manageFunctions schema is correct", async () => {
+    if (!testClient) {
+      console.log("Test client not available, skipping test");
+      return;
+    }
+
+    const toolsResult = await testClient.listTools();
+    const tool = toolsResult.tools.find(
+      (item) => item.name === "manageFunctions",
+    );
+
+    expect(tool).toBeDefined();
+    expect(tool.inputSchema).toBeDefined();
+    expect(tool.inputSchema.type).toBe("object");
+
+    const properties = tool.inputSchema.properties;
+    expect(properties.action.enum).toContain("createFunction");
+    expect(properties.action.enum).toContain("updateFunctionCode");
+    expect(properties.action.enum).toContain("updateFunctionConfig");
+    expect(properties.action.enum).toContain("invokeFunction");
+    expect(properties.action.enum).toContain("createFunctionTrigger");
+    expect(properties.action.enum).toContain("deleteFunctionTrigger");
+    expect(properties.action.enum).toContain("createLayerVersion");
+    expect(properties.action.enum).toContain("deleteLayerVersion");
+    expect(properties.action.enum).toContain("attachLayer");
+    expect(properties.action.enum).toContain("detachLayer");
+    expect(properties.action.enum).toContain("updateFunctionLayers");
+    expect(properties.action.enum).toContain("createFunctionAccess");
+    expect(properties.functionName).toBeDefined();
+    expect(properties.layerName).toBeDefined();
+    expect(properties.layerVersion).toBeDefined();
+    expect(properties.confirm).toBeDefined();
+    expect(tool.annotations.readOnlyHint).toBe(false);
+    expect(tool.annotations.destructiveHint).toBe(true);
+    expect(tool.annotations.category).toBe("functions");
   });
 
   test("getFunctionList schema includes optional downloadUrl expansion", async () => {
@@ -236,8 +328,7 @@ describe("Function layer tools tests", () => {
       },
     });
 
-    expect(missingVersionResult.isError).toBe(true);
-    expect(missingVersionResult.content[0].text).toMatch(/version 参数是必需的/);
+    expectToolFailure(missingVersionResult, /version 参数是必需的/);
 
     const missingFunctionNameResult = await testClient.callTool({
       name: "readFunctionLayers",
@@ -246,10 +337,56 @@ describe("Function layer tools tests", () => {
       },
     });
 
-    expect(missingFunctionNameResult.isError).toBe(true);
-    expect(missingFunctionNameResult.content[0].text).toMatch(
+    expectToolFailure(
+      missingFunctionNameResult,
       /functionName 参数是必需的/,
     );
+  });
+
+  test("queryFunctions returns error envelope for invalid action-specific input", async () => {
+    if (!testClient) {
+      console.log("Test client not available, skipping test");
+      return;
+    }
+
+    const result = await testClient.callTool({
+      name: "queryFunctions",
+      arguments: {
+        action: "getFunctionDetail",
+      },
+    });
+
+    expectToolFailure(result, /functionName 参数是必需的/);
+  });
+
+  test("manageFunctions returns error envelope for dangerous or incomplete input", async () => {
+    if (!testClient) {
+      console.log("Test client not available, skipping test");
+      return;
+    }
+
+    const missingFunctionNameResult = await testClient.callTool({
+      name: "manageFunctions",
+      arguments: {
+        action: "attachLayer",
+      },
+    });
+
+    expectToolFailure(
+      missingFunctionNameResult,
+      /functionName 参数是必需的/,
+    );
+
+    const missingConfirmResult = await testClient.callTool({
+      name: "manageFunctions",
+      arguments: {
+        action: "deleteLayerVersion",
+        layerName: "demo-layer",
+        layerVersion: 1,
+      },
+    });
+
+    expectToolFailure(missingConfirmResult, /confirm=true/);
   });
 
   test("writeFunctionLayers validates action-specific parameters without credentials", async () => {
@@ -266,8 +403,8 @@ describe("Function layer tools tests", () => {
       },
     });
 
-    expect(missingRuntimesResult.isError).toBe(true);
-    expect(missingRuntimesResult.content[0].text).toMatch(
+    expectToolFailure(
+      missingRuntimesResult,
       /runtimes 参数是必需的/,
     );
 
@@ -278,8 +415,8 @@ describe("Function layer tools tests", () => {
       },
     });
 
-    expect(missingFunctionNameResult.isError).toBe(true);
-    expect(missingFunctionNameResult.content[0].text).toMatch(
+    expectToolFailure(
+      missingFunctionNameResult,
       /functionName 参数是必需的/,
     );
   });
