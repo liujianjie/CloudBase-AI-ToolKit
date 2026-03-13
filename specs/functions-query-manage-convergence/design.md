@@ -2,38 +2,33 @@
 
 ## 架构概述
 
-本次设计继续坚持 `functions` 域只保留两个主工具：
+本次收敛采用两个资源域、四个主工具的结构：
 
-1. `queryFunctions`
-2. `manageFunctions`
+1. `functions`
+   - `queryFunctions`
+   - `manageFunctions`
+2. `gateway`
+   - `queryGateway`
+   - `manageGateway`
 
-但在 schema 设计上，不再采用“含糊 flat action + 历史字段混用”的方案，而是改为：
+目标不是把所有相关能力都塞进一个域，而是让资源边界和 AI 心智模型一致：
 
-1. **更自解释的 flat action**：保持与仓库现有模块更一致的 action 风格，但避免 `detail` / `logs` 这类过短、易重叠的命名；
-2. **统一目标字段**：函数统一使用 `functionName`，层统一使用 `layerName`，不混用 `name`；
-3. **action 级判别**：仍然用顶层字段，避免引入其他模块没有采用的 payload 分组模式，但通过判别式 schema 明确每个 action 可填哪些字段；
-4. **消除重叠入口**：不同时保留“detail + include”与专门 action 两套等价读路径。
-
-目标不是让 action 数量最少，而是让 AI 能在第一次阅读 schema 时明确：
-
-- 应该选哪个 action
-- 该填哪个目标字段
-- 该把参数放在哪个子对象里
+- 函数本体相关能力留在 `functions`
+- HTTP 访问入口和未来网关能力留在 `gateway`
+- 旧函数工具直接硬下线，不保留兼容别名
 
 ## 设计原则
 
-1. **双工具不变**：函数域仍然只有一个 query 和一个 manage。
-2. **可调用性优先**：优先降低 AI 误调用率，而不是追求表面上的“一个 action 兼容更多场景”。
-3. **单一入口单一语义**：一个场景只保留一个推荐 action，不保留并行等价入口。
-4. **兼容层只做映射**：旧工具存在仅为迁移，不再承载新设计语义。
+1. **一个域一个 query / 一个 manage**：每个资源域只暴露两个主入口。
+2. **边界优先于表面收敛**：不为了减少工具名而混淆资源模型。
+3. **flat action + 统一字段命名**：保持与仓库现有模式一致，降低 AI 误调用。
+4. **无兼容层**：旧工具直接删除，文档和提示词同步切换。
 
-## Schema 重设计
+## 工具设计
 
 ### 一、`queryFunctions`
 
-`queryFunctions` 保持只读，但 action 不采用 namespaced 形式，而采用“长一些但更直接”的 flat action。
-
-建议 action：
+函数域只读入口，动作集合如下：
 
 ```ts
 type QueryFunctionsAction =
@@ -46,105 +41,25 @@ type QueryFunctionsAction =
   | "listLayerVersions"
   | "getLayerVersionDetail"
   | "listFunctionTriggers"
-  | "getFunctionAccess"
   | "getFunctionDownloadUrl";
 ```
 
-这样做的原因：
+输入字段保持顶层扁平结构，并统一使用：
 
-1. 保持与仓库其他模块更接近的 action 命名习惯；
-2. 比 `detail` / `logs` / `layers` 更自解释；
-3. 不引入只有 `functions` 域才使用的 namespaced 特例。
+- `functionName`
+- `layerName`
+- `layerVersion`
+- `requestId`
 
-建议输入结构：
+不再保留：
 
-```ts
-type QueryFunctionsInput =
-  | {
-      action: "listFunctions";
-      limit?: number;
-      offset?: number;
-      view?: "summary" | "detail";
-    }
-  | {
-      action: "getFunctionDetail";
-      functionName: string;
-      codeSecret?: string;
-    }
-  | {
-      action: "listFunctionLogs";
-      functionName: string;
-      offset?: number;
-      limit?: number;
-      startTime?: string;
-      endTime?: string;
-      requestId?: string;
-      qualifier?: string;
-    }
-  | {
-      action: "getFunctionLogDetail";
-      requestId: string;
-      startTime?: string;
-      endTime?: string;
-    }
-  | {
-      action: "listFunctionLayers";
-      functionName: string;
-    }
-  | {
-      action: "listLayers";
-      runtime?: string;
-      searchKey?: string;
-      offset?: number;
-      limit?: number;
-    }
-  | {
-      action: "listLayerVersions";
-      layerName: string;
-    }
-  | {
-      action: "getLayerVersionDetail";
-      layerName: string;
-      version: number;
-    }
-  | {
-      action: "listFunctionTriggers";
-      functionName: string;
-    }
-  | {
-      action: "getFunctionAccess";
-      functionName: string;
-    }
-  | {
-      action: "getFunctionDownloadUrl";
-      functionName: string;
-      codeSecret?: string;
-    };
-```
-
-### 为什么移除 `detail + include`
-
-上一版 `function.detail` 里还想通过 `include` 拿 `layers` / `triggers` / `httpAccess` / `downloadUrl`。这个方案不利于 AI：
-
-1. AI 需要先决定“是走 detail，还是走专门 action”；
-2. `include` 容易膨胀成另一个 action 分发器；
-3. 同一信息会出现多个推荐入口。
-
-因此本版明确：
-
-1. `getFunctionDetail` 只返回函数详情；
-2. `listFunctionTriggers` 只查触发器；
-3. `getFunctionAccess` 只查 HTTP 访问；
-4. `getFunctionDownloadUrl` 只查代码下载地址；
-5. 层查询拆成 `listFunctionLayers` / `listLayers` / `listLayerVersions` / `getLayerVersionDetail`。
-
-这样牺牲了一点“少发一次请求”的便利，但换来了更稳定的 action 选择。
+- `getFunctionAccess`
+- `detail + include`
+- 旧的 `name` / `version` 混合字段
 
 ### 二、`manageFunctions`
 
-`manageFunctions` 同样不采用 namespaced action，也不强制使用 payload 分组，而是沿用仓库更熟悉的 flat action 风格，但统一字段命名和 action 级约束。
-
-建议 action：
+函数域写入口，动作集合如下：
 
 ```ts
 type ManageFunctionsAction =
@@ -158,301 +73,104 @@ type ManageFunctionsAction =
   | "deleteLayerVersion"
   | "attachLayer"
   | "detachLayer"
-  | "updateFunctionLayers"
-  | "createFunctionAccess";
+  | "updateFunctionLayers";
 ```
 
-建议输入结构：
+关键约束：
+
+- `createFunction` / `updateFunctionCode` 继续复用现有函数部署逻辑
+- 危险动作如 `deleteLayerVersion` / `detachLayer` 继续要求 `confirm=true`
+- 不再保留 `createFunctionAccess`
+
+### 三、`queryGateway`
+
+网关域只读入口，初始动作集合：
 
 ```ts
-type ManageFunctionsInput =
-  | {
-      action: "createFunction";
-      func: CreateFunctionInput;
-      functionRootPath?: string;
-      force: boolean;
-    }
-  | {
-      action: "updateFunctionCode";
-      functionName: string;
-      functionRootPath: string;
-      zipFile?: string;
-      handler?: string;
-    }
-  | {
-      action: "updateFunctionConfig";
-      funcParam: UpdateFunctionConfigInput;
-    }
-  | {
-      action: "invokeFunction";
-      functionName: string;
-      params?: Record<string, unknown>;
-    }
-  | {
-      action: "createFunctionTrigger";
-      functionName: string;
-      triggers: TriggerInput[];
-    }
-  | {
-      action: "deleteFunctionTrigger";
-      functionName: string;
-      triggerName: string;
-      confirm?: boolean;
-    }
-  | {
-      action: "createLayerVersion";
-      layerName: string;
-      runtimes: string[];
-      contentPath?: string;
-      base64Content?: string;
-      description?: string;
-      licenseInfo?: string;
-    }
-  | {
-      action: "deleteLayerVersion";
-      layerName: string;
-      version: number;
-      confirm?: boolean;
-    }
-  | {
-      action: "attachLayer";
-      functionName: string;
-      layerName: string;
-      version: number;
-    }
-  | {
-      action: "detachLayer";
-      functionName: string;
-      layerName: string;
-      version: number;
-      confirm?: boolean;
-    }
-  | {
-      action: "updateFunctionLayers";
-      functionName: string;
-      layers: Array<{ layerName: string; version: number }>;
-    }
-  | {
-      action: "createFunctionAccess";
-      functionName: string;
-      path?: string;
-      type?: "Event" | "HTTP";
-      auth?: boolean;
-    };
+type QueryGatewayAction =
+  | "getAccess"
+  | "listDomains";
 ```
 
-### 为什么放弃 payload 分组
+字段设计：
 
-虽然 payload 分组对单模块内的判别性更强，但这里最终放弃，原因是：
+- `targetType`
+- `targetName`
 
-1. 仓库其他模块当前并未普遍采用这种模式；
-2. 对 AI 来说，跨模块的一致性通常比单模块的局部最优更重要；
-3. 通过更自解释的 action 名和更统一的字段命名，已经能显著降低误调用率；
-4. 继续保留顶层字段，也更容易兼容现有旧工具映射。
+当前 `targetType` 只开放 `function`，但 schema 已按独立网关域建模，为后续非函数目标留扩展位。
 
-## 命名与目标字段规范
+### 四、`manageGateway`
 
-本版强制统一命名：
-
-1. 函数一律使用 `functionName`
-2. 层一律使用 `layerName`
-3. 触发器一律使用 `triggerName`
-4. 层版本一律使用 `version`
-5. 新双工具尽量不出现语义不明的通用字段 `name`
-
-这样做是为了避免 AI 在不同 action 间复制参数时，把 `name` 错用到函数、层或触发器上。
-
-## 返回结构
-
-双工具统一返回：
-
-```json
-{
-  "success": true,
-  "data": {
-    "action": "getFunctionDetail"
-  },
-  "message": "Fetched function detail",
-  "nextActions": [
-    {
-      "tool": "queryFunctions",
-      "action": "listFunctionLogs",
-      "reason": "Inspect recent logs for this function"
-    }
-  ]
-}
-```
-
-要求：
-
-1. `data.action` 必须回显最终执行的 action；
-2. `data.target` 可选，用于放 `functionName` / `layerName` 等关键目标；
-3. 大体积底层返回放入 `data.raw`；
-4. 写操作优先返回“结果摘要 + 推荐下一步”，不要求 AI 再猜。
-
-## AI 友好性约束
-
-为了保证双工具依然容易调用，新增以下设计约束：
-
-### 1. 一类信息只保留一个推荐入口
-
-- 代码下载地址只通过 `getFunctionDownloadUrl`
-- HTTP 访问查询只通过 `getFunctionAccess`
-- 触发器查询只通过 `listFunctionTriggers`
-- 不再通过 `getFunctionDetail` 的 `include` 兼容这些查询
-
-### 2. action 必须自解释
-
-禁止：
-
-- `detail`
-- `logs`
-- `layers`
-
-允许：
-
-- `getFunctionDetail`
-- `listFunctionLogs`
-- `getLayerVersionDetail`
-
-### 3. 目标字段固定命名
-
-- 和函数相关的目标统一叫 `functionName`
-- 和层相关的目标统一叫 `layerName`
-- 和触发器相关的目标统一叫 `triggerName`
-- 不因 action 不同切换为 `name`
-
-### 4. 删除/解绑类 action 必须显式确认
-
-- `trigger.delete`
-- `layer.deleteVersion`
-- `layer.detach`
-
-至少要求 `confirm` 或等价保护字段，默认安全失败。
-
-## 兼容映射
-
-兼容期内旧工具仍可保留，但全部映射到新双工具内部实现。
-
-| 旧工具 | 映射到 | 说明 |
-| --- | --- | --- |
-| `getFunctionList` | `queryFunctions` | `list -> listFunctions`，`detail -> getFunctionDetail` |
-| `createFunction` | `manageFunctions` | `createFunction` |
-| `updateFunctionCode` | `manageFunctions` | `updateFunctionCode` |
-| `updateFunctionConfig` | `manageFunctions` | `updateFunctionConfig` |
-| `invokeFunction` | `manageFunctions` | `invokeFunction` |
-| `getFunctionLogs` | `queryFunctions` | `listFunctionLogs` |
-| `getFunctionLogDetail` | `queryFunctions` | `getFunctionLogDetail` |
-| `manageFunctionTriggers` | `manageFunctions` | `createFunctionTrigger` / `deleteFunctionTrigger` |
-| `readFunctionLayers` | `queryFunctions` | `listFunctionLayers` / `listLayers` / `listLayerVersions` / `getLayerVersionDetail` |
-| `writeFunctionLayers` | `manageFunctions` | `createLayerVersion` / `deleteLayerVersion` / `attachLayer` / `detachLayer` / `updateFunctionLayers` |
-| `createFunctionHTTPAccess` | `manageFunctions` | `createFunctionAccess` |
-
-兼容规则：
-
-1. 旧工具只做归一化和转发；
-2. 新能力只在双工具暴露；
-3. 文档和提示词一律优先推荐双工具；
-4. 兼容期结束后再移除旧工具。
-
-## 模块实现方案
-
-建议在 [`mcp/src/tools/functions.ts`](/Users/bookerzhao/.codex/worktrees/99da/cloudbase-turbo-delploy/mcp/src/tools/functions.ts) 内完成第一阶段收敛。
-
-推荐结构：
+网关域写入口，初始动作集合：
 
 ```ts
-registerFunctionTools(server) {
-  registerQueryFunctions(server);
-  registerManageFunctions(server);
-  registerLegacyFunctionAliases(server);
-}
+type ManageGatewayAction =
+  | "createAccess";
 ```
 
-内部建议：
+字段设计：
 
-1. `buildQueryFunctionsSchema()`
-2. `buildManageFunctionsSchema()`
-3. `handleQueryFunctionsAction(input)`
-4. `handleManageFunctionsAction(input)`
-5. `mapLegacyFunctionToolCall(toolName, args)`
+- `targetType`
+- `targetName`
+- `path`
+- `type`
+- `auth`
 
-## 分阶段落地
+这样当前可以承接“为函数创建 HTTP 访问”，但接口语义仍属于网关资源，而非函数附属字段。
 
-### 阶段 1 - 建立新双工具与新 schema
+## Cloud Mode 设计
 
-- 新增 `queryFunctions`
-- 新增 `manageFunctions`
-- 按更自解释的 flat action 落地 schema
+原有 cloud mode 是按工具名过滤旧函数工具。收敛后必须补充动作级保护。
 
-### 阶段 2 - 建立旧工具映射
+处理策略：
 
-- 旧工具 handler 全部转发到新双工具内部 handler
-- 停止在旧工具上添加新分支
+1. `manageFunctions(action="createFunction")` 在 cloud mode 下直接报错；
+2. `manageFunctions(action="updateFunctionCode")` 在 cloud mode 下直接报错；
+3. `manageFunctions(action="createLayerVersion")` 若依赖 `contentPath`，在 cloud mode 下报错并提示改用 `base64Content`。
 
-### 阶段 3 - 切换文档与提示词
+## 文档与清单调整
 
-- README、`doc/mcp-tools.md`、提示词、规则文件改为优先推荐双工具
-- 标记旧工具 deprecated
+需要同步更新：
 
-### 阶段 4 - 评估移除兼容层
-
-- 根据实际使用情况决定移除窗口
-- 清理旧 schema 和重复 handler
+- `mcp/manifest.json`
+- `doc/connection-modes.mdx`
+- `doc/prompts/cloud-functions.mdx`
+- `config/rules/cloud-functions/rule.md`
+- 相关 AI IDE 配置文档与 prompt
+- 生成产物 `doc/mcp-tools.md` 和 `scripts/tools.json`
 
 ## 测试策略
 
-测试重点不只是“功能可用”，还要验证“schema 是否容易被正确调用”。
+### 1. 工具注册与 schema
 
-### 1. 工具注册测试
+验证：
 
-- `queryFunctions` 可见
-- `manageFunctions` 可见
-- 旧工具仍可见
+- 只保留新的函数主入口和网关主入口
+- 旧函数工具和旧网关工具不再注册
+- `queryFunctions` 不再暴露 access 动作
+- `manageFunctions` 不再暴露 access 写动作
 
-### 2. schema 测试
+### 2. 参数校验
 
-- action 枚举完整
-- 不再出现模糊 action 名
-- 关键目标字段统一为 `functionName` / `layerName` / `triggerName`
-- 旧工具兼容映射后的字段归一化正确
+验证：
 
-### 3. 兼容映射测试
+- `queryFunctions` 缺少 `functionName` / `layerName` / `requestId` 时返回错误 envelope
+- `manageFunctions` 危险动作缺少 `confirm=true` 时返回错误 envelope
+- `queryGateway` 缺少 `targetName` 时返回错误 envelope
 
-- `getFunctionList(detail)` 正确映射到 `getFunctionDetail`
-- `readFunctionLayers(getLayerVersion)` 正确映射到 `getLayerVersionDetail`
-- `createFunctionHTTPAccess` 正确映射到 `createFunctionAccess`
+### 3. 关键集成路径
 
-### 4. 行为测试
+验证函数层路径：
 
-- `listFunctions`
-- `getFunctionDetail`
-- `listFunctionLogs` / `getFunctionLogDetail`
-- `attachLayer` / `detachLayer` / `updateFunctionLayers`
-- `createFunctionAccess`
-- `getFunctionDownloadUrl`
+1. 创建层版本
+2. 查询层版本
+3. 绑定函数层
+4. 查询函数层
+5. 解绑函数层
+6. 删除层版本
 
 ## 风险与取舍
 
-### 优点
-
-- 双工具目标保留
-- 与其他模块的 action 风格更一致
-- 参数复制和迁移时更不容易填错字段
-
-### 风险
-
-- action 字符串会比历史工具更长
-- 双工具本身仍然会带来较大的 union schema
-- 兼容映射依然需要较多归一化逻辑
-
-### 取舍结论
-
-接受 action 更长、schema 更严格，换取更高的 AI 正确调用率。对于双工具模型，**跨模块一致性和 action 自解释性，要优先于局部形式上的“高级 schema”**。
-
-## 安全性
-
-1. `queryFunctions` 严格标注 `readOnlyHint: true`
-2. `manageFunctions` 标注非只读
-3. 删除、解绑、覆盖类 action 显式要求确认字段
-4. 环境和凭证继续统一走 `cloudBaseOptions`
+1. **breaking change 明确化**：硬下线旧工具会影响仍在使用旧名字的调用方，但这符合本次收敛目标。
+2. **工具数没有压到两个**：最终是函数域两个主工具 + 网关域两个主工具，而不是把网关混进函数域。
+3. **网关 schema 先保守实现**：当前只开放最小动作集，但字段模型已为通用网关能力留扩展空间。

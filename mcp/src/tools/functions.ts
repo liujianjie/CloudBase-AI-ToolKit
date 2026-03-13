@@ -5,6 +5,7 @@ import {
   logCloudBaseResult,
 } from "../cloudbase-manager.js";
 import { ExtendedMcpServer } from "../server.js";
+import { isCloudMode } from "../utils/cloud-mode.js";
 import { debug } from "../utils/logger.js";
 
 import { IEnvVariable } from "@cloudbase/manager-node/types/function/types.js";
@@ -83,21 +84,6 @@ export const TRIGGER_CONFIG_EXAMPLES = {
   },
 };
 
-export const READ_FUNCTION_LAYER_ACTIONS = [
-  "listLayers",
-  "listLayerVersions",
-  "getLayerVersion",
-  "getFunctionLayers",
-] as const;
-
-export const WRITE_FUNCTION_LAYER_ACTIONS = [
-  "createLayerVersion",
-  "deleteLayerVersion",
-  "attachLayer",
-  "detachLayer",
-  "updateFunctionLayers",
-] as const;
-
 export const QUERY_FUNCTION_ACTIONS = [
   "listFunctions",
   "getFunctionDetail",
@@ -108,7 +94,6 @@ export const QUERY_FUNCTION_ACTIONS = [
   "listLayerVersions",
   "getLayerVersionDetail",
   "listFunctionTriggers",
-  "getFunctionAccess",
   "getFunctionDownloadUrl",
 ] as const;
 
@@ -124,11 +109,8 @@ export const MANAGE_FUNCTION_ACTIONS = [
   "attachLayer",
   "detachLayer",
   "updateFunctionLayers",
-  "createFunctionAccess",
 ] as const;
 
-type ReadFunctionLayerAction = (typeof READ_FUNCTION_LAYER_ACTIONS)[number];
-type WriteFunctionLayerAction = (typeof WRITE_FUNCTION_LAYER_ACTIONS)[number];
 type QueryFunctionsAction = (typeof QUERY_FUNCTION_ACTIONS)[number];
 type ManageFunctionsAction = (typeof MANAGE_FUNCTION_ACTIONS)[number];
 
@@ -200,9 +182,6 @@ type ManageFunctionsInput = {
   }>;
   codeSecret?: string;
   confirm?: boolean;
-  path?: string;
-  type?: "Event" | "HTTP";
-  auth?: boolean;
 };
 
 const VPC_SCHEMA = z.object({
@@ -268,11 +247,6 @@ const CREATE_FUNCTION_SCHEMA = z.object({
     )
     .optional()
     .describe("Layer 配置"),
-});
-
-const LEGACY_LAYER_SCHEMA = z.object({
-  LayerName: z.string().describe("层名称"),
-  LayerVersion: z.number().describe("层版本号"),
 });
 
 const MANAGE_LAYER_SCHEMA = z.object({
@@ -423,28 +397,27 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     }
   };
 
-  const withLegacyRaw = async (handler: () => Promise<FunctionToolEnvelope>) => {
-    const envelope = await handler();
-    return jsonContent(envelope.data.raw ?? envelope.data);
-  };
-
-  const withLegacyEnvelope = async (
-    handler: () => Promise<FunctionToolEnvelope>,
-    action: string,
-  ) => {
-    const envelope = await handler();
-    return jsonContent({
-      ...envelope,
-      data: {
-        ...envelope.data,
-        action,
-      },
-    });
-  };
-
   const requireConfirm = (action: string, confirm?: boolean) => {
     if (!confirm) {
       throw new Error(`${action} 是危险操作，请显式传入 confirm=true 后再执行`);
+    }
+  };
+
+  const ensureActionAllowedInCloudMode = (input: ManageFunctionsInput) => {
+    if (!isCloudMode()) {
+      return;
+    }
+
+    if (input.action === "createFunction" || input.action === "updateFunctionCode") {
+      throw new Error(
+        `${input.action} 在 cloud mode 下不可用，因为该操作依赖本地函数代码目录。请改用本地模式执行。`,
+      );
+    }
+
+    if (input.action === "createLayerVersion" && input.contentPath) {
+      throw new Error(
+        "createLayerVersion 在 cloud mode 下不支持 contentPath，本地文件内容请改为 base64Content 或改用本地模式执行。",
+      );
     }
   };
 
@@ -479,47 +452,6 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         LayerVersion: layer.layerVersion ?? layer.LayerVersion,
       })),
     );
-
-  const getFunctionAccessSummary = async (functionName: string) => {
-    const cloudbase = await getManager();
-    const [accessList, domainList] = await Promise.all([
-      cloudbase.access.getAccessList({ name: functionName }),
-      cloudbase.access.getDomainList(),
-    ]);
-
-    logCloudBaseResult(server.logger, accessList);
-    logCloudBaseResult(server.logger, domainList);
-
-    const domains = [
-      domainList.DefaultDomain,
-      ...(domainList.ServiceSet || []).map((item) => item.Domain),
-    ].filter(Boolean) as string[];
-
-    const urls = Array.from(
-      new Set(
-        (accessList.APISet || []).flatMap((api) =>
-          domains.map((domain) => {
-            const normalizedPath = api.Path?.startsWith("/")
-              ? api.Path
-              : `/${api.Path ?? ""}`;
-            return `https://${domain}${normalizedPath}`;
-          }),
-        ),
-      ),
-    );
-
-    return {
-      apis: accessList.APISet || [],
-      total: accessList.Total || 0,
-      domains,
-      urls,
-      enableService: accessList.EnableService ?? domainList.EnableService,
-      raw: {
-        accessList,
-        domainList,
-      },
-    };
-  };
 
   const handleQueryFunctions = async (
     input: QueryFunctionsInput,
@@ -586,6 +518,11 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
             tool: "manageFunctions",
             action: "updateFunctionConfig",
             reason: "更新该函数配置",
+          },
+          {
+            tool: "queryGateway",
+            action: "getAccess",
+            reason: "查看该函数是否已暴露网关访问入口",
           },
         ],
       );
@@ -820,32 +757,6 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         ],
       );
     }
-    case "getFunctionAccess": {
-      if (!input.functionName) {
-        throw new Error("getFunctionAccess 操作时，functionName 参数是必需的");
-      }
-      const result = await getFunctionAccessSummary(input.functionName);
-      return buildEnvelope(
-        {
-          action: input.action,
-          functionName: input.functionName,
-          apis: result.apis,
-          total: result.total,
-          domains: result.domains,
-          urls: result.urls,
-          enableService: result.enableService,
-          raw: result.raw,
-        },
-        `已获取函数 ${input.functionName} 的 HTTP 访问配置`,
-        [
-          {
-            tool: "manageFunctions",
-            action: "createFunctionAccess",
-            reason: "创建新的 HTTP 访问路径",
-          },
-        ],
-      );
-    }
     case "getFunctionDownloadUrl": {
       if (!input.functionName) {
         throw new Error("getFunctionDownloadUrl 操作时，functionName 参数是必需的");
@@ -876,6 +787,8 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
   const handleManageFunctions = async (
     input: ManageFunctionsInput,
   ): Promise<FunctionToolEnvelope> => {
+    ensureActionAllowedInCloudMode(input);
+
     switch (input.action) {
     case "createFunction": {
       if (!input.func?.name || typeof input.func.name !== "string") {
@@ -1357,35 +1270,6 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         ],
       );
     }
-    case "createFunctionAccess": {
-      if (!input.functionName) {
-        throw new Error("createFunctionAccess 操作时，functionName 参数是必需的");
-      }
-      const cloudbase = await getManager();
-      const result = await cloudbase.access.createAccess({
-        name: input.functionName,
-        path: input.path || `/${input.functionName}`,
-        type: ((input.type || "Event") === "HTTP" ? 6 : 1) as 1 | 2,
-        auth: input.auth,
-      });
-      logCloudBaseResult(server.logger, result);
-      return buildEnvelope(
-        {
-          action: input.action,
-          functionName: input.functionName,
-          path: input.path || `/${input.functionName}`,
-          raw: result,
-        },
-        `已为函数 ${input.functionName} 创建 HTTP 访问路径`,
-        [
-          {
-            tool: "queryFunctions",
-            action: "getFunctionAccess",
-            reason: "查看当前 HTTP 访问配置",
-          },
-        ],
-      );
-    }
     default:
       throw new Error(`不支持的操作类型: ${input.action}`);
     }
@@ -1396,11 +1280,11 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     {
       title: "查询云函数域资源",
       description:
-        "函数域统一只读入口。通过更自解释的 action 查询函数列表、函数详情、日志、层、触发器、HTTP 访问和代码下载地址。",
+        "函数域统一只读入口。通过更自解释的 action 查询函数列表、函数详情、日志、层、触发器和代码下载地址。",
       inputSchema: {
         action: z
           .enum(QUERY_FUNCTION_ACTIONS)
-          .describe("只读操作类型，例如 listFunctions、getFunctionDetail、getFunctionAccess"),
+          .describe("只读操作类型，例如 listFunctions、getFunctionDetail、listFunctionLogs"),
         functionName: z.string().optional().describe("函数名称。函数相关 action 必填"),
         limit: z.number().optional().describe("分页数量。列表类 action 可选"),
         offset: z.number().optional().describe("分页偏移。列表类 action 可选"),
@@ -1428,7 +1312,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     {
       title: "管理云函数域资源",
       description:
-        "函数域统一写入口。通过 action 管理函数创建、代码更新、配置更新、触发器、层绑定和 HTTP 访问。危险操作需要显式 confirm=true。",
+        "函数域统一写入口。通过 action 管理函数创建、代码更新、配置更新、触发器和层绑定。危险操作需要显式 confirm=true。",
       inputSchema: {
         action: z
           .enum(MANAGE_FUNCTION_ACTIONS)
@@ -1458,9 +1342,6 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
           .describe("updateFunctionLayers 的目标层列表，顺序即最终顺序"),
         codeSecret: z.string().optional().describe("层绑定时的代码保护密钥"),
         confirm: z.boolean().optional().describe("危险操作确认开关"),
-        path: z.string().optional().describe("createFunctionAccess 的访问路径，默认 /{functionName}"),
-        type: z.enum(["Event", "HTTP"]).optional().describe("createFunctionAccess 的函数类型"),
-        auth: z.boolean().optional().describe("createFunctionAccess 是否开启鉴权"),
       },
       annotations: {
         readOnlyHint: false,
@@ -1471,582 +1352,5 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       },
     },
     async (input: ManageFunctionsInput) => withEnvelope(() => handleManageFunctions(input)),
-  );
-
-  server.registerTool?.(
-    "getFunctionList",
-    {
-      title: "查询云函数列表或详情",
-      description:
-        "兼容入口。推荐优先使用 queryFunctions。action=list 返回函数列表，action=detail 返回函数详情，并兼容 include=downloadUrl。",
-      inputSchema: {
-        action: z.enum(["list", "detail"]).optional().describe("list=获取函数列表，detail=获取函数详情"),
-        limit: z.number().optional().describe("列表分页数量"),
-        offset: z.number().optional().describe("列表分页偏移"),
-        name: z.string().optional().describe("函数名称。detail 时必填"),
-        include: z.array(z.enum(["layers", "downloadUrl", "all"])).optional().describe("detail 的兼容扩展字段"),
-        codeSecret: z.string().optional().describe("代码保护密钥"),
-      },
-      annotations: {
-        readOnlyHint: true,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      action = "list",
-      limit,
-      offset,
-      name,
-      include,
-      codeSecret,
-    }: {
-      action?: "list" | "detail";
-      limit?: number;
-      offset?: number;
-      name?: string;
-      include?: Array<"layers" | "downloadUrl" | "all">;
-      codeSecret?: string;
-    }) => {
-      if (action === "list") {
-        return withLegacyRaw(() =>
-          handleQueryFunctions({
-            action: "listFunctions",
-            limit,
-            offset,
-          }),
-        );
-      }
-
-      if (!name) {
-        throw new Error("获取函数详情时，name 参数是必需的");
-      }
-
-      const detailEnvelope = await handleQueryFunctions({
-        action: "getFunctionDetail",
-        functionName: name,
-        codeSecret,
-      });
-      const detail = {
-        ...(detailEnvelope.data.raw as Record<string, unknown>),
-      };
-      const includeSet = new Set(include ?? []);
-      if (includeSet.has("downloadUrl") || includeSet.has("all")) {
-        const downloadEnvelope = await handleQueryFunctions({
-          action: "getFunctionDownloadUrl",
-          functionName: name,
-          codeSecret,
-        });
-        detail.DownloadUrl = downloadEnvelope.data.downloadUrl;
-      }
-
-      return jsonContent(detail);
-    },
-  );
-
-  server.registerTool(
-    "createFunction",
-    {
-      title: "创建云函数",
-      description: "兼容入口。推荐优先使用 manageFunctions action=createFunction。",
-      inputSchema: {
-        func: CREATE_FUNCTION_SCHEMA.describe("函数配置"),
-        functionRootPath: z.string().optional().describe("函数根目录父目录"),
-        force: z.boolean().describe("是否覆盖"),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      func,
-      functionRootPath,
-      force,
-    }: {
-      func: Record<string, unknown>;
-      functionRootPath?: string;
-      force: boolean;
-    }) =>
-      withLegacyRaw(() =>
-        handleManageFunctions({
-          action: "createFunction",
-          func,
-          functionRootPath,
-          force,
-        }),
-      ),
-  );
-
-  server.registerTool(
-    "updateFunctionCode",
-    {
-      title: "更新云函数代码",
-      description: "兼容入口。推荐优先使用 manageFunctions action=updateFunctionCode。",
-      inputSchema: {
-        name: z.string().describe("函数名称"),
-        functionRootPath: z.string().describe("函数根目录（父目录绝对路径）"),
-        zipFile: z.string().optional().describe("代码包的 base64 编码"),
-        handler: z.string().optional().describe("函数入口"),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      name,
-      functionRootPath,
-      zipFile,
-      handler,
-    }: {
-      name: string;
-      functionRootPath?: string;
-      zipFile?: string;
-      handler?: string;
-    }) =>
-      withLegacyRaw(() =>
-        handleManageFunctions({
-          action: "updateFunctionCode",
-          functionName: name,
-          functionRootPath,
-          zipFile,
-          handler,
-        }),
-      ),
-  );
-
-  server.registerTool?.(
-    "updateFunctionConfig",
-    {
-      title: "更新云函数配置",
-      description: "兼容入口。推荐优先使用 manageFunctions action=updateFunctionConfig。",
-      inputSchema: {
-        funcParam: z.object({
-          name: z.string().describe("函数名称"),
-          timeout: z.number().optional().describe("超时时间"),
-          envVariables: z.record(z.string()).optional().describe("环境变量"),
-          vpc: VPC_SCHEMA.optional().describe("VPC 配置"),
-        }),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      funcParam,
-    }: {
-      funcParam: {
-        name: string;
-        timeout?: number;
-        envVariables?: Record<string, string>;
-        vpc?: {
-          vpcId: string;
-          subnetId: string;
-        };
-      };
-    }) =>
-      withLegacyRaw(() =>
-        handleManageFunctions({
-          action: "updateFunctionConfig",
-          functionName: funcParam.name,
-          timeout: funcParam.timeout,
-          envVariables: funcParam.envVariables,
-          vpc: funcParam.vpc,
-        }),
-      ),
-  );
-
-  server.registerTool?.(
-    "invokeFunction",
-    {
-      title: "调用云函数",
-      description: "兼容入口。推荐优先使用 manageFunctions action=invokeFunction。",
-      inputSchema: {
-        name: z.string().describe("函数名称"),
-        params: z.record(z.any()).optional().describe("调用参数"),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      name,
-      params,
-    }: {
-      name: string;
-      params?: Record<string, unknown>;
-    }) =>
-      withLegacyRaw(() =>
-        handleManageFunctions({
-          action: "invokeFunction",
-          functionName: name,
-          params,
-        }),
-      ),
-  );
-
-  server.registerTool?.(
-    "getFunctionLogs",
-    {
-      title: "获取云函数日志",
-      description: "兼容入口。推荐优先使用 queryFunctions action=listFunctionLogs。",
-      inputSchema: {
-        name: z.string().describe("函数名称"),
-        offset: z.number().optional().describe("分页偏移"),
-        limit: z.number().optional().describe("分页数量"),
-        startTime: z.string().optional().describe("日志查询开始时间"),
-        endTime: z.string().optional().describe("日志查询结束时间"),
-        requestId: z.string().optional().describe("函数执行 requestId"),
-        qualifier: z.string().optional().describe("函数版本"),
-      },
-      annotations: {
-        readOnlyHint: true,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      name,
-      offset,
-      limit,
-      startTime,
-      endTime,
-      requestId,
-      qualifier,
-    }: {
-      name: string;
-      offset?: number;
-      limit?: number;
-      startTime?: string;
-      endTime?: string;
-      requestId?: string;
-      qualifier?: string;
-    }) =>
-      withLegacyRaw(() =>
-        handleQueryFunctions({
-          action: "listFunctionLogs",
-          functionName: name,
-          offset,
-          limit,
-          startTime,
-          endTime,
-          requestId,
-          qualifier,
-        }),
-      ),
-  );
-
-  server.registerTool?.(
-    "getFunctionLogDetail",
-    {
-      title: "获取云函数日志详情",
-      description: "兼容入口。推荐优先使用 queryFunctions action=getFunctionLogDetail。",
-      inputSchema: {
-        startTime: z.string().optional().describe("日志查询开始时间"),
-        endTime: z.string().optional().describe("日志查询结束时间"),
-        requestId: z.string().describe("函数执行 requestId"),
-      },
-      annotations: {
-        readOnlyHint: true,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      startTime,
-      endTime,
-      requestId,
-    }: {
-      startTime?: string;
-      endTime?: string;
-      requestId: string;
-    }) =>
-      withLegacyRaw(() =>
-        handleQueryFunctions({
-          action: "getFunctionLogDetail",
-          startTime,
-          endTime,
-          requestId,
-        }),
-      ),
-  );
-
-  server.registerTool?.(
-    "manageFunctionTriggers",
-    {
-      title: "管理云函数触发器",
-      description:
-        "兼容入口。推荐优先使用 manageFunctions action=createFunctionTrigger 或 deleteFunctionTrigger。",
-      inputSchema: {
-        action: z.enum(["create", "delete"]).describe("create=创建触发器，delete=删除触发器"),
-        name: z.string().describe("函数名称"),
-        triggers: z.array(TRIGGER_SCHEMA).optional().describe("创建触发器时的配置数组"),
-        triggerName: z.string().optional().describe("删除触发器时必填"),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      action,
-      name,
-      triggers,
-      triggerName,
-    }: {
-      action: "create" | "delete";
-      name: string;
-      triggers?: Array<{
-        name: string;
-        type: TriggerType;
-        config: string;
-      }>;
-      triggerName?: string;
-    }) =>
-      withLegacyRaw(() =>
-        handleManageFunctions(
-          action === "create"
-            ? {
-                action: "createFunctionTrigger",
-                functionName: name,
-                triggers,
-              }
-            : {
-                action: "deleteFunctionTrigger",
-                functionName: name,
-                triggerName,
-                confirm: true,
-              },
-        ),
-      ),
-  );
-
-  server.registerTool?.(
-    "readFunctionLayers",
-    {
-      title: "查询云函数层信息",
-      description:
-        "兼容入口。推荐优先使用 queryFunctions。支持 listLayers、listLayerVersions、getLayerVersion、getFunctionLayers。",
-      inputSchema: {
-        action: z.enum(READ_FUNCTION_LAYER_ACTIONS).describe("查询层或函数绑定层的兼容 action"),
-        name: z.string().optional().describe("层名称。listLayerVersions/getLayerVersion 时必填"),
-        version: z.number().optional().describe("层版本号。getLayerVersion 时必填"),
-        runtime: z.string().optional().describe("运行时筛选"),
-        searchKey: z.string().optional().describe("层名称搜索关键字"),
-        offset: z.number().optional().describe("分页偏移"),
-        limit: z.number().optional().describe("分页数量"),
-        functionName: z.string().optional().describe("函数名称。getFunctionLayers 时必填"),
-        codeSecret: z.string().optional().describe("代码保护密钥"),
-      },
-      annotations: {
-        readOnlyHint: true,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      action,
-      name,
-      version,
-      runtime,
-      searchKey,
-      offset,
-      limit,
-      functionName,
-      codeSecret,
-    }: {
-      action: ReadFunctionLayerAction;
-      name?: string;
-      version?: number;
-      runtime?: string;
-      searchKey?: string;
-      offset?: number;
-      limit?: number;
-      functionName?: string;
-      codeSecret?: string;
-    }) => {
-      if (action === "listLayers") {
-        return withLegacyEnvelope(
-          () =>
-            handleQueryFunctions({
-              action: "listLayers",
-              runtime,
-              searchKey,
-              offset,
-              limit,
-            }),
-          action,
-        );
-      }
-
-      if (action === "listLayerVersions") {
-        if (!name) {
-          throw new Error("查询层版本列表时，name 参数是必需的");
-        }
-        return withLegacyEnvelope(
-          () =>
-            handleQueryFunctions({
-              action: "listLayerVersions",
-              layerName: name,
-            }),
-          action,
-        );
-      }
-
-      if (action === "getLayerVersion") {
-        if (!name) {
-          throw new Error("查询层版本详情时，name 参数是必需的");
-        }
-        return withLegacyEnvelope(
-          () =>
-            handleQueryFunctions({
-              action: "getLayerVersionDetail",
-              layerName: name,
-              layerVersion: version,
-            }),
-          action,
-        );
-      }
-
-      if (!functionName) {
-        throw new Error("查询函数层配置时，functionName 参数是必需的");
-      }
-      return withLegacyEnvelope(
-        () =>
-          handleQueryFunctions({
-            action: "listFunctionLayers",
-            functionName,
-            codeSecret,
-          }),
-        action,
-      );
-    },
-  );
-
-  server.registerTool?.(
-    "writeFunctionLayers",
-    {
-      title: "管理云函数层",
-      description:
-        "兼容入口。推荐优先使用 manageFunctions。支持 createLayerVersion、deleteLayerVersion、attachLayer、detachLayer、updateFunctionLayers。",
-      inputSchema: {
-        action: z.enum(WRITE_FUNCTION_LAYER_ACTIONS).describe("云函数层写操作的兼容 action"),
-        name: z.string().optional().describe("层名称。createLayerVersion/deleteLayerVersion 时必填"),
-        version: z.number().optional().describe("层版本号。deleteLayerVersion 时必填"),
-        contentPath: z.string().optional().describe("层内容路径"),
-        base64Content: z.string().optional().describe("层内容的 base64 编码"),
-        runtimes: z.array(z.string()).optional().describe("层适用的运行时列表"),
-        description: z.string().optional().describe("层版本描述"),
-        licenseInfo: z.string().optional().describe("许可证信息"),
-        functionName: z.string().optional().describe("函数名称"),
-        layerName: z.string().optional().describe("要绑定或解绑的层名称"),
-        layerVersion: z.number().optional().describe("要绑定或解绑的层版本号"),
-        layers: z.array(LEGACY_LAYER_SCHEMA).optional().describe("目标函数层数组"),
-        codeSecret: z.string().optional().describe("代码保护密钥"),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: false,
-        openWorldHint: true,
-        category: "functions",
-      },
-    },
-    async ({
-      action,
-      name,
-      version,
-      contentPath,
-      base64Content,
-      runtimes,
-      description,
-      licenseInfo,
-      functionName,
-      layerName,
-      layerVersion,
-      layers,
-      codeSecret,
-    }: {
-      action: WriteFunctionLayerAction;
-      name?: string;
-      version?: number;
-      contentPath?: string;
-      base64Content?: string;
-      runtimes?: string[];
-      description?: string;
-      licenseInfo?: string;
-      functionName?: string;
-      layerName?: string;
-      layerVersion?: number;
-      layers?: FunctionLayerInput[];
-      codeSecret?: string;
-    }) => {
-      const mappedInput: ManageFunctionsInput =
-        action === "createLayerVersion"
-          ? {
-              action,
-              layerName: name,
-              contentPath,
-              base64Content,
-              runtimes,
-              description,
-              licenseInfo,
-            }
-          : action === "deleteLayerVersion"
-            ? {
-                action,
-                layerName: name,
-                layerVersion: version,
-                confirm: true,
-              }
-            : action === "attachLayer"
-              ? {
-                  action,
-                  functionName,
-                  layerName,
-                  layerVersion,
-                  codeSecret,
-                }
-              : action === "detachLayer"
-                ? {
-                    action,
-                    functionName,
-                    layerName,
-                    layerVersion,
-                    codeSecret,
-                    confirm: true,
-                  }
-                : {
-                    action,
-                    functionName,
-                    layers: (layers || []).map((layer) => ({
-                      layerName: layer.LayerName,
-                      layerVersion: layer.LayerVersion,
-                    })),
-                  };
-
-      return withLegacyEnvelope(
-        () => handleManageFunctions(mappedInput),
-        action,
-      );
-    },
   );
 }

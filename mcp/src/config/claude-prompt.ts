@@ -196,7 +196,7 @@ If remote links are needed in the application, can continue to call uploadFile t
 
 ### Deployment Process
 
-1. **Cloud Function Deployment Process**: Prefer \`queryFunctions\` to query current functions, then call \`manageFunctions\` with \`action="createFunction"\` or \`action="updateFunctionCode"\` to deploy cloud function code. Only need to point \`functionRootPath\` to the parent directory of the cloud function directory (for example, the absolute path of the \`cloudfunctions\` directory). No need for code compression or other preprocessing. Compatibility tools such as \`createFunction\` / \`updateFunctionCode\` still exist but are no longer the preferred entry.
+1. **Cloud Function Deployment Process**: Prefer \`queryFunctions\` to query current functions, then call \`manageFunctions\` with \`action="createFunction"\` or \`action="updateFunctionCode"\` to deploy cloud function code. Only need to point \`functionRootPath\` to the parent directory of the cloud function directory (for example, the absolute path of the \`cloudfunctions\` directory). No need for code compression or other preprocessing.
 
 2. **CloudRun Deployment Process**: For non-cloud function backend services (Java, Go, PHP, Python, Node.js, etc.), use manageCloudRun tool for deployment. Ensure backend code supports CORS, prepare Dockerfile, then call manageCloudRun for containerized deployment. For details, refer to \`rules/cloudrun-development/rule.md\`
 

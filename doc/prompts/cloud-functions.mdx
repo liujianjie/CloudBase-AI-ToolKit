@@ -253,12 +253,13 @@ curl -L 'https://{envId}.api.tcloudbasegateway.com/v1/functions/{name}?webfn=tru
 
 **Method 2: HTTP Access Service (Custom Domain)**
 
-Use `manageFunctions` with `action: "createFunctionAccess"` to configure HTTP access:
+Use `manageGateway` with `action: "createAccess"` to configure HTTP access:
 
 ```javascript
-manageFunctions({
-  action: "createFunctionAccess",
-  functionName: "myHttpFunction",
+manageGateway({
+  action: "createAccess",
+  targetType: "function",
+  targetName: "myHttpFunction",
   type: "HTTP",           // "HTTP" for HTTP Function
   path: "/api/hello",     // Trigger path
   auth: false
@@ -422,7 +423,7 @@ Use CloudBase HTTP API to invoke event functions:
 
 **Creating HTTP Access:**
 
-**Primary Method:** Use `manageFunctions` with `action: "createFunctionAccess"` (see MCP tool documentation).
+**Primary Method:** Use `manageGateway` with `action: "createAccess"` (see MCP tool documentation).
 
 **Alternative Method (Plan B):** If tool unavailable, use `callCloudApi` with `CreateCloudBaseGWAPI`:
 
@@ -533,25 +534,20 @@ For accessing VPC resources:
 ## MCP Tools Reference
 
 **Primary Function Entrances:**
-- `queryFunctions` - Query functions, logs, layers, triggers, HTTP access, and download URLs
-- `manageFunctions` - Create/update/invoke functions, manage triggers, layers, and HTTP access
-
-**Compatibility Function Tools:**
-- `getFunctionList` - Compatibility alias for function list/detail
-- `createFunction` - Compatibility alias for function creation
-  - `type: "Event"` - Event Function (default)
-  - `type: "HTTP"` - HTTP Function
-  - `protocolType: "WS"` - Enable WebSocket for HTTP Function
-- `updateFunctionCode` - Compatibility alias for function code update
-- `updateFunctionConfig` - Compatibility alias for function configuration update
+- `queryFunctions` - Query functions, logs, layers, triggers, and download URLs
+- `manageFunctions` - Create/update/invoke functions and manage triggers and layers
 
 **Logging:**
 - `queryFunctions(action="listFunctionLogs")` - Get function log list
 - `queryFunctions(action="getFunctionLogDetail")` - Get detailed log content by RequestId
 - `callCloudApi` (Plan B) - Use `GetFunctionLogs` and `GetFunctionLogDetail` actions if direct tools unavailable
 
+**Gateway Entrances:**
+- `queryGateway(action="getAccess" | "listDomains")` - Query gateway access entries and available domains
+- `manageGateway(action="createAccess")` - Create HTTP access for a supported target such as a function
+
 **HTTP Access:**
-- `manageFunctions(action="createFunctionAccess")` - Create HTTP access for function
+- `manageGateway(action="createAccess")` - Create HTTP access for function
 - `callCloudApi` (Plan B) - Use `CreateCloudBaseGWAPI` action if direct tool unavailable
 
 **Triggers:**
