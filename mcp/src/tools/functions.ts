@@ -318,7 +318,7 @@ function buildFunctionOperationErrorMessage(
 
   if (/GetFunction.*未找到指定的Function|未找到指定的Function/i.test(baseMessage)) {
     suggestions.push(
-      `请先确认环境中已存在函数 \`${functionName}\`；如果还未创建，请先执行 \`createFunction\`。`,
+      `请先确认环境中已存在函数 \`${functionName}\`；如果还未创建，请先执行 \`manageFunctions(action="createFunction")\`。`,
     );
   }
 
