@@ -72,9 +72,16 @@ AI 编程工具（如 Cursor、CodeBuddy）解决了**代码生成**的难题。
 
 ### 一行配置，立即使用
 
-在支持 MCP 的 AI IDE 中（Cursor、WindSurf、CodeBuddy 等），只需添加一行配置：
+在支持 MCP 的 AI IDE 中（Cursor、WindSurf、CodeBuddy 等）添加下方任一配置即可。连接方式有两种：
 
-Local Mode (推荐):
+---
+
+#### 方式一：本地模式（推荐）
+
+**含义**：MCP 服务在你本机通过 `npx` 启动，与 IDE 同机运行。  
+**优点**：功能最全（包含上传/下载、模板安装等依赖本地文件系统的能力）。  
+**要求**：本机已安装 Node.js，且能执行 `npx`。
+
 ```json
 {
   "mcpServers": {
@@ -86,7 +93,16 @@ Local Mode (推荐):
 }
 ```
 
-Hosted Mode:
+---
+
+#### 方式二：托管模式
+
+**含义**：MCP 服务运行在腾讯云上，IDE 通过 HTTP 连接云端服务，无需在本地安装或运行 Node。  
+**优点**：不依赖本机环境，配置好密钥即可使用。  
+**限制**：部分依赖本地文件系统的能力不可用（如本地文件上传、模板下载到本机等）。
+
+将下面配置中的 `<env_id>`、`<腾讯云 Secret ID>`、`<腾讯云 Secret Key>` 替换为你的环境 ID 和腾讯云 API 密钥：
+
 ```json
 {
   "mcpServers": {
@@ -94,27 +110,23 @@ Hosted Mode:
       "type": "http",
       "url": "https://tcb-api.cloud.tencent.com/mcp/v1?env_id=<env_id>",
       "headers": {
-          "X-TencentCloud-SecretId": "<腾讯云 Secret ID>",
-          "X-TencentCloud-SecretKey": "<腾讯云 Secret Key"
+        "X-TencentCloud-SecretId": "<腾讯云 Secret ID>",
+        "X-TencentCloud-SecretKey": "<腾讯云 Secret Key>"
       }
     }
   }
 }
-  
 ```
 
-> [!TIP]
-> 推荐在本地可以执行Node(npx)时使用本地CLI模式，Host 模式下缺少部分依赖文件系统的tools。
+**托管模式可选：通过 URL 控制启用哪些插件**
 
-使用 HTTP 模式的 MCP Server 时，可以通过 URL query 参数控制启用的插件：
+在 `url` 里加上 query 参数可禁用指定插件，例如禁用 `rag` 和 `env`：
 
-**禁用插件示例：**
 ```
-# 禁用 rag 和 env 插件
 https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag&disable_plugins=env
 ```
-**可用插件枚举值：**
-`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `interactive`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`
+
+当前可配置的插件名：`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `interactive`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`。
 
 > [!TIP]
 > **推荐使用 CloudBase AI CLI**
@@ -377,7 +389,7 @@ CodeBuddy 已内置 CloudBase MCP，无需配置即可使用。
 |------|------|----------|
 | **环境** | 4 个 | 登录认证、环境查询、域名管理 |
 | **数据库** | 11 个 | 集合管理、文档 CRUD、索引、数据模型 |
-| **云函数** | 9 个 | 创建、更新、调用、日志、触发器 |
+| **云函数** | 10 个 | 创建、更新、调用、日志、触发器、代码下载 |
 | **静态托管** | 5 个 | 文件上传、域名配置、网站部署 |
 | **小程序** | 7 个 | 上传、预览、构建、配置、调试 |
 | **工具支持** | 4 个 | 模板、知识库搜索、联网搜索、交互对话 |

@@ -116,8 +116,31 @@ describe("Function layer tools tests", () => {
 
     // Backward compatibility checks.
     expect(allTools).toContain("createFunction");
+    expect(allTools).toContain("getFunctionDownloadUrl");
     expect(allTools).toContain("getFunctionList");
     expect(allTools).toContain("updateFunctionConfig");
+  });
+
+  test("getFunctionDownloadUrl schema is correct", async () => {
+    if (!testClient) {
+      console.log("Test client not available, skipping test");
+      return;
+    }
+
+    const toolsResult = await testClient.listTools();
+    const tool = toolsResult.tools.find(
+      (item) => item.name === "getFunctionDownloadUrl",
+    );
+
+    expect(tool).toBeDefined();
+    expect(tool.inputSchema).toBeDefined();
+    expect(tool.inputSchema.type).toBe("object");
+
+    const properties = tool.inputSchema.properties;
+    expect(properties.name).toBeDefined();
+    expect(properties.codeSecret).toBeDefined();
+    expect(tool.annotations.readOnlyHint).toBe(true);
+    expect(tool.annotations.category).toBe("functions");
   });
 
   test("readFunctionLayers schema is correct", async () => {

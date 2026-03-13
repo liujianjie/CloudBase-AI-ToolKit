@@ -528,6 +528,28 @@
       }
     },
     {
+      "name": "getFunctionDownloadUrl",
+      "description": "获取指定云函数代码包的临时下载链接，便于拉取当前线上代码进行排查或本地比对。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "函数名称"
+          },
+          "codeSecret": {
+            "type": "string",
+            "description": "代码保护密钥（函数开启代码保护时使用）"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "createFunction",
       "description": "创建云函数。云函数分为事件型云函数(Event)和 HTTP 云函数。\n\n支持的运行时:\n- Event 函数: Node.js, Python, PHP, Java, Go\n- HTTP 函数: 所有语言(通过 scf_bootstrap 启动脚本)\n\n注意: 运行时创建后不可修改，请谨慎选择。",
       "inputSchema": {

@@ -324,6 +324,72 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     },
   );
 
+  // getFunctionDownloadUrl - 获取云函数代码下载链接
+  server.registerTool?.(
+    "getFunctionDownloadUrl",
+    {
+      title: "获取云函数代码下载链接",
+      description:
+        "获取指定云函数代码包的临时下载链接，便于拉取当前线上代码进行排查或本地比对。",
+      inputSchema: {
+        name: z.string().describe("函数名称"),
+        codeSecret: z
+          .string()
+          .optional()
+          .describe("代码保护密钥（函数开启代码保护时使用）"),
+      },
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: true,
+        category: "functions",
+      },
+    },
+    async ({
+      name,
+      codeSecret,
+    }: {
+      name: string;
+      codeSecret?: string;
+    }) => {
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.getFunctionDownloadUrl(
+        name,
+        codeSecret,
+      );
+      const rawResult = typeof result === "string" ? undefined : result;
+      const downloadUrl =
+        typeof result === "string"
+          ? result
+          : result.Url ?? null;
+
+      logCloudBaseResult(server.logger, {
+        functionName: name,
+        downloadUrl,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                functionName: name,
+                downloadUrl,
+                ...(rawResult ? { raw: rawResult } : {}),
+                nextActions: [
+                  "Use the temporary downloadUrl immediately because it may expire.",
+                  "If you need the zip locally, download it with the existing downloadRemoteFile tool or your local curl/wget command.",
+                ],
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  );
+
   // createFunction - 创建云函数 (cloud-incompatible)
   server.registerTool(
     "createFunction",

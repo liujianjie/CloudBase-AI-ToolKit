@@ -1,6 +1,6 @@
 # MCP 工具
 
-当前包含 39 个工具。
+当前包含 40 个工具。
 
 源数据: [tools.json](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/blob/main/scripts/tools.json)
 
@@ -23,6 +23,7 @@
 <tr><td><code>manageDataModel</code></td><td>数据模型查询工具，支持查询和列表数据模型（只读操作）。通过 action 参数区分操作类型：list=获取模型列表（不含Schema，可选 names 参数过滤），get=查询单个模型详情（含Schema字段列表、格式、关联关系等，需要提供 name 参数），docs=生成SDK使用文档（需要提供 name 参数）</td></tr>
 <tr><td><code>modifyDataModel</code></td><td>基于Mermaid classDiagram创建或更新数据模型。支持创建新模型和更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。</td></tr>
 <tr><td><code>getFunctionList</code></td><td>获取云函数列表或单个函数详情。通过 action 参数区分操作类型：list=获取函数列表（默认，无需额外参数），detail=获取函数详情（需要提供 name 参数指定函数名称，返回结果中包含函数当前绑定的 Layers 信息）</td></tr>
+<tr><td><code>getFunctionDownloadUrl</code></td><td>获取指定云函数代码包的临时下载链接，便于拉取当前线上代码进行排查或本地比对。</td></tr>
 <tr><td><code>createFunction</code></td><td>创建云函数。云函数分为事件型云函数(Event)和 HTTP 云函数。&lt;br/&gt;支持的运行时:&lt;br/&gt;- Event 函数: Node.js, Python, PHP, Java, Go&lt;br/&gt;- HTTP 函数: 所有语言(通过 scf_bootstrap 启动脚本)&lt;br/&gt;注意: 运行时创建后不可修改，请谨慎选择。</td></tr>
 <tr><td><code>updateFunctionCode</code></td><td>更新已存在函数的代码。注意：此工具仅用于更新代码，不支持修改函数配置（如 runtime）。如果需要修改 runtime，需要删除函数后使用 createFunction 重新创建。</td></tr>
 <tr><td><code>updateFunctionConfig</code></td><td>更新云函数配置</td></tr>
@@ -316,6 +317,21 @@ classDiagram
 <tr><td><code>offset</code></td><td>number</td><td></td><td>偏移（list 操作时使用）</td></tr>
 <tr><td><code>name</code></td><td>string</td><td></td><td>要查询的函数名称。当 action='detail' 时，此参数为必填项，必须提供已存在的函数名称。可通过 action='list' 操作获取可用的函数名称列表</td></tr>
 <tr><td><code>codeSecret</code></td><td>string</td><td></td><td>代码保护密钥（detail 操作时使用）</td></tr>
+</tbody>
+</table>
+
+---
+
+### `getFunctionDownloadUrl`
+获取指定云函数代码包的临时下载链接，便于拉取当前线上代码进行排查或本地比对。
+
+#### 参数
+
+<table>
+<thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>name</code></td><td>string</td><td>是</td><td>函数名称</td></tr>
+<tr><td><code>codeSecret</code></td><td>string</td><td></td><td>代码保护密钥（函数开启代码保护时使用）</td></tr>
 </tbody>
 </table>
 

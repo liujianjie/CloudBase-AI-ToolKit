@@ -334,13 +334,13 @@ When an app has issues, AI automatically views logs, analyzes errors, and genera
 
 ## MCP Tools
 
-**39 tools** covering environment management, database, cloud functions, static hosting, mini-program publishing, and other core features.
+**40 tools** covering environment management, database, cloud functions, static hosting, mini-program publishing, and other core features.
 
 | Category | Tools | Core Features |
 |------|------|----------|
 | **Environment** | 4 | Login authentication, environment query, domain management |
 | **Database** | 11 | Collection management, document CRUD, indexes, data models |
-| **Cloud Functions** | 9 | Create, update, invoke, logs, triggers |
+| **Cloud Functions** | 10 | Create, update, invoke, logs, triggers, code download |
 | **Static Hosting** | 5 | File upload, domain configuration, website deployment |
 | **Mini-Program** | 7 | Upload, preview, build, configuration, debugging |
 | **Tool Support** | 4 | Templates, knowledge base search, web search, interactive dialogs |
