@@ -19,7 +19,6 @@ interface IDE {
   cliCommand?: string;
   cliConfigExample?: string;
   alternativeConfig?: string;
-  verificationPrompt?: string;
   installCommand?: string;
   installCommandDocs?: string;
   useCommandInsteadOfConfig?: boolean;
@@ -36,7 +35,16 @@ const IDES: IDE[] = [
     supportsProjectMCP: false,
     useCommandInsteadOfConfig: true,
     installCommandDocs: '**步骤 1：安装 CodeBuddy 扩展**\n\n1. 在微信开发者工具中，点击顶部菜单栏的「扩展」\n2. 在扩展市场中搜索「CodeBuddy」\n3. 安装「腾讯云代码助手 CodeBuddy」扩展\n\n**步骤 2：安装 CloudBase MCP**\n\n1. 安装完成后，在工具栏找到 CodeBuddy 图标\n2. 点击右上角的 CodeBuddy 设置图标\n3. 在 MCP 市场中搜索并安装「CloudBase MCP」\n\n安装完成后即可在 CodeBuddy 中使用 CloudBase AI 功能。',
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
+    configExample: '',
+  },
+  {
+    id: 'openclaw',
+    name: 'OpenClaw',
+    platform: '命令行工具',
+    configPath: 'CloudBase Skills',
+    iconUrl: 'https://openclaw.ai/favicon.svg',
+    docUrl: 'https://docs.openclaw.ai/getting-started',
+    useCommandInsteadOfConfig: true,
     configExample: '',
   },
   {
@@ -47,7 +55,6 @@ const IDES: IDE[] = [
     iconSlug: 'cursor',
     docUrl: 'https://docs.cursor.com/context/model-context-protocol#configuration-locations',
     supportsProjectMCP: true,
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -69,7 +76,6 @@ const IDES: IDE[] = [
     docUrl: 'https://www.codebuddy.ai/docs/zh/ide/Config%20MCP',
     supportsProjectMCP: true,
     alternativeConfig: '在 MCP 配置中增加如下配置',
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -90,7 +96,6 @@ const IDES: IDE[] = [
     iconSlug: 'claude',
     docUrl: 'https://docs.anthropic.com/en/docs/claude-code/mcp#project-scope',
     supportsProjectMCP: true,
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -113,7 +118,6 @@ const IDES: IDE[] = [
     supportsProjectMCP: true,
     cliCommand: 'codebuddy mcp add --scope project cloudbase --env INTEGRATION_IDE=CodeBuddyCode -- npx @cloudbase/cloudbase-mcp@latest',
     alternativeConfig: '或者将以下配置添加到 .mcp.json:',
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -135,7 +139,6 @@ const IDES: IDE[] = [
     iconUrl: 'https://code.visualstudio.com/favicon.ico',
     docUrl: 'https://code.visualstudio.com/docs/copilot/chat/mcp-servers',
     supportsProjectMCP: true,
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "servers": {
     "cloudbase": {
@@ -233,10 +236,10 @@ const IDES: IDE[] = [
     platform: '命令行工具',
     configPath: '.openai-codex/mcp.json',
     iconSlug: 'openai',
+    docUrl: 'https://help.openai.com/en/articles/11096431-openai-codex-ci-getting-started',
     useCommandInsteadOfConfig: true,
     installCommand: 'codex mcp add cloudbase --env INTEGRATION_IDE=CodeX -- cloudbase-mcp',
     installCommandDocs: '**前置步骤：** 请先全局安装 CloudBase MCP 工具：\n```bash\nnpm i @cloudbase/cloudbase-mcp -g\n```\n\n根据运行系统在终端中运行指令：\n\n**MacOS, Linux, WSL:**\n```bash\ncodex mcp add cloudbase --env INTEGRATION_IDE=CodeX -- cloudbase-mcp\n```\n\n**Windows Powershell:**\n```bash\ncodex mcp add cloudbase --env INTEGRATION_IDE=CodeX -- cmd /c cloudbase-mcp\n```',
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -255,6 +258,7 @@ const IDES: IDE[] = [
     platform: '命令行工具',
     configPath: '.qwen/settings.json',
     iconSlug: 'qwen',
+    docUrl: 'https://qwenlm.github.io/qwen-code-docs/zh/cli/index',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -312,6 +316,7 @@ const IDES: IDE[] = [
     platform: '命令行工具',
     configPath: '.opencode.json',
     iconUrl: 'https://avatars.githubusercontent.com/u/66570915?s=200&v=4',
+    docUrl: 'https://opencode.ai/docs/config',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -332,7 +337,6 @@ const IDES: IDE[] = [
     iconUrl: 'https://kiro.dev/favicon.ico',
     docUrl: 'https://kiro.dev/docs/mcp/configuration/',
     supportsProjectMCP: true,
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -353,7 +357,6 @@ const IDES: IDE[] = [
     iconUrl: 'https://g.alicdn.com/qbase/qoder/0.0.183/favIcon.svg',
     docUrl: 'https://docs.qoder.com/zh/user-guide/chat/model-context-protocol',
     supportsProjectMCP: false,
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -374,7 +377,6 @@ const IDES: IDE[] = [
     iconUrl: 'https://antigravity.google/assets/image/antigravity-logo.png',
     docUrl: 'https://antigravity.google/docs',
     supportsProjectMCP: true,
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -395,7 +397,6 @@ const IDES: IDE[] = [
     iconSlug: 'windsurf',
     docUrl: 'https://docs.windsurf.com/windsurf/cascade/memories',
     supportsProjectMCP: true,
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -443,7 +444,6 @@ const IDES: IDE[] = [
     useCommandInsteadOfConfig: true,
     installCommand: 'npm i -g @cloudbase/cli',
     installCommandDocs: '**安装 CloudBase CLI：**\n\n```bash\nnpm i -g @cloudbase/cli\n```\n\n**初始化配置：**\n\n```bash\ntcb ai\n```\n\n配置向导会引导你完成 AI 工具的配置。CloudBase CLI 内置了 MCP 和 AI 开发规则，无需手动配置。\n\n**开始使用：**\n\n```bash\ntcb ai\n```',
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: '',
   },
   {
@@ -456,7 +456,6 @@ const IDES: IDE[] = [
     supportsProjectMCP: false,
     cliCommand: 'iflow mcp add-json --scope project cloudbase \'{"command":"npx","args":["@cloudbase/cloudbase-mcp@latest"],"env":{"INTEGRATION_IDE":"iFlow"}}\'',
     alternativeConfig: '或者将以下配置添加到 .iflow/settings.json:',
-    verificationPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
     configExample: `{
   "mcpServers": {
     "cloudbase": {
@@ -533,14 +532,11 @@ interface IDESelectorProps {
 const translations: Record<string, Record<string, string>> = {
   'zh-CN': {
     client: 'Client',
-    configureDescription: '配置你的 MCP 客户端以连接 CloudBase 环境',
+    configureDescription: '配置你的 AI 工具以连接 CloudBase 能力',
     connectionModesHint: '支持本地与托管两种连接方式，详见 ',
     connectionModesLink: '连接方式',
     connectionModesSuffix: '。',
-    skillsHint: '搭配 Skills 效果更好，详见 ',
-    skillsLink: '如何使用',
-    skillsSuffix: '。',
-    installation: '步骤 1：配置 CloudBase MCP',
+    installation: '步骤 1：安装 / 配置 CloudBase',
     useTemplate: '使用项目模板（推荐）',
     templateDescription: '模板已内置 MCP 配置和 AI 规则',
     viewTemplates: '查看模板',
@@ -550,8 +546,9 @@ const translations: Record<string, Record<string, string>> = {
     step2Verify: '步骤 2：和 AI 对话',
     showMore: '显示配置选项',
     showLess: '收起',
-    verifyDescription: '配置完成后，在 AI 对话中输入以下内容:',
-    defaultVerifyPrompt: '调用 MCP 工具下载 CloudBase AI 开发规则到当前项目，然后介绍CloudBase MCP 的所有功能',
+    verifyDescription: '在 AI 对话中依次输入以下内容:',
+    installSkillsPrompt: '安装 CloudBase Skills：命令 npx skills add tencentcloudbase/cloudbase-skills -y',
+    useSkillsPrefix: '使用 CloudBase Skills：',
     cliCommand: 'CLI 命令',
     alternativeConfig: '替代配置',
     needHelp: '需要帮助？',
@@ -566,14 +563,11 @@ const translations: Record<string, Record<string, string>> = {
   },
   'en': {
     client: 'Client',
-    configureDescription: 'Configure your MCP client to connect with your CloudBase environment',
+    configureDescription: 'Configure your AI tool to connect with CloudBase capabilities',
     connectionModesHint: 'Supports local and hosted connection. See ',
     connectionModesLink: 'connection modes',
     connectionModesSuffix: '.',
-    skillsHint: 'Works better with Skills. See ',
-    skillsLink: 'how to use',
-    skillsSuffix: '.',
-    installation: 'Step 1: Configure CloudBase MCP',
+    installation: 'Step 1: Install / Configure CloudBase',
     useTemplate: 'Use project template (recommended)',
     templateDescription: 'Template includes MCP configuration and AI rules',
     viewTemplates: 'View templates',
@@ -583,8 +577,9 @@ const translations: Record<string, Record<string, string>> = {
     step2Verify: 'Step 2: Chat with AI',
     showMore: 'Show configuration options',
     showLess: 'Show less',
-    verifyDescription: 'After configuration, enter the following in your AI chat:',
-    defaultVerifyPrompt: 'Check if CloudBase tools are available, download CloudBase AI development rules',
+    verifyDescription: 'Enter the following in your AI chat in order:',
+    installSkillsPrompt: 'Install CloudBase Skills: run npx skills add tencentcloudbase/cloudbase-skills -y',
+    useSkillsPrefix: 'Use CloudBase Skills:',
     cliCommand: 'CLI command',
     alternativeConfig: 'Alternative configuration',
     needHelp: 'Need help?',
@@ -758,25 +753,16 @@ export default function IDESelector({
 
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedCli, setCopiedCli] = useState(false);
-  // Second prompt row: customPrompt if provided, otherwise random prompt
-  const [secondPrompt, setSecondPrompt] = useState<string>(() => 
-    customPrompt || getRandomPrompt()
-  );
+  const [randomPrompt, setRandomPrompt] = useState<string>(() => getRandomPrompt());
   const [copiedSecondPrompt, setCopiedSecondPrompt] = useState(false);
-
-  // Update secondPrompt when customPrompt changes
-  useEffect(() => {
-    if (customPrompt) {
-      setSecondPrompt(customPrompt);
-    } else {
-      setSecondPrompt(getRandomPrompt());
-    }
-  }, [customPrompt]);
+  const secondPrompt = customPrompt || randomPrompt;
+  const installPrompt = t.installSkillsPrompt || '安装 CloudBase Skills：命令 npx skills add tencentcloudbase/cloudbase-skills -y';
+  const secondPromptWithSkills = `${t.useSkillsPrefix || '使用 CloudBase Skills：'} ${secondPrompt}`.trim();
 
   const handleRefreshPrompt = () => {
     // Only refresh if there's no customPrompt (customPrompt is fixed)
     if (!customPrompt) {
-      setSecondPrompt(getRandomPrompt());
+      setRandomPrompt(getRandomPrompt());
       reportEvent({
         name: 'IDE Selector - Refresh Prompt',
         ideId: ide.id,
@@ -786,9 +772,7 @@ export default function IDESelector({
   };
 
   const handleCopyPrompt = async () => {
-    // First prompt is always the fixed verification prompt
-    const prompt = ide.verificationPrompt || t.defaultVerifyPrompt;
-    await navigator.clipboard.writeText(prompt);
+    await navigator.clipboard.writeText(installPrompt);
     setCopiedPrompt(true);
     setTimeout(() => setCopiedPrompt(false), 2000);
     reportEvent({
@@ -799,7 +783,7 @@ export default function IDESelector({
   };
 
   const handleCopySecondPrompt = async () => {
-    await navigator.clipboard.writeText(secondPrompt);
+    await navigator.clipboard.writeText(secondPromptWithSkills);
     setCopiedSecondPrompt(true);
     setTimeout(() => setCopiedSecondPrompt(false), 2000);
     reportEvent({
@@ -816,7 +800,7 @@ export default function IDESelector({
       return null;
     }
 
-    const prompt = promptToUse || customPrompt || ide.verificationPrompt || t.defaultVerifyPrompt;
+    const prompt = promptToUse || installPrompt;
     const encodedPrompt = encodeURIComponent(prompt);
     return `https://cursor.com/link/prompt?text=${encodedPrompt}`;
   };
@@ -992,14 +976,6 @@ export default function IDESelector({
         </a>
         {t.connectionModesSuffix}
       </p>
-      <p className={styles.description}>
-        {t.skillsHint}
-        <a href="/ai/cloudbase-ai-toolkit/prompts/how-to-use" className={styles.templateLink}>
-          {t.skillsLink}
-        </a>
-        {t.skillsSuffix}
-      </p>
-
       {/* Installation Card */}
       <div className={styles.card}>
         <div className={styles.cardHeader}>
@@ -1038,19 +1014,39 @@ export default function IDESelector({
               </div>
             )}
 
+            {ide.id === 'openclaw' && (
+              <div className={styles.templateHint}>
+                <strong>{isEnglish ? 'Chat-based setup:' : '通过对话安装：'}</strong>
+                {isEnglish ? (
+                  <span> In OpenClaw, you can install CloudBase Skills through chat. If you do not need extra CloudBase rules yet, you can also start the conversation directly.</span>
+                ) : (
+                  <span> 在 OpenClaw 中可通过对话安装 CloudBase Skills；如果暂时不需要额外的 CloudBase 规则和工作流，也可以直接开始对话。</span>
+                )}
+              </div>
+            )}
+
             {/* CodeBuddy built-in integration recommendation */}
             {ide.id === 'codebuddy' && (
               <div className={styles.templateHint}>
-                <strong>推荐：</strong>CodeBuddy IDE 已内置集成 CloudBase MCP，建议优先使用配置集成方式。
+                <strong>{isEnglish ? 'Recommended:' : '推荐：'}</strong>
+                {isEnglish ? (
+                  <span> CodeBuddy IDE already includes built-in CloudBase MCP integration. Prefer the integrated setup flow first.</span>
+                ) : (
+                  <span>CodeBuddy IDE 已内置集成 CloudBase MCP，建议优先使用配置集成方式。</span>
+                )}
                 <a
-                  href="https://www.codebuddy.ai/docs/zh/ide/User-guide/Integration"
+                  href={isEnglish ? 'https://www.codebuddy.ai/docs/en/ide/User-guide/Integration' : 'https://www.codebuddy.ai/docs/zh/ide/User-guide/Integration'}
                   className={styles.templateLink}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  查看 BaaS 集成文档
+                  {isEnglish ? 'View BaaS integration docs' : '查看 BaaS 集成文档'}
                 </a>
-                <span>。如需手动配置 MCP，请参考下方配置。</span>
+                {isEnglish ? (
+                  <span>. If you still need manual MCP configuration, use the setup below.</span>
+                ) : (
+                  <span>。如需手动配置 MCP，请参考下方配置。</span>
+                )}
               </div>
             )}
 
@@ -1455,10 +1451,9 @@ export default function IDESelector({
         <p className={styles.verifyDescription}>{t.verifyDescription}</p>
         <div className={styles.promptWrapper}>
           <div className={styles.promptLabel}>prompt</div>
-          {/* First prompt row - Always fixed verification prompt */}
           <div className={styles.promptContent}>
             <code className={styles.promptText}>
-              {ide.verificationPrompt || t.defaultVerifyPrompt}
+              {installPrompt}
             </code>
             <div className={styles.promptActions}>
               {getIDEDeepLink() && (
@@ -1499,7 +1494,7 @@ export default function IDESelector({
           {secondPrompt && (
             <div className={styles.promptContent}>
               <code className={styles.promptText}>
-                {secondPrompt}
+                {secondPromptWithSkills}
               </code>
               <div className={styles.promptActions}>
                 {!customPrompt && (
@@ -1519,9 +1514,9 @@ export default function IDESelector({
                   </svg>
                 </button>
                 )}
-                {getIDEDeepLink(secondPrompt) && (
+                {getIDEDeepLink(secondPromptWithSkills) && (
                   <button
-                    onClick={() => handleOpenIDE(secondPrompt)}
+                    onClick={() => handleOpenIDE(secondPromptWithSkills)}
                     className={styles.openIDEButton}
                     title={getOpenInIDEText(ide?.name)}
                   >

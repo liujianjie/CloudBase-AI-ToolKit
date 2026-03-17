@@ -14,7 +14,7 @@ These skills are sourced from: `config/.claude/skills/` in the CloudBase AI Tool
 
 ### Use `add-skills`
 ```
-tencentcloudbase/cloudbase-skills
+npx skills add tencentcloudbase/cloudbase-skills
 ```
 
 ### For Claude Desktop / Cursor

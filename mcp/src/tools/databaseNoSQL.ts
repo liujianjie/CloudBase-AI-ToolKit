@@ -8,6 +8,8 @@ import { ExtendedMcpServer } from "../server.js";
 import { Logger } from "../types.js";
 
 const CATEGORY = "NoSQL database";
+const COLLECTION_READY_TIMEOUT_MS = 10000;
+const COLLECTION_READY_POLL_INTERVAL_MS = 500;
 
 // 获取数据库实例ID
 async function getDatabaseInstanceId(getManager: () => Promise<any>) {
@@ -17,6 +19,78 @@ async function getDatabaseInstanceId(getManager: () => Promise<any>) {
     throw new Error("无法获取数据库实例ID");
   }
   return EnvInfo.Databases[0].InstanceId;
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForCollectionReady({
+  cloudbase,
+  collectionName,
+  logger,
+  timeoutMs = COLLECTION_READY_TIMEOUT_MS,
+  pollIntervalMs = COLLECTION_READY_POLL_INTERVAL_MS,
+}: {
+  cloudbase: CloudBase;
+  collectionName: string;
+  logger?: Logger;
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+}) {
+  const startedAt = Date.now();
+  const deadline = startedAt + timeoutMs;
+  let lastError: unknown;
+
+  logger?.({
+    type: "toolInfo",
+    toolName: "writeNoSqlDatabaseStructure",
+    message: "Waiting for NoSQL collection readiness after createCollection",
+    collectionName,
+    timeoutMs,
+    pollIntervalMs,
+  });
+
+  while (Date.now() <= deadline) {
+    try {
+      const result =
+        await cloudbase.database.checkCollectionExists(collectionName);
+      logCloudBaseResult(logger, result);
+      if (result.Exists) {
+        logger?.({
+          type: "toolInfo",
+          toolName: "writeNoSqlDatabaseStructure",
+          message: "NoSQL collection is ready for subsequent operations",
+          collectionName,
+          waitedMs: Date.now() - startedAt,
+        });
+        return;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (Date.now() + pollIntervalMs > deadline) {
+      break;
+    }
+    await delay(pollIntervalMs);
+  }
+
+  const baseMessage = `集合 ${collectionName} 创建成功后等待就绪超时 (${timeoutMs}ms)`;
+  const errorMessage =
+    lastError instanceof Error
+      ? `${baseMessage}，最后一次检查错误: ${lastError.message}`
+      : `${baseMessage}，集合仍未进入可用状态`;
+
+  logger?.({
+    type: "toolError",
+    toolName: "writeNoSqlDatabaseStructure",
+    message: errorMessage,
+    collectionName,
+    timeoutMs,
+  });
+
+  throw new Error(errorMessage);
 }
 
 export function registerDatabaseTools(server: ExtendedMcpServer) {
@@ -271,6 +345,11 @@ deleteCollection: 删除集合`),
         const result =
           await cloudbase.database.createCollection(collectionName);
         logCloudBaseResult(server.logger, result);
+        await waitForCollectionReady({
+          cloudbase,
+          collectionName,
+          logger: server.logger,
+        });
         return {
           content: [
             {
