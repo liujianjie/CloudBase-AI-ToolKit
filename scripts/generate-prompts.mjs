@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
-import yaml from 'js-yaml';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadYamlModule } from './lib/load-yaml-module.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.join(__dirname, '..');
-const RULES_DIR = path.join(ROOT_DIR, 'config/rules');
+const SKILLS_DIR = path.join(ROOT_DIR, 'config', 'source', 'skills');
 const PROMPTS_DIR = path.join(ROOT_DIR, 'doc/prompts');
 const CONFIG_FILE = path.join(PROMPTS_DIR, 'config.yaml');
 const SIDEBAR_FILE = path.join(ROOT_DIR, 'doc/sidebar.json');
+const yaml = await loadYamlModule(ROOT_DIR);
 
 /**
  * Parse frontmatter from markdown content
@@ -42,20 +43,20 @@ function parseFrontmatter(content) {
 /**
  * Read all markdown files from a directory
  */
-async function readRuleFiles(ruleDir) {
-  const files = fs.readdirSync(ruleDir)
+async function readSkillFiles(skillDir) {
+  const files = fs.readdirSync(skillDir)
     .filter(file => file.endsWith('.md'))
     .sort((a, b) => {
-      // Put rule.md first if it exists
-      if (a === 'rule.md') return -1;
-      if (b === 'rule.md') return 1;
+      // Put SKILL.md first if it exists
+      if (a === 'SKILL.md') return -1;
+      if (b === 'SKILL.md') return 1;
       return a.localeCompare(b);
     });
   
   const fileContents = [];
   
   for (const file of files) {
-    const filePath = path.join(ruleDir, file);
+    const filePath = path.join(skillDir, file);
     const content = fs.readFileSync(filePath, 'utf8');
     const { frontmatter, content: body } = parseFrontmatter(content);
     
@@ -101,7 +102,7 @@ function generateMDX(ruleConfig, files) {
   if (files.length === 1) {
     // Single file - show content in code block with filename as title
     const content = files[0].content;
-    const filename = files[0].filename;
+    const filename = files[0].filename === 'SKILL.md' ? 'rule.md' : files[0].filename;
     // In markdown code blocks, content should be protected from JSX parsing
     // But MDX might still try to parse JSX-like syntax, so we escape < and >
     // Use 4 backticks instead of 3 to wrap content that contains code blocks (```)
@@ -120,7 +121,7 @@ function generateMDX(ruleConfig, files) {
     for (const file of files) {
       const value = file.filename.replace('.md', '').replace(/[^a-z0-9-]/gi, '-');
       const label = file.filename.replace('.md', '');
-      const filename = file.filename;
+      const filename = file.filename === 'SKILL.md' ? 'rule.md' : file.filename;
       // In markdown code blocks, content should be protected from JSX parsing
       // But MDX might still try to parse JSX-like syntax, so we escape < and >
       // Use 4 backticks instead of 3 to wrap content that contains code blocks (```)
@@ -291,19 +292,18 @@ async function main() {
   // Process each rule
   for (const ruleConfig of config.rules) {
     const { id, ruleDir } = ruleConfig;
-    // Use ruleDir if specified, otherwise use id as directory name
-    const actualRuleDir = path.join(RULES_DIR, ruleDir || id);
+    const actualSkillDir = path.join(SKILLS_DIR, ruleDir || id);
     
-    if (!fs.existsSync(actualRuleDir)) {
-      console.warn(`Warning: Rule directory not found: ${actualRuleDir}`);
+    if (!fs.existsSync(actualSkillDir)) {
+      console.warn(`Warning: Skill directory not found: ${actualSkillDir}`);
       continue;
     }
     
     // Read all markdown files
-    const files = await readRuleFiles(actualRuleDir);
+    const files = await readSkillFiles(actualSkillDir);
     
     if (files.length === 0) {
-      console.warn(`Warning: No markdown files found in ${actualRuleDir}`);
+      console.warn(`Warning: No markdown files found in ${actualSkillDir}`);
       continue;
     }
     
@@ -327,4 +327,3 @@ main().catch(err => {
   console.error('Error:', err);
   process.exit(1);
 });
-

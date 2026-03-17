@@ -37,7 +37,7 @@ const TEMPLATES = {
 };
 
 // IDE类型枚举
-const IDE_TYPES = [
+export const IDE_TYPES = [
   "all", // 下载所有IDE配置（默认）
   "cursor", // Cursor AI编辑器
   "windsurf", // WindSurf AI编辑器
@@ -448,7 +448,7 @@ function isInChecklist(file: string, checklist: string[]): boolean {
 }
 
 // 文件过滤函数
-function filterFilesByIDE(files: string[], ide: string): string[] {
+export function filterFilesByIDE(files: string[], ide: string): string[] {
   if (ide === "all") {
     return files; // 返回所有文件
   }

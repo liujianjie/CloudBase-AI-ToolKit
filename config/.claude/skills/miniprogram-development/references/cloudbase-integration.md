@@ -70,18 +70,23 @@ exports.main = async () => {
 };
 ```
 
-### Recommended usage
+## 3. Recommended Capability Boundaries
 
-- Use `OPENID` as the stable user identifier for per-user records.
-- Perform user bootstrap logic inside cloud functions when needed.
-- Keep privileged profile updates in cloud functions when business rules matter.
+Use the right CloudBase capability in the right layer.
 
-## 3. Client vs. Cloud Function Boundaries
+Use `OPENID` as the stable user identifier for per-user records, and keep privileged or cross-user logic in cloud functions.
 
-Use the right CloudBase capability for the right job.
+- `wx.cloud.database()` for client-safe reads and user-scoped writes
+- `wx.cloud.uploadFile()` for user-generated assets
+- `wx.cloud.callFunction()` for invoking backend orchestration
 
-### Use `wx.cloud.database()` for:
+### Cloud functions
 
+- Privileged writes
+- Cross-collection transactions or workflows
+- Third-party API integration
+- Data normalization / validation
+- Accessing trusted user identity via `OPENID`
 - Client-safe reads
 - User-scoped writes with correct security rules
 - Simple collection CRUD where server orchestration is unnecessary

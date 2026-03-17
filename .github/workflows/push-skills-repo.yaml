@@ -5,9 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'config/.claude/skills/**'
+      - 'config/source/skills/**'
+      - 'config/source/guideline/**'
       - 'scripts/build-skills-repo.mjs'
-      - 'scripts/skills-repo-template/**'
+      - 'scripts/skills-repo-template/readme-template.md'
   workflow_dispatch:
 
 jobs:

@@ -56,6 +56,40 @@
               "hosting"
             ],
             "description": "查询类型：list=环境列表，info=当前环境信息，domains=安全域名列表，hosting=静态网站托管配置"
+          },
+          "alias": {
+            "type": "string",
+            "description": "按环境别名筛选。action=list 时可选"
+          },
+          "envId": {
+            "type": "string",
+            "description": "按环境 ID 精确筛选。action=list 时可选"
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "返回数量上限。action=list 时可选"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "分页偏移。action=list 时可选"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "EnvId",
+                "Alias",
+                "Status",
+                "EnvType",
+                "Region",
+                "PackageName",
+                "IsDefault"
+              ]
+            },
+            "description": "返回字段白名单。action=list 时可选"
           }
         },
         "required": [
@@ -950,7 +984,7 @@
     },
     {
       "name": "readFunctionLayers",
-      "description": "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。返回格式：JSON 包含 success、data（含 action 与对应结果字段）、message；data.layers 或 data.layerVersions 为数组，getFunctionLayers 的 data.layers 中的每个元素都是一个包含 LayerName 和 LayerVersion 字段的对象（each element in data.layers is an object with LayerName and LayerVersion fields）。",
+      "description": "Query cloud function layers and function layer configuration. Distinguish operations through action parameter: listLayers=query layer list, listLayerVersions=query version list of specified layer, getLayerVersion=query layer version details (including download link/metadata), getFunctionLayers=query layers currently bound to specified function. Return format: JSON containing success, data (containing action and corresponding result fields), message; data.layers or data.layerVersions is an array, getFunctionLayers' data.layers each item is \\{ LayerName, LayerVersion \\}.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1931,7 +1965,7 @@
     },
     {
       "name": "createFunctionHTTPAccess",
-      "description": "创建云函数的 HTTP 访问",
+      "description": "创建云函数的 HTTP 访问，并返回可直接使用的访问地址提示",
       "inputSchema": {
         "type": "object",
         "properties": {

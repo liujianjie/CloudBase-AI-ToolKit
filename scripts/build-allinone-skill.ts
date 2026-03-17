@@ -34,8 +34,8 @@ const TOOLKIT_ROOT = path.resolve(__dirname, "..");
 
 // Source of truth paths (relative to toolkit root)
 const SOURCES = {
-  mainRules: "scripts/skills-repo-template/cloudbase-guidelines/SKILL.md",
-  skillsDir: "config/.claude/skills",
+  mainRules: 'config/source/guideline/cloudbase/SKILL.md',
+  skillsDir: 'config/source/skills',
 };
 
 // Skills to exclude from the bundle
@@ -154,11 +154,12 @@ function copyDir(src: string, dest: string, renameSkillMd: boolean): void {
   }
 }
 
-// Main function
-async function main() {
-  const { targetDir, noSubSkill } = parseArgs();
-  const outputDir = path.join(targetDir, "cloudbase");
-  const referencesDir = path.join(outputDir, "references");
+export function buildAllInOneSkill(
+  targetDir: string,
+  noSubSkill = false,
+): { outputDir: string; skillCount: number } {
+  const outputDir = path.join(targetDir, 'cloudbase');
+  const referencesDir = path.join(outputDir, 'references');
 
   console.log("🔧 Building All-in-One CloudBase Skill...\n");
   console.log(`📂 Source: ${TOOLKIT_ROOT}`);
@@ -213,9 +214,22 @@ async function main() {
       `   Note: Sub-skill SKILL.md files renamed to README.md for spec compliance`,
     );
   }
+
+  return {
+    outputDir,
+    skillCount: allSkills.length,
+  };
 }
 
-main().catch((err) => {
-  console.error("❌ Error:", err.message);
-  process.exit(1);
-});
+// Main function
+async function main() {
+  const { targetDir, noSubSkill } = parseArgs();
+  buildAllInOneSkill(targetDir, noSubSkill);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  main().catch(err => {
+    console.error('❌ Error:', err.message);
+    process.exit(1);
+  });
+}

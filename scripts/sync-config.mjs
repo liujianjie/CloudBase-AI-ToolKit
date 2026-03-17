@@ -35,13 +35,14 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { buildCompatConfig } from './build-compat-config.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 项目根目录
 const projectRoot = path.resolve(__dirname, '..');
-const configDir = path.join(projectRoot, 'config');
+const configDir = path.join(projectRoot, '.generated', 'compat-config');
 const templateConfigPath = path.join(__dirname, 'template-config.json');
 
 // 获取 cloudbase-examples 路径（支持环境变量，用于 CI 环境）
@@ -278,6 +279,10 @@ async function syncConfigs(options = {}) {
   } = options;
 
   console.log('🚀 开始同步配置和规则到模板项目...\n');
+
+  const compatResult = buildCompatConfig();
+  console.log(`🧱 已生成兼容配置目录: ${compatResult.outputDir}`);
+  console.log(`📦 兼容技能数量: ${compatResult.skillCount}`);
   
   // 检查config目录是否存在
   if (!fs.existsSync(configDir)) {

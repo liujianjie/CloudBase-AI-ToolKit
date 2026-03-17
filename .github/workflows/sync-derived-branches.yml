@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'scripts/skills-repo-template/cloudbase-guidelines/SKILL.md'
-      - 'config/.claude/skills/**'
+      - 'config/source/guideline/**'
+      - 'config/source/skills/**'
       - 'scripts/build-allinone-skill.ts'
       - 'scripts/sync-codebuddy-plugin.ts'
   workflow_dispatch:
@@ -74,15 +74,12 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Build all-in-one skill
-        run: npx tsx scripts/build-allinone-skill.ts --dir config/allinone
-
       - name: Sync codebuddy plugin
         run: npx tsx scripts/sync-codebuddy-plugin.ts
 
       - name: Commit and push
         run: |
-          git add config/allinone config/codebuddy-plugin/skills config/codebuddy-plugin/rules config/codebuddy-plugin/.codebuddy-plugin
+          git add config/codebuddy-plugin/skills config/codebuddy-plugin/rules config/codebuddy-plugin/.codebuddy-plugin
           if git diff --staged --quiet; then
             echo "No changes, skipping."
           else

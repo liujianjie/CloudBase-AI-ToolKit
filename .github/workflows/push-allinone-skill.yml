@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'config/.claude/skills/**'
+      - 'config/source/skills/**'
+      - 'config/source/guideline/**'
       - 'scripts/build-allinone-skill.ts'
-      - 'scripts/skills-repo-template/**'
   workflow_dispatch:
 
 jobs:

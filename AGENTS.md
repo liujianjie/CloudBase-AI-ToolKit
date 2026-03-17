@@ -54,18 +54,21 @@ alwaysApply: true
 <add_aiide>
 # CloudBase AI Toolkit - 新增 AI IDE 支持工作流
 
-1. 创建 IDE 特定配置文件（如 `.mcp.json` 和 `AGENTS.md`）
-2. 更新 `scripts/fix-config-hardlinks.sh` 添加新目标文件到硬链接列表
-3. 执行硬链接脚本确保规则文件同步
-4. 创建 `doc/ide-setup/{ide-name}.md` 配置文档
-5. 更新 `README.md`、`doc/index.md`、`doc/faq.md` 中的 AI IDE 支持列表,README 中注意 detail 中的内容也要填写
-6. **更新 IDE 文件映射**：
+1. 在 `config/source/editor-config/` 中补充该 IDE 所需的机器配置文件或兼容说明文件
+2. 如需新增 rules / instructions 兼容产物，更新 `scripts/build-compat-config.mjs` 的生成目标
+3. 更新 `mcp/src/tools/setup.ts` 中该 IDE 的文件映射和描述
+4. 如新增 skill 级兼容要求，确认是否需要保留到 `config/.claude/skills/` 镜像
+5. 创建 `doc/ide-setup/{ide-name}.md` 配置文档
+6. 更新 `README.md`、`doc/index.md`、`doc/faq.md` 中的 AI IDE 支持列表,README 中注意 detail 中的内容也要填写
+7. **更新 IDE 文件映射**：
    - 在 `mcp/src/tools/setup.ts` 的 `ALL_IDE_FILES` 数组中添加新IDE的配置文件路径
    - 在 `IDE_FILE_MAPPINGS` 对象中添加新IDE的文件映射关系
    - 在 `IDE_DESCRIPTIONS` 对象中添加新IDE的描述
    - 在 `IDE_TYPES` 数组中添加新IDE的类型
-7. 验证硬链接状态和文档完整性
-8. 测试IDE特定下载功能是否正常工作
+8. 执行 `node scripts/build-compat-config.mjs` 验证兼容产物生成
+9. 如需本地检查 Claude skills 镜像，执行 `node scripts/sync-claude-skills-mirror.mjs --check`
+10. 执行 `node scripts/diff-compat-config.mjs` 验证外部兼容面无回退
+11. 测试IDE特定下载功能是否正常工作
 </add_aiide>
 
 <sync_doc>
@@ -81,9 +84,15 @@ cp -r doc/* {cloudbase-docs dir}/docs/ai/cloudbase-ai-toolkit/
 
 
 <fix-config-hardlinks>
-用来修复 config 中的硬链接
-sh ./scripts/fix-config-hardlinks.sh
-</update_readme>
+兼容文件不再通过硬链接维护。
+日常维护时，直接修改 `config/source/skills/`、`config/source/guideline/`、`config/source/editor-config/` 并提交即可。
+`config/.claude/skills/` 是从 `config/source/skills/` 自动同步的兼容镜像，不要手改。
+兼容产物的生成和对外发布主要由 CI / workflow 负责，不需要像以前一样手动跑同步脚本。
+只有在需要本地验证或手动同步外部模板仓库时，才执行：
+1. `node scripts/sync-claude-skills-mirror.mjs`
+2. `node scripts/build-compat-config.mjs`
+3. `node scripts/sync-config.mjs`
+</fix-config-hardlinks>
 
 
 <git_push>
@@ -142,12 +151,15 @@ git push github && git push cnb --force
 <add_aiide>
 # CloudBase AI Toolkit - 新增 AI IDE 支持工作流
 
-1. 创建 IDE 特定配置文件（如 `.mcp.json` 和 `AGENTS.md`）
-2. 更新 `scripts/fix-config-hardlinks.sh` 添加新目标文件到硬链接列表
-3. 执行硬链接脚本确保规则文件同步
-4. 创建 `doc/ide-setup/{ide-name}.md` 配置文档
-5. 更新 `README.md`、`doc/index.md`、`doc/faq.md` 中的 AI IDE 支持列表,README 中注意 detail 中的内容也要填写
-6. 验证硬链接状态和文档完整性
+1. 在 `config/source/editor-config/` 中补充该 IDE 所需的机器配置文件或兼容说明文件
+2. 如需新增 rules / instructions 兼容产物，更新 `scripts/build-compat-config.mjs` 的生成目标
+3. 更新 `mcp/src/tools/setup.ts` 中该 IDE 的文件映射和描述
+4. 如新增 skill 级兼容要求，确认是否需要保留到 `config/.claude/skills/` 镜像
+5. 创建 `doc/ide-setup/{ide-name}.md` 配置文档
+6. 更新 `README.md`、`doc/index.md`、`doc/faq.md` 中的 AI IDE 支持列表,README 中注意 detail 中的内容也要填写
+7. 执行 `node scripts/build-compat-config.mjs` 验证兼容产物生成
+8. 如需本地检查 Claude skills 镜像，执行 `node scripts/sync-claude-skills-mirror.mjs --check`
+9. 执行 `node scripts/diff-compat-config.mjs` 验证外部兼容面无回退
 </add_aiide>
 
 
@@ -173,9 +185,15 @@ cp -r doc/* {cloudbase-docs dir}/docs/ai/cloudbase-ai-toolkit/
 
 
 <fix-config-hardlinks>
-用来修复 config 中的硬链接
-sh ./scripts/fix-config-hardlinks.sh
-</update_readme>
+兼容文件不再通过硬链接维护。
+日常维护时，直接修改 `config/source/skills/`、`config/source/guideline/`、`config/source/editor-config/` 并提交即可。
+`config/.claude/skills/` 是从 `config/source/skills/` 自动同步的兼容镜像，不要手改。
+兼容产物的生成和对外发布主要由 CI / workflow 负责，不需要像以前一样手动跑同步脚本。
+只有在需要本地验证或手动同步外部模板仓库时，才执行：
+1. `node scripts/sync-claude-skills-mirror.mjs`
+2. `node scripts/build-compat-config.mjs`
+3. `node scripts/sync-config.mjs`
+</fix-config-hardlinks>
 
 
 <git_push>

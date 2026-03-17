@@ -87,177 +87,106 @@ npm run changelog
 
 ## Rules 管理流程
 
-项目使用硬链接机制来保持所有 AI IDE 配置文件的一致性。理解这个流程对于正确维护 rules 非常重要。
+项目现在采用“最小源 + 生成兼容层”的方式维护 AI IDE 配置，不再依赖仓库内硬链接副本。
 
 ### 核心原则
 
-1. **新增模块 rules**：在 `config/.claude/skills` 中创建
-2. **系统顶级 rules**：在 `config/.cursor/rules/cloudbase-rules.mdc` 中修改
+1. **模块化 skill 源**：在 `config/source/skills/` 中维护
+2. **总入口 guideline 源**：在 `config/source/guideline/` 中维护
+3. **IDE / MCP 机器配置源**：在 `config/source/editor-config/` 中维护
+4. **Claude skills 兼容镜像**：保留在 `config/.claude/skills/`，由 source 自动同步，不要手改
+5. **CodeBuddy 插件专属源**：在 `config/codebuddy-plugin/` 中维护
+6. **兼容产物**：统一生成到 `.generated/compat-config/`，不要手改
 
-### 目录结构关系
+### 当前目录关系
 
 ```
-config/
-├── .claude/
-│   └── skills/              # 源目录：新增模块 rules 在这里创建
-│       └── [module]/
-│           └── SKILL.md     # 模块规则文件
-├── .codebuddy/
-│   └── skills/              # 硬链接自 .claude/skills
-├── rules/                   # 从 .claude/skills 复制（SKILL.md -> rule.md）
-│   └── [module]/
-│       └── rule.md
-└── .cursor/
-    └── rules/
-        ├── cloudbase-rules.mdc  # 系统顶级 rules（在这里修改）
-        └── [module]/            # 硬链接自 config/rules（.md -> .mdc 转换）
+config/source/skills/      # 模块化 skills 唯一语义源
+config/source/guideline/   # 总入口 guideline 唯一语义源
+config/source/editor-config/ # IDE / MCP 配置唯一机器源
+config/.claude/skills/     # Claude skills 兼容镜像（生成并提交）
+config/codebuddy-plugin/   # CodeBuddy 插件保留源
+
+.generated/compat-config/  # 兼容产物输出目录（生成）
+.skills-repo-output/       # skills 仓库发布产物（生成）
 ```
 
-### 同步流程
+### 日常维护流程
 
-运行 `npm run build:rules-sync` 或 `node scripts/fix-config-hardlinks.mjs` 会执行以下同步：
+大多数情况下，日常修改只需要改源目录并提交，不需要像以前一样手动跑同步脚本：
 
-1. **Skills 目录同步**（硬链接）
-   - `config/.claude/skills` → `config/.codebuddy/skills`
-   - 使用硬链接，修改任一文件会同步到另一个
-
-2. **Skills 到 Rules 同步**（复制）
-   - `config/.claude/skills` → `config/rules`
-   - 复制文件，`SKILL.md` 重命名为 `rule.md`
-   - 保持原有目录结构
-
-3. **Rules 到 IDE 目录同步**（硬链接）
-   - `config/rules` → 各 IDE 特定目录：
-     - `config/.qoder/rules`
-     - `config/.cursor/rules`（.md → .mdc 转换）
-     - `config/.agent/rules`
-     - `config/.trae/rules`
-     - `config/.windsurf/rules`
-     - `config/.clinerules`
-     - `config/.kiro/steering`
-   - 使用硬链接，Cursor 需要将 `.md` 转换为 `.mdc` 格式
-
-4. **系统顶级 Rules 同步**（硬链接）
-   - `config/.cursor/rules/cloudbase-rules.mdc` → 其他 IDE 的规则文件
-   - 使用硬链接，修改 Cursor 的文件会同步到所有其他 IDE
-
-### 如何新增模块 Rules
-
-1. **在 `config/.claude/skills` 中创建新模块**：
+1. 修改 `config/source/skills/`、`config/source/guideline/`、`config/source/editor-config/`
+2. 如果是 CodeBuddy 插件专属内容，修改 `config/codebuddy-plugin/`
+3. `config/.claude/skills/` 会由 CI 自动从 `config/source/skills/` 同步，不要手改
+3. 如果 skill 内容变更影响 prompts 文档，运行：
    ```bash
-   config/.claude/skills/[module-name]/
-   └── SKILL.md
+   node scripts/generate-prompts-data.mjs && node scripts/generate-prompts.mjs
+   ```
+4. 提交源码和需要跟随提交的文档产物
+
+兼容文件的生成、外部模板同步、skills repo 发布和 all-in-one 发布，主要由 CI / workflow 负责。
+
+### 本地验证与手动同步
+
+只有在你需要本地验证兼容面，或者要手动同步外部模板仓库时，才运行下面这些脚本：
+
+```bash
+node scripts/sync-claude-skills-mirror.mjs
+node scripts/build-compat-config.mjs
+node scripts/diff-compat-config.mjs
+node scripts/sync-config.mjs
+```
+
+脚本含义：
+
+- `sync-claude-skills-mirror.mjs`：将 `config/source/skills/` 同步到仓库内保留的 `config/.claude/skills/` 兼容镜像
+- `build-compat-config.mjs`：从最小源生成 `.generated/compat-config/`
+- `diff-compat-config.mjs`：检查生成结果是否与兼容基线一致
+- `sync-config.mjs`：将兼容产物同步到外部 `awsome-cloudbase-examples` 仓库
+
+### 如何新增模块 Skill
+
+1. 在 `config/source/skills/[module-name]/SKILL.md` 中创建模块
+2. 如该模块还包含补充文档，可与 `SKILL.md` 并列放置
+3. 如果需要更新 prompts 展示，运行：
+   ```bash
+   node scripts/generate-prompts-data.mjs && node scripts/generate-prompts.mjs
    ```
 
-2. **运行同步脚本**：
+### 如何修改总入口 guideline
+
+1. 修改 `config/source/guideline/cloudbase/SKILL.md`
+2. 这会影响：
+   - all-in-one skill 构建
+   - skills repo 里的 `cloudbase-guidelines`
+3. 如需本地验证 all-in-one，可运行：
    ```bash
-   npm run build:rules-sync
+   npx tsx scripts/build-allinone-skill.ts --dir /tmp/allinone-build
    ```
-
-3. **自动同步结果**：
-   - ✅ 自动复制到 `config/rules/[module-name]/rule.md`
-   - ✅ 自动硬链接到所有 IDE 目录
-   - ✅ Cursor 目录会自动转换为 `.mdc` 格式
-
-### 如何修改系统顶级 Rules
-
-1. **直接编辑 `config/.cursor/rules/cloudbase-rules.mdc`**
-
-2. **运行同步脚本**：
-   ```bash
-   npm run build:rules-sync
-   ```
-
-3. **自动同步结果**：
-   - ✅ 通过硬链接自动同步到所有其他 IDE 的规则文件
-   - ✅ 修改一个文件，所有文件都会更新（因为是硬链接）
 
 ### 如何新增 IDE 支持
 
-当需要支持新的 AI IDE 时，需要修改 `scripts/fix-config-hardlinks.mjs` 文件中的以下配置：
+新增 IDE 时，不再修改硬链接脚本，而是更新生成链和消费映射：
 
-#### 1. 添加系统顶级 Rules 目标路径
-
-在 `RULES_TARGETS` 数组中添加新 IDE 的规则文件路径：
-
-```javascript
-const RULES_TARGETS = [
-  // ... 现有配置
-  "config/.your-ide/rules/cloudbase-rules.md",  // 新增 IDE 的规则文件路径
-];
-```
-
-**注意事项**：
-- 文件扩展名根据 IDE 要求选择（`.md`、`.mdc`、`.mdr` 等）
-- 路径格式：`config/.{ide-name}/rules/cloudbase-rules.{ext}`
-
-#### 2. 添加 IDE 特定 Rules 目录配置
-
-在 `syncRulesToIDEDirectories()` 函数的 `ideRulesConfigs` 数组中添加配置：
-
-```javascript
-const ideRulesConfigs = [
-  // ... 现有配置
-  { 
-    dir: "config/.your-ide/rules", 
-    convertMdToMdc: false  // 如果 IDE 需要 .mdc 格式，设为 true
-  },
-];
-```
-
-**配置说明**：
-- `dir`: IDE 的 rules 目录路径
-- `convertMdToMdc`: 是否需要将 `.md` 文件转换为 `.mdc` 格式（仅 Cursor 需要）
-
-#### 3. 添加 Skills 目录同步（可选）
-
-如果新 IDE 需要同步 skills 目录，修改 `syncSkillsDirectory()` 函数：
-
-```javascript
-const SKILLS_SOURCE_DIR = "config/.claude/skills";
-const SKILLS_TARGET_DIR = "config/.codebuddy/skills";
-// 如果需要同步到新 IDE，添加新的目标目录配置
-```
-
-然后在 `main()` 函数中调用同步函数。
-
-#### 4. 运行同步脚本验证
-
-修改完成后，运行同步脚本验证配置：
-
-```bash
-npm run build:rules-sync
-```
-
-**验证检查**：
-- ✅ 检查新 IDE 目录是否创建
-- ✅ 检查规则文件是否正确硬链接
-- ✅ 检查文件格式转换是否正确（如果设置了 `convertMdToMdc: true`）
-
-#### 示例：添加新 IDE "MyIDE"
-
-```javascript
-// 1. 在 RULES_TARGETS 中添加
-const RULES_TARGETS = [
-  // ... 现有配置
-  "config/.myide/rules/cloudbase-rules.md",
-];
-
-// 2. 在 ideRulesConfigs 中添加
-const ideRulesConfigs = [
-  // ... 现有配置
-  { dir: "config/.myide/rules", convertMdToMdc: false },
-];
-```
+1. 在 `config/source/editor-config/` 中添加该 IDE 所需的机器配置或兼容说明文件
+2. 更新 `scripts/build-compat-config.mjs`，让生成器输出该 IDE 的兼容产物
+3. 更新 `mcp/src/tools/setup.ts` 中的 IDE 枚举、文件映射和描述
+4. 运行：
+   ```bash
+   node scripts/build-compat-config.mjs
+   node scripts/diff-compat-config.mjs
+   ```
+5. 更新相关文档
 
 ### 重要提示
 
-- ⚠️ **不要直接修改** `config/rules` 或其他 IDE 目录中的文件
-- ✅ **新增模块**：在 `config/.claude/skills` 中创建
-- ✅ **修改顶级规则**：在 `config/.cursor/rules/cloudbase-rules.mdc` 中修改
-- ✅ **运行同步**：修改后运行 `npm run build:rules-sync` 同步到所有位置
-- 💡 **硬链接机制**：使用硬链接确保所有 IDE 配置文件保持一致，修改一处即可同步到所有位置
-- 🔧 **新增 IDE**：修改 `fix-config-hardlinks.mjs` 中的配置数组，然后运行同步脚本
+- ⚠️ **不要手改** `.generated/compat-config/` 中的文件
+- ⚠️ **不要手改** `config/.claude/skills/`，它是兼容镜像
+- ⚠️ **不要把 `config/` 当作通用 rules 源目录**
+- ✅ **新增模块**：在 `config/source/skills/` 中创建
+- ✅ **修改总控 guideline**：在 `config/source/guideline/` 中修改
+- ✅ **修改 IDE / MCP 配置**：在 `config/source/editor-config/` 中修改
+- ✅ **需要本地验证时**：运行 `node scripts/diff-compat-config.mjs`
 
 ## 代码风格
 

@@ -2,7 +2,7 @@
 
 /**
  * Build Agent Skills Repository Script
- * Collects all agent skills from config/.claude/skills/ and outputs them
+ * Collects all agent skills from config/source/skills/ and outputs them
  * to .skill-repo-output/skills/ for publishing to a separate repository.
  */
 
@@ -24,7 +24,7 @@ const colors = {
 };
 
 // Configuration
-const SKILLS_SOURCE_DIR = "config/.claude/skills";
+const SKILLS_SOURCE_DIR = path.join("config", "source", "skills");
 const OUTPUT_DIR = ".skills-repo-output";
 const SKILLS_OUTPUT_DIR = path.join(OUTPUT_DIR, "skills");
 const README_TEMPLATE_PATH = path.join(
@@ -32,10 +32,12 @@ const README_TEMPLATE_PATH = path.join(
   "skills-repo-template",
   "readme-template.md",
 );
-const ADDITIONAL_SKILLS_DIR = path.join(
-  __dirname,
-  "skills-repo-template",
-  "cloudbase-guidelines",
+const GUIDELINE_SOURCE_DIR = path.join(
+  projectRoot,
+  "config",
+  "source",
+  "guideline",
+  "cloudbase",
 );
 
 /**
@@ -198,7 +200,8 @@ async function buildSkillsRepo() {
   const skillDirs = fs
     .readdirSync(sourcePath, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    .filter((name) => fs.existsSync(path.join(sourcePath, name, "SKILL.md")));
 
   console.log(
     `${colors.BLUE}📋 找到 ${skillDirs.length} 个技能目录${colors.NC}`,
@@ -248,13 +251,13 @@ async function buildSkillsRepo() {
   }
 
   // Process additional skills from template directory
-  if (fs.existsSync(ADDITIONAL_SKILLS_DIR)) {
+  if (fs.existsSync(GUIDELINE_SOURCE_DIR)) {
     console.log(
       `\n${colors.BLUE}📦 处理额外技能: cloudbase-guidelines${colors.NC}`,
     );
 
     const skillDir = "cloudbase-guidelines";
-    const skillSourcePath = ADDITIONAL_SKILLS_DIR;
+    const skillSourcePath = GUIDELINE_SOURCE_DIR;
     const skillOutputPath = path.join(skillsOutputPath, skillDir);
 
     // Parse skill metadata
