@@ -51,8 +51,12 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
 
       const accessType = type === "HTTP" ? 6 : 1;
 
+      const typedAccessType = accessType as unknown as 1 | 2 | undefined;
+
       const result = await cloudbase.access.createAccess({
-        type: accessType as 1 | 6,
+        // Backend accepts HTTP function type 6, but current SDK typing only exposes 1 | 2.
+        // We keep the runtime value in accessType and satisfy TypeScript with a narrowed alias.
+        type: typedAccessType,
         name,
         path: normalizedPath,
       });
