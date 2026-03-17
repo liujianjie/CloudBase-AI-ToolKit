@@ -978,7 +978,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     {
       title: "查询云函数层信息",
       description:
-        "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。返回格式：JSON 包含 success、data（含 action 与对应结果字段）、message；data.layers 或 data.layerVersions 为数组，getFunctionLayers 的 data.layers 每项为 { LayerName, LayerVersion }。",
+        "查询云函数层及函数层配置。通过 action 区分操作：listLayers=查询层列表，listLayerVersions=查询指定层的版本列表，getLayerVersion=查询层版本详情（含下载地址/元信息），getFunctionLayers=查询指定函数当前绑定的层。返回格式：JSON 包含 success、data（含 action 与对应结果字段）、message；data.layers 或 data.layerVersions 为数组，getFunctionLayers 的 data.layers 中的每个元素都是一个包含 LayerName 和 LayerVersion 字段的对象（each element in data.layers is an object with LayerName and LayerVersion fields）。",
       inputSchema: {
         action: z
           .enum(READ_FUNCTION_LAYER_ACTIONS)

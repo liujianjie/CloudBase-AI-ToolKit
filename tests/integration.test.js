@@ -316,38 +316,168 @@ test("Database tools support object/object[] parameters", async () => {
     await client.connect(transport);
     await delay(3000);
 
+    // 尝试批量清理历史测试集合（统一前缀），避免占满集合配额
+    console.log("🧹 尝试批量清理历史测试集合（前缀 test_collection_）");
     try {
-      // 创建集合（使用 writeNoSqlDatabaseStructure 工具）
-      console.log("📝 尝试创建集合:", testCollection);
+      const listRes = await client.callTool({
+        name: "readNoSqlDatabaseStructure",
+        arguments: {
+          action: "listCollections",
+          limit: 200,
+        },
+      });
+      const listText = listRes?.content?.[0]?.text ?? "";
+      let collectionNames = [];
+      try {
+        const parsed = JSON.parse(listText);
+        const rawCollections =
+          parsed?.data?.collections ||
+          parsed?.collections ||
+          parsed?.CollectionInfos ||
+          [];
+        collectionNames = rawCollections
+          .map((item) => {
+            if (!item) return null;
+            if (typeof item === "string") return item;
+            return (
+              item.name ||
+              item.collectionName ||
+              item.CollectionName ||
+              item.Name ||
+              null
+            );
+          })
+          .filter((name) => typeof name === "string")
+          .filter(
+            (name) =>
+              name.startsWith("test_collection_") && name !== testCollection,
+          );
+      } catch (e) {
+        console.warn(
+          "⚠️ 解析集合列表结果失败，跳过批量清理：",
+          (e && e.message) || String(e || ""),
+        );
+      }
+
+      for (const name of collectionNames) {
+        console.log("🧹 删除历史测试集合:", name);
+        try {
+          await client.callTool({
+            name: "writeNoSqlDatabaseStructure",
+            arguments: {
+              action: "deleteCollection",
+              collectionName: name,
+            },
+          });
+        } catch (error) {
+          const msg = error && error.message ? error.message : String(error || "");
+          if (/not exist|不存在/i.test(msg)) {
+            console.log("ℹ️ 历史测试集合不存在，无需删除:", name);
+          } else {
+            console.warn(
+              "⚠️ 删除历史测试集合时出现错误（继续后续测试）:",
+              name,
+              msg,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(
+        "⚠️ 列出集合以批量清理测试集合时出现错误（继续后续测试）:",
+        (e && e.message) || String(e || ""),
+      );
+    }
+
+    // 再尝试先清理本次要用的同名测试集合，避免上次测试遗留状态影响本次结果
+    console.log("🧹 尝试清理本次测试集合（如果存在）:", testCollection);
+    try {
       await client.callTool({
+        name: "writeNoSqlDatabaseStructure",
+        arguments: {
+          action: "deleteCollection",
+          collectionName: testCollection,
+        },
+      });
+      console.log("✅ 历史测试集合已删除或不存在");
+    } catch (error) {
+      const msg = error && error.message ? error.message : String(error || "");
+      if (/not exist|不存在/i.test(msg)) {
+        console.log("ℹ️ 测试集合不存在，无需删除");
+      } else {
+        console.warn("⚠️ 删除历史测试集合时出现错误（继续后续测试）:", msg);
+      }
+    }
+
+    // Create collection (writeNoSqlDatabaseStructure) and assert success so we know create actually succeeded.
+    console.log("📝 尝试创建集合:", testCollection);
+    let createRes;
+    try {
+      createRes = await client.callTool({
         name: "writeNoSqlDatabaseStructure",
         arguments: {
           action: "createCollection",
           collectionName: testCollection,
         },
       });
-      console.log("✅ 集合创建成功");
     } catch (error) {
-      console.log("⚠️ 数据库已经创建，跳过创建集合", error.message);
+      if (error.message && /already exist|已存在|already created/i.test(error.message)) {
+        console.log("⚠️ 数据库已经创建，跳过创建集合", error.message);
+      } else {
+        throw error;
+      }
+    }
+    if (createRes) {
+      const createText = createRes.content?.[0]?.text ?? "";
+      if (createText.includes("Table overrun") || createText.includes("overrun")) {
+        console.log(
+          "⏭️ Skipped: Collection limit reached (Table overrun). Delete unused collections in CloudBase console or use another env.",
+        );
+        return;
+      }
+      if (!createText.includes("云开发数据库集合创建成功") && !createText.includes('"success":true')) {
+        throw new Error(
+          `createCollection did not report success. Response: ${createText.slice(0, 500)}`,
+        );
+      }
+      console.log("✅ 集合创建成功，工具返回:", createText.slice(0, 200));
     }
 
-    // 1. writeNoSqlDatabaseContent.insert 支持 object[]
-    console.log("📝 尝试插入文档...");
+    // Wait for collection to become writable after create (see specs/nosql-collection-readiness).
+    // Backend may return success before the collection is ready for PutItem.
+    await delay(5000);
+
+    // 1. writeNoSqlDatabaseContent.insert 支持 object[] (retry when collection not ready yet)
     const docs = [
       { name: "Alice", age: 18, nested: { foo: "bar" } },
       { name: "Bob", age: 20, tags: ["a", "b"] },
     ];
-    const insertRes = await client.callTool({
-      name: "writeNoSqlDatabaseContent",
-      arguments: {
-        action: "insert",
-        collectionName: testCollection,
-        documents: docs,
-        // 兼容严格的 schema，insert 不使用 query/update
-        query: {},
-        update: {},
-      },
-    });
+    const maxInsertRetries = 3;
+    const insertRetryDelayMs = 5000;
+    let insertRes;
+    for (let attempt = 1; attempt <= maxInsertRetries; attempt++) {
+      console.log(`📝 尝试插入文档 (${attempt}/${maxInsertRetries})...`);
+      insertRes = await client.callTool({
+        name: "writeNoSqlDatabaseContent",
+        arguments: {
+          action: "insert",
+          collectionName: testCollection,
+          documents: docs,
+          query: {},
+          update: {},
+        },
+      });
+      const text = insertRes?.content?.[0]?.text ?? "";
+      if (text.includes("文档插入成功")) {
+        break;
+      }
+      if (text.includes("Db or Table not exist") && attempt < maxInsertRetries) {
+        console.log(`⚠️ 集合尚未就绪，${insertRetryDelayMs / 1000}s 后重试`);
+        await delay(insertRetryDelayMs);
+        continue;
+      }
+      break;
+    }
     expect(insertRes).toBeDefined();
     expect(insertRes.content[0].text).toContain("文档插入成功");
     console.log("✅ 文档插入成功");
