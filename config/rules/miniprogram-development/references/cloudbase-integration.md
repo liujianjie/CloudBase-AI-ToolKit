@@ -164,7 +164,7 @@ npx mcporter config add cloudbase \
 Common discovery commands:
 
 - `npx mcporter list`
-- `npx mcporter describe cloudbase --all-parameters` (⚠️ 必须加 `--all-parameters` 才能获取完整参数信息)
+- `npx mcporter describe cloudbase`
 - `npx mcporter list cloudbase --schema`
 - `npx mcporter call cloudbase.help --output json`
 
