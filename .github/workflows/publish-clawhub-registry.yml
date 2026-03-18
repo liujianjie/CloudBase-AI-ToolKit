@@ -1,6 +1,17 @@
 name: Publish ClawHub Registry
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'config/source/skills/**'
+      - 'config/source/guideline/**'
+      - 'scripts/build-allinone-skill.ts'
+      - 'scripts/build-clawhub-publish-artifacts.mjs'
+      - 'scripts/clawhub-publish-targets.mjs'
+      - 'scripts/publish-to-clawhub.mjs'
+      - '.github/workflows/publish-clawhub-registry.yml'
   workflow_dispatch:
     inputs:
       targets:
@@ -38,11 +49,11 @@ jobs:
     permissions:
       contents: read
     env:
-      TARGETS: ${{ inputs.targets }}
-      BUMP: ${{ inputs.bump }}
-      CHANGELOG: ${{ inputs.changelog }}
-      TAGS: ${{ inputs.tags }}
-      DRY_RUN: ${{ inputs.dry_run }}
+      TARGETS: ${{ github.event_name == 'workflow_dispatch' && inputs.targets || 'miniprogram-development,all-in-one' }}
+      BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.bump || 'minor' }}
+      CHANGELOG: ${{ github.event_name == 'workflow_dispatch' && inputs.changelog || '' }}
+      TAGS: ${{ github.event_name == 'workflow_dispatch' && inputs.tags || 'latest' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
 
     steps:
       - name: Checkout toolkit repository
