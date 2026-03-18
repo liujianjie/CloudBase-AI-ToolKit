@@ -38,6 +38,7 @@ jobs:
     permissions:
       contents: read
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       TARGETS: ${{ inputs.targets }}
       BUMP: ${{ inputs.bump }}
       CHANGELOG: ${{ inputs.changelog }}
