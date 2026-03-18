@@ -203,3 +203,34 @@ cp -r doc/* {cloudbase-docs dir}/docs/ai/cloudbase-ai-toolkit/
 git push github && git push cnb --force
 3. 然后自动创建 PR
 </git_push>
+
+<skills_and_rules_maintenance>
+对外暴露的 skills 和规则文件采用「单一语义源 + 自动生成兼容层」的方式维护，具体约定如下：
+
+1. skills 源（对外 Skill 能力定义）
+   - 修改 / 新增任何对外 Skill 时，只编辑 `config/source/skills/` 目录下的模块化 `SKILL.md`
+   - 如果需要拆模块，可以按功能拆分子目录，例如 `config/source/skills/database/`、`config/source/skills/web/`
+
+2. guideline / rules 总入口
+   - 所有对外公开阅读的总入口规则（如 CloudBase 总指南）统一维护在 `config/source/guideline/` 下
+   - 例如 CloudBase 主入口为 `config/source/guideline/cloudbase/SKILL.md`
+
+3. IDE / MCP 机器配置
+   - 与 IDE / 插件 / MCP 相关的机器配置放在 `config/source/editor-config/`
+   - 新增 IDE 或修改 IDE 行为时，只需要更新这里和 `mcp/src/tools/setup.ts` 中的映射
+
+4. 兼容镜像与生成产物（禁止直接修改）
+   - `config/.claude/skills/`：从 `config/source/skills/` 自动同步的 Claude skills 兼容镜像，不要手动编辑
+   - `.generated/compat-config/`：各 IDE / 外部模板使用的兼容配置生成目录，不要手动编辑
+   - `.skills-repo-output/`：对外 skills 仓库发布产物目录，不要手动编辑
+
+5. 本地验证与对外发布
+   - 日常只需要修改 `config/source/skills/`、`config/source/guideline/`、`config/source/editor-config/`，其余交给 CI
+   - 如果 Skill 变更会影响对外公开的 prompts 文档（例如修改 `config/source/skills/cloudbase-platform/SKILL.md` 需要同步更新 `doc/prompts/cloudbase-platform.mdx`），在提交前必须本地运行：
+     - `node scripts/generate-prompts-data.mjs && node scripts/generate-prompts.mjs`
+   - 只有在需要本地验证兼容面或同步外部模板仓库时，才运行：
+     - `node scripts/sync-claude-skills-mirror.mjs`
+     - `node scripts/build-compat-config.mjs`
+     - `node scripts/diff-compat-config.mjs`
+     - `node scripts/sync-config.mjs`
+</skills_and_rules_maintenance>

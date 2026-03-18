@@ -188,6 +188,59 @@ node scripts/sync-config.mjs
 - ✅ **修改 IDE / MCP 配置**：在 `config/source/editor-config/` 中修改
 - ✅ **需要本地验证时**：运行 `node scripts/diff-compat-config.mjs`
 
+## 对外 Skill 贡献与维护流程
+
+CloudBase AI ToolKit 的对外 Skill（例如对外发布的 Skill 仓库、IDE 集成使用的 all-in-one Skill 等）统一从 `config/source` 系列目录生成，不直接在生成产物目录中维护。
+
+### 1. 修改已有对外 Skill
+
+1. 找到对应模块的源 Skill：
+   - 功能模块 Skill：`config/source/skills/[module-name]/SKILL.md`
+   - 全局 guideline / 入口 Skill：`config/source/guideline/cloudbase/SKILL.md` 等
+2. 在上述源文件中修改说明、约束或行为描述（保持英文注释、中文对外文档的既有风格）
+3. 如该修改会影响对外展示的 prompts 文档，建议本地运行：
+   ```bash
+   node scripts/generate-prompts-data.mjs && node scripts/generate-prompts.mjs
+   ```
+4. 提交时仅提交 `config/source/*` 及必要的文档产物，不直接提交 `.generated/compat-config/` 与 `.skills-repo-output/` 中的内容（除非明确说明需要）。
+
+### 2. 新增对外 Skill
+
+1. 在 `config/source/skills/[module-name]/SKILL.md` 中创建新的模块化 Skill 文件，推荐按功能维度划分目录：
+   - 例如：`config/source/skills/web/`、`config/source/skills/database/`、`config/source/skills/miniprogram/` 等
+2. 如果该 Skill 需要在对外 all-in-one Skill 或指南中出现：
+   - 在 `config/source/guideline/` 中更新对应入口（例如 `cloudbase/SKILL.md`）
+3. 如需要更新 prompts 展示，同样可以运行：
+   ```bash
+   node scripts/generate-prompts-data.mjs && node scripts/generate-prompts.mjs
+   ```
+4. 提交 PR 时在描述里简要说明：
+   - 新增了哪些模块 Skill
+   - 预期对哪些 IDE / 对外集成场景有影响
+
+### 3. 对外 Skill 生成与发布（维护者视角）
+
+一般贡献者只需要修改源目录，生成与发布由 CI 完成；维护者在需要本地验证、调试发布流程时，可参考：
+
+1. 本地验证兼容配置与对外 Skill 产物：
+   ```bash
+   node scripts/sync-claude-skills-mirror.mjs
+   node scripts/build-compat-config.mjs
+   node scripts/diff-compat-config.mjs
+   ```
+   - 生成产物会输出到：
+     - `.generated/compat-config/`：IDE / 外部模板使用的兼容配置
+     - `.skills-repo-output/`：对外 Skill 仓库发布产物
+2. 如需将配置同步到外部模板 / 示例仓库，可使用：
+   ```bash
+   node scripts/sync-config.mjs
+   ```
+   或通过仓库提供的 GitHub Actions（如 `build-zips.yml`、`sync-branch.yml`）进行自动同步和构建。
+3. 维护者在评审 PR 时，重点检查：
+   - 是否只修改了 `config/source/*` 源目录（以及必要的文档）
+   - 是否没有直接修改 `config/.claude/skills/`、`.generated/compat-config/`、`.skills-repo-output/`
+   - 是否在 PR 描述中清晰说明了对外 Skill 行为变化
+
 ## 代码风格
 
 - 遵循项目的代码风格指南
