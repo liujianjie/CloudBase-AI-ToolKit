@@ -3,7 +3,9 @@ import { homedir } from 'os';
 import { expandHomePath } from './path-safety.mjs';
 
 const HOME = homedir();
+const CONFIG_HOME = process.env.XDG_CONFIG_HOME?.trim() || path.join(HOME, '.config');
 const CODEX_HOME = process.env.CODEX_HOME?.trim() || path.join(HOME, '.codex');
+const CLAUDE_HOME = process.env.CLAUDE_CONFIG_DIR?.trim() || path.join(HOME, '.claude');
 const CANONICAL_SKILLS_DIR = '.agents/skills';
 
 export const AGENT_MAPPINGS = {
@@ -11,30 +13,32 @@ export const AGENT_MAPPINGS = {
     key: 'universal',
     displayName: 'Universal',
     skillsDir: CANONICAL_SKILLS_DIR,
+    globalSkillsDir: path.join(CONFIG_HOME, 'agents/skills'),
+    showInUniversalList: false,
   },
   claude: {
     key: 'claude',
     displayName: 'Claude',
     skillsDir: '.claude/skills',
-    globalSkillsDir: '~/.claude/skills',
+    globalSkillsDir: path.join(CLAUDE_HOME, 'skills'),
   },
   'claude-code': {
     key: 'claude-code',
     displayName: 'Claude Code',
     skillsDir: '.claude/skills',
-    globalSkillsDir: '~/.claude/skills',
+    globalSkillsDir: path.join(CLAUDE_HOME, 'skills'),
   },
   codebuddy: {
     key: 'codebuddy',
     displayName: 'CodeBuddy',
     skillsDir: '.codebuddy/skills',
-    globalSkillsDir: '~/.codebuddy/skills',
+    globalSkillsDir: path.join(HOME, '.codebuddy/skills'),
   },
   cursor: {
     key: 'cursor',
     displayName: 'Cursor',
     skillsDir: CANONICAL_SKILLS_DIR,
-    globalSkillsDir: '~/.cursor/skills',
+    globalSkillsDir: path.join(HOME, '.cursor/skills'),
   },
   codex: {
     key: 'codex',
@@ -61,7 +65,9 @@ export function isUniversalAgent(agentKey) {
 }
 
 export function getUniversalAgents() {
-  return Object.keys(AGENT_MAPPINGS).filter((agentKey) => isUniversalAgent(agentKey));
+  return Object.entries(AGENT_MAPPINGS)
+    .filter(([, mapping]) => mapping.skillsDir === CANONICAL_SKILLS_DIR && mapping.showInUniversalList !== false)
+    .map(([agentKey]) => agentKey);
 }
 
 export function resolveAgentBaseDir(agentKey, scope, cwd) {
@@ -77,7 +83,7 @@ export function resolveAgentBaseDir(agentKey, scope, cwd) {
     return path.join(cwd, mapping.skillsDir);
   }
 
-  if (!mapping.globalSkillsDir && !mapping.universal) {
+  if (!mapping.globalSkillsDir) {
     throw new Error(`${mapping.displayName} does not support global scope`);
   }
 

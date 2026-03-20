@@ -1,6 +1,6 @@
 ---
 name: manage-local-skills
-description: Analyze, standardize, validate, and mount locally maintained skills into agent skill directories with a `skills` CLI-aligned workflow. Use this skill when Codex needs to organize standard and non-standard local skill folders, migrate ad-hoc rules or prompt directories into `SKILL.md`-based skills, manage agent-to-skill directory mappings, or install local skills into project/global agent paths using symlinks or copy fallback.
+description: Analyze, standardize, validate, and sync locally maintained skills into agent skill directories with a `skills` CLI-aligned workflow. Use this skill when Codex needs to turn ad-hoc prompt or rules folders into reusable `SKILL.md`-based skills, install or sync one or more local skills from `./skills` into Claude, Cursor, CodeBuddy, Codex, or similar agent directories, or manage local skill path mappings and symlink or copy installation behavior.
 ---
 
 # Manage Local Skills
@@ -14,7 +14,7 @@ Use this skill to:
 - classify local sources as standard skills, non-standard skill-like folders, or mixed repositories
 - convert non-standard local materials into a standard `SKILL.md`-based structure
 - validate standard skill structure before installation
-- mount one local skill source into one or more agent skill directories
+- sync one or more local skills into one or more agent skill directories
 - maintain explicit agent and IDE path mappings for local skill installation
 
 ## Do not use this skill for
@@ -32,6 +32,13 @@ Use this skill to:
 4. Before mounting a skill, read `references/cli-alignment.md` and `references/install-workflow.md` to preserve the canonical-install model.
 5. Use `scripts/validate-skill.mjs` before and after installation when structure or path correctness is in doubt.
 6. If the target agent is new or unclear, read `references/mapping-extension.md` before adding or changing mappings.
+
+## Common requests
+
+- "Install this local skill into Claude and Cursor."
+- "Sync everything under `./skills` to Codex and CodeBuddy."
+- "Turn this prompts folder into a reusable skill."
+- "Link my local skills into the agent directories for this project."
 
 ## Routing
 
@@ -52,6 +59,8 @@ Use this skill to:
 - Keep local source directories distinct from canonical install directories.
 - Prefer symlinks when supported and safe. Fall back to copy when the user requests it or symlinks fail.
 - Make scope explicit: `project` means the current workspace, `global` means the user-level agent directory.
+- Ask the user to confirm before writing files, replacing existing installs, changing mappings, or converting a non-standard source into a standard skill.
+- If the user asks to sync multiple skills or multiple agents, summarize the planned batch operation before execution and wait for confirmation.
 - Call out differences whenever the requested behavior cannot fully match `skills` CLI.
 
 ## Quick commands

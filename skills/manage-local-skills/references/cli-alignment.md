@@ -49,7 +49,7 @@ Aligned in the first version:
 - symlink-first installation with copy fallback
 - path safety and conflict checks
 - the upstream `sanitizeName()` character policy: lowercase, allow `a-z`, `0-9`, `.`, `_`, replace other runs with `-`, trim leading and trailing `.` or `-`, fallback to `unnamed-skill`
-- a broader upstream-inspired agent mapping table, including XDG-style global directories such as Amp, Goose, and OpenCode
+- the four IDE mappings used in this repo: Claude, Cursor, CodeBuddy, and Codex
 
 Not covered in the first version:
 

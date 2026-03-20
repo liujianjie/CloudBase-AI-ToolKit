@@ -26,6 +26,8 @@ Create only the subdirectories that are actually needed.
 6. Preserve enough source context that another maintainer can understand where the new skill came from.
 7. Run `scripts/validate-skill.mjs` before mounting the result.
 
+Before writing the migrated result, summarize the proposed skill name, target folder, and major file moves, then ask the user to confirm.
+
 ## How to split content
 
 Put content into `SKILL.md` when it must change agent behavior directly after trigger.

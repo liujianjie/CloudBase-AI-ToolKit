@@ -1,14 +1,13 @@
 import path from 'path';
 
 export function sanitizeSkillName(name) {
-  const trimmed = String(name || '').trim().toLowerCase();
-  const normalized = trimmed.replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  const sanitized = String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._]+/g, '-')
+    .replace(/^[.-]+|[.-]+$/g, '')
+    .substring(0, 255);
 
-  if (!normalized || !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(normalized)) {
-    throw new Error(`Invalid skill name: ${name}`);
-  }
-
-  return normalized;
+  return sanitized || 'unnamed-skill';
 }
 
 export function isPathSafe(basePath, targetPath) {

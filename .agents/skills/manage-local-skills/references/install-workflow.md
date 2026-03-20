@@ -23,6 +23,12 @@ Use `global` scope when the skill should live under the user environment.
 
 Always make scope explicit before writing files.
 
+Before performing a real install, confirm with the user when:
+
+- the operation will write files instead of dry-run only
+- multiple skills or multiple agents are involved
+- an existing canonical path or target path will be replaced or updated
+
 ## Mode
 
 Use `symlink` mode by default when the filesystem supports it and the user does not require physical copies.
@@ -47,6 +53,7 @@ Report one of these outcomes clearly:
 - `update`: canonical target already exists and will be refreshed from the source
 
 Do not silently replace an existing skill path.
+Show the user the conflict summary first, then proceed only after confirmation.
 
 ## Dry run
 

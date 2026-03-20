@@ -28,8 +28,8 @@ Treat a mapping as universal when `skillsDir === '.agents/skills'`.
 
 Examples:
 
-- Universal: `cursor`, `codex`, `opencode`, `github-copilot`
-- Agent-specific: `claude-code`, `codebuddy`, `openclaw`, `goose`
+- Universal: `cursor`, `codex`
+- Agent-specific: `claude`, `claude-code`, `codebuddy`
 
 ## How to add a new mapping
 

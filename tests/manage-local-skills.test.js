@@ -80,25 +80,17 @@ test('agent mappings distinguish universal and agent-specific directories', () =
 
   expect(isUniversalAgent('cursor')).toBe(true);
   expect(isUniversalAgent('codex')).toBe(true);
-  expect(isUniversalAgent('amp')).toBe(true);
   expect(isUniversalAgent('claude-code')).toBe(false);
   expect(isUniversalAgent('codebuddy')).toBe(false);
-  expect(isUniversalAgent('opencode')).toBe(true);
 
   expect(resolveAgentBaseDir('cursor', 'project', rootDir)).toBe(
     path.join(rootDir, '.agents/skills'),
-  );
-  expect(resolveAgentBaseDir('amp', 'global', rootDir)).toBe(
-    path.join(os.homedir(), '.agents/skills'),
   );
   expect(resolveAgentBaseDir('claude-code', 'project', rootDir)).toBe(
     path.join(rootDir, '.claude/skills'),
   );
   expect(resolveAgentBaseDir('codebuddy', 'project', rootDir)).toBe(
     path.join(rootDir, '.codebuddy/skills'),
-  );
-  expect(resolveAgentBaseDir('goose', 'global', rootDir)).toBe(
-    path.join(os.homedir(), '.config/goose/skills'),
   );
 });
 
