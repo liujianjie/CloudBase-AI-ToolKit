@@ -256,29 +256,73 @@ function extractErrorCode(error: unknown) {
   return typeof maybeCode === "string" ? maybeCode : undefined;
 }
 
-function normalizeLifecycleStatus(
-  rawStatus: unknown,
-  options?: {
-    hasInstance?: boolean;
-    defaultIfPresent?: SqlLifecycleStatus;
-  },
-): SqlLifecycleStatus {
-  const hasInstance = options?.hasInstance;
-  const fallbackIfPresent = options?.defaultIfPresent ?? "READY";
-
+function normalizeCreateResultStatus(rawStatus: unknown): SqlLifecycleStatus {
   if (typeof rawStatus !== "string" || rawStatus.trim().length === 0) {
-    if (hasInstance === false) {
-      return "NOT_CREATED";
-    }
-    if (hasInstance === true) {
-      return fallbackIfPresent;
-    }
     return "PENDING";
   }
 
   const normalized = rawStatus.trim().toUpperCase();
 
-  if (["NOT_CREATED", "NONE", "NOTFOUND", "NOT_FOUND"].includes(normalized)) {
+  if (["NOTEXIST", "NOT_EXIST", "NOTFOUND", "NOT_FOUND", "NONE"].includes(normalized)) {
+    return "NOT_CREATED";
+  }
+
+  if (normalized === "SUCCESS") {
+    return "READY";
+  }
+
+  if (/(FAIL|FAILED|ERROR|ABNORMAL|EXCEPTION)/.test(normalized)) {
+    return "FAILED";
+  }
+
+  if (/(PENDING|CREATE|INIT|START|QUEUE|SUBMIT|PROVISION)/.test(normalized)) {
+    return "PENDING";
+  }
+
+  return "PENDING";
+}
+
+function normalizeTaskStatus(rawStatus: unknown): SqlLifecycleStatus {
+  if (typeof rawStatus !== "string" || rawStatus.trim().length === 0) {
+    return "RUNNING";
+  }
+
+  const normalized = rawStatus.trim().toUpperCase();
+
+  if (/(FAIL|FAILED|ERROR|ABNORMAL|EXCEPTION)/.test(normalized)) {
+    return "FAILED";
+  }
+
+  if (normalized === "SUCCESS") {
+    return "READY";
+  }
+
+  if (/(PENDING|CREATE|INIT|START|QUEUE|SUBMIT|PROVISION)/.test(normalized)) {
+    return "PENDING";
+  }
+
+  if (/(RUNNING|PROCESS|WORKING)/.test(normalized)) {
+    return "RUNNING";
+  }
+
+  return "RUNNING";
+}
+
+function normalizeClusterDetailStatus(
+  rawStatus: unknown,
+  options?: {
+    hasInstance?: boolean;
+  },
+): SqlLifecycleStatus {
+  const hasInstance = options?.hasInstance;
+
+  if (typeof rawStatus !== "string" || rawStatus.trim().length === 0) {
+    return hasInstance === false ? "NOT_CREATED" : "READY";
+  }
+
+  const normalized = rawStatus.trim().toUpperCase();
+
+  if (["NOTEXIST", "NOT_EXIST", "NOTFOUND", "NOT_FOUND", "NONE"].includes(normalized)) {
     return "NOT_CREATED";
   }
 
@@ -290,23 +334,11 @@ function normalizeLifecycleStatus(
     return "PENDING";
   }
 
-  if (/(PROCESS|WORKING)/.test(normalized)) {
-    return "RUNNING";
+  if (["RUNNING", "ONLINE", "AVAILABLE", "NORMAL", "READY"].includes(normalized)) {
+    return "READY";
   }
 
-  if (["RUNNING", "ONLINE", "AVAILABLE", "NORMAL", "SUCCESS", "SUCCEEDED", "READY", "FINISHED"].includes(normalized)) {
-    return fallbackIfPresent;
-  }
-
-  if (hasInstance === false) {
-    return "NOT_CREATED";
-  }
-
-  if (hasInstance === true) {
-    return fallbackIfPresent;
-  }
-
-  return "PENDING";
+  return hasInstance === false ? "NOT_CREATED" : "READY";
 }
 
 async function resolveSqlDbContext(
@@ -349,9 +381,7 @@ async function getSqlInstanceInfo({
 
   const createData = pickDataPayload(createResult);
   const createRawStatus = createData?.Status ?? pickLifecycleSource(createResult);
-  const createStatus = normalizeLifecycleStatus(createRawStatus, {
-    hasInstance: false,
-  });
+  const createStatus = normalizeCreateResultStatus(createRawStatus);
 
   if (createStatus === "NOT_CREATED") {
     return {
@@ -399,9 +429,8 @@ async function getSqlInstanceInfo({
       instanceId,
       schema: envId,
       rawStatus,
-      status: normalizeLifecycleStatus(rawStatusSource, {
+      status: normalizeClusterDetailStatus(rawStatusSource, {
         hasInstance: true,
-        defaultIfPresent: "READY",
       }),
       clusterId,
       clusterDetail,
@@ -534,7 +563,7 @@ async function handleDescribeCreateResult(
 
   const createData = pickDataPayload(result);
   const rawStatus = createData?.Status ?? pickLifecycleSource(result);
-  const status = normalizeLifecycleStatus(rawStatus);
+  const status = normalizeCreateResultStatus(rawStatus);
   return buildSqlToolResult({
     success: status !== "FAILED",
     errorCode: status === "FAILED" ? "MYSQL_PROVISION_FAILED" : undefined,
@@ -580,9 +609,7 @@ async function handleDescribeTaskStatus(
   logCloudBaseResult(context.server.logger, result);
 
   const rawStatus = pickLifecycleSource(result);
-  const status = normalizeLifecycleStatus(rawStatus, {
-    defaultIfPresent: "RUNNING",
-  });
+  const status = normalizeTaskStatus(rawStatus);
 
   return buildSqlToolResult({
     success: status !== "FAILED",
@@ -683,7 +710,7 @@ async function handleProvisionMySQL(
   logCloudBaseResult(context.server.logger, result);
 
   const rawStatus = pickLifecycleSource(result);
-  const status = normalizeLifecycleStatus(rawStatus);
+  const status = normalizeTaskStatus(rawStatus);
 
   return buildSqlToolResult({
     success: true,
@@ -821,7 +848,7 @@ async function resolveInitializationReadiness(
     });
     logCloudBaseResult(context.server.logger, result);
     rawStatus = pickLifecycleSource(result);
-    status = normalizeLifecycleStatus(rawStatus);
+    status = normalizeCreateResultStatus(rawStatus);
   }
 
   if (
@@ -835,9 +862,7 @@ async function resolveInitializationReadiness(
     });
     logCloudBaseResult(context.server.logger, result);
     rawStatus = pickLifecycleSource(result);
-    status = normalizeLifecycleStatus(rawStatus, {
-      defaultIfPresent: "RUNNING",
-    });
+    status = normalizeTaskStatus(rawStatus);
   }
 
   if (status !== "READY") {

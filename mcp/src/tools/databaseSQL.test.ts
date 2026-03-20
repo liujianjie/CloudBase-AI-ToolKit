@@ -181,12 +181,49 @@ describe("SQL database tools", () => {
     });
   });
 
+  it("querySqlDatabase(describeTaskStatus) maps success to READY", async () => {
+    mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
+      if (Action === "DescribeMySQLTaskStatus") {
+        return {
+          RequestId: "req-task",
+          Data: {
+            Status: "success",
+          },
+        };
+      }
+      return {
+        RequestId: "req-1",
+      };
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.querySqlDatabase.handler({
+      action: "describeTaskStatus",
+      request: { TaskId: "38654" },
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        status: "READY",
+        rawStatus: "success",
+      },
+    });
+    expect(payload.nextActions?.[0]).toMatchObject({
+      tool: "manageSqlDatabase",
+      action: "initializeSchema",
+    });
+  });
+
   it("querySqlDatabase(getInstanceInfo) uses cluster detail after create result succeeds", async () => {
     mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
       if (Action === "DescribeCreateMySQLResult") {
         return {
           RequestId: "req-create",
-          Status: "SUCCESS",
+          Data: {
+            Status: "success",
+          },
         };
       }
       if (Action === "DescribeMySQLClusterDetail") {
