@@ -22,6 +22,7 @@ const QUERY_ACTIONS = [
 
 const MANAGE_ACTIONS = [
   "provisionMySQL",
+  "destroyMySQL",
   "runStatement",
   "initializeSchema",
 ] as const;
@@ -516,6 +517,53 @@ function buildProvisionNextActions(
   ];
 }
 
+function inferTaskKind(request?: Record<string, unknown>) {
+  const taskName = request?.TaskName;
+  if (typeof taskName === "string" && /(DELETE|DESTROY)/i.test(taskName)) {
+    return "destroy";
+  }
+
+  return "provision";
+}
+
+function buildTaskStatusNextActions(
+  status: SqlLifecycleStatus,
+  request?: Record<string, unknown>,
+) {
+  if (status === "FAILED") {
+    return [];
+  }
+
+  if (status === "READY") {
+    if (inferTaskKind(request) === "destroy") {
+      return [
+        buildNextAction(
+          QUERY_SQL_DATABASE,
+          "getInstanceInfo",
+          "The destroy task completed. Confirm whether the MySQL instance no longer exists.",
+        ),
+      ];
+    }
+
+    return [
+      buildNextAction(
+        MANAGE_SQL_DATABASE,
+        "initializeSchema",
+        "MySQL is ready. Initialize tables and indexes next.",
+      ),
+    ];
+  }
+
+  return [
+    buildNextAction(
+      QUERY_SQL_DATABASE,
+      "describeTaskStatus",
+      "MySQL task is still running. Check task status again before continuing.",
+      request ? { action: "describeTaskStatus", request } : { action: "describeTaskStatus" },
+    ),
+  ];
+}
+
 async function handleRunQuery(
   args: QuerySqlDatabaseArgs,
   context: QueryManageContext,
@@ -642,6 +690,7 @@ async function handleDescribeTaskStatus(
 
   const rawStatus = pickLifecycleSource(result);
   const status = normalizeTaskStatus(rawStatus);
+  const taskRequest = buildTaskRequest(request, result);
 
   return buildSqlToolResult({
     success: status !== "FAILED",
@@ -651,7 +700,7 @@ async function handleDescribeTaskStatus(
       rawStatus,
       progress: pickProgress(result),
       task: {
-        request,
+        request: taskRequest,
         requestId: result.RequestId,
       },
     },
@@ -661,7 +710,7 @@ async function handleDescribeTaskStatus(
         : status === "FAILED"
           ? "MySQL task failed."
           : "MySQL task is still in progress.",
-    nextActions: buildProvisionNextActions(status, request),
+    nextActions: buildTaskStatusNextActions(status, taskRequest),
   });
 }
 
@@ -769,6 +818,88 @@ async function handleProvisionMySQL(
         ? "MySQL provisioning completed immediately."
         : "MySQL provisioning request submitted successfully.",
     nextActions: buildProvisionNextActions(status, taskRequest),
+  });
+}
+
+async function handleDestroyMySQL(
+  args: ManageSqlDatabaseArgs,
+  context: QueryManageContext,
+): Promise<ToolResult> {
+  if (args.confirm !== true) {
+    return buildSqlToolResult({
+      success: false,
+      errorCode: "CONFIRM_REQUIRED",
+      message:
+        "Destroying MySQL removes database resources. Re-run with `confirm: true` to continue.",
+      nextActions: [
+        buildNextAction(
+          MANAGE_SQL_DATABASE,
+          "destroyMySQL",
+          "Explicit confirmation is required before destroying MySQL.",
+          { action: "destroyMySQL", confirm: true },
+        ),
+      ],
+    });
+  }
+
+  const existing = await getSqlInstanceInfo(context);
+  if (!existing.exists) {
+    return buildSqlToolResult({
+      success: false,
+      errorCode: "MYSQL_NOT_CREATED",
+      message: "No MySQL instance exists for the current environment, so nothing can be destroyed.",
+    });
+  }
+
+  const cloudbase = await context.getManager();
+  const envId = await getEnvId(context.cloudBaseOptions);
+  const request = args.request || {};
+  const result = await callSqlControlPlane(cloudbase, "DestroyMySQL", {
+    ...request,
+    EnvId: envId,
+  });
+  logCloudBaseResult(context.server.logger, result);
+
+  const destroyData = pickDataPayload(result);
+  const isSuccess =
+    typeof destroyData?.IsSuccess === "boolean"
+      ? destroyData.IsSuccess
+      : typeof result.IsSuccess === "boolean"
+        ? result.IsSuccess
+        : false;
+  const taskRequest = buildTaskRequest(request, result);
+
+  return buildSqlToolResult({
+    success: isSuccess,
+    errorCode: isSuccess ? undefined : "MYSQL_DESTROY_REJECTED",
+    data: {
+      status: isSuccess ? "RUNNING" : "FAILED",
+      destroyResult: destroyData ?? result,
+      instance: {
+        envId,
+        instanceId: existing.instanceId,
+      },
+      task: {
+        request: taskRequest,
+        requestId: result.RequestId,
+      },
+    },
+    message: isSuccess
+      ? "MySQL destroy request submitted successfully."
+      : "MySQL destroy request was rejected.",
+    nextActions: isSuccess
+      ? [
+          buildNextAction(
+            QUERY_SQL_DATABASE,
+            "describeTaskStatus",
+            "Check the MySQL destroy task status before assuming the instance is gone.",
+            {
+              action: "describeTaskStatus",
+              request: taskRequest,
+            },
+          ),
+        ]
+      : [],
   });
 }
 
@@ -1075,17 +1206,17 @@ export function registerSQLDatabaseTools(server: ExtendedMcpServer) {
     {
       title: "Manage SQL database lifecycle or execute write SQL",
       description:
-        "Manage SQL database resources. Supports MySQL provisioning, write SQL/DDL execution, and schema initialization after the instance becomes ready.",
+        "Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, write SQL/DDL execution, and schema initialization after the instance becomes ready.",
       inputSchema: {
         action: z
           .enum(MANAGE_ACTIONS)
           .describe(
-            "provisionMySQL=create MySQL instance; runStatement=execute write SQL or DDL; initializeSchema=run ordered schema initialization statements",
+            "provisionMySQL=create MySQL instance; destroyMySQL=destroy MySQL instance; runStatement=execute write SQL or DDL; initializeSchema=run ordered schema initialization statements",
           ),
         confirm: z
           .boolean()
           .optional()
-          .describe("Explicit confirmation required for action=provisionMySQL"),
+          .describe("Explicit confirmation required for action=provisionMySQL or action=destroyMySQL"),
         sql: z
           .string()
           .optional()
@@ -1093,7 +1224,7 @@ export function registerSQLDatabaseTools(server: ExtendedMcpServer) {
         request: z
           .record(z.unknown())
           .optional()
-          .describe("Official request payload used by action=provisionMySQL"),
+          .describe("Official request payload used by action=provisionMySQL or action=destroyMySQL"),
         statements: z
           .array(z.string())
           .optional()
@@ -1129,6 +1260,8 @@ export function registerSQLDatabaseTools(server: ExtendedMcpServer) {
       switch (args.action) {
         case "provisionMySQL":
           return handleProvisionMySQL(args, context);
+        case "destroyMySQL":
+          return handleDestroyMySQL(args, context);
         case "runStatement":
           return handleRunStatement(args, context);
         case "initializeSchema":

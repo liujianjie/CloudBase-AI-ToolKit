@@ -143,6 +143,20 @@ describe("SQL database tools", () => {
     });
   });
 
+  it("manageSqlDatabase(destroyMySQL) requires explicit confirmation", async () => {
+    const { tools } = createMockServer();
+
+    const result = await tools.manageSqlDatabase.handler({
+      action: "destroyMySQL",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: false,
+      errorCode: "CONFIRM_REQUIRED",
+    });
+  });
+
   it("querySqlDatabase(getInstanceInfo) suggests provisioning when instance is missing", async () => {
     mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
       if (Action === "DescribeCreateMySQLResult") {
@@ -241,6 +255,78 @@ describe("SQL database tools", () => {
     });
   });
 
+  it("querySqlDatabase(describeTaskStatus) suggests getInstanceInfo for destroy tasks", async () => {
+    mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
+      if (Action === "DescribeMySQLTaskStatus") {
+        return {
+          RequestId: "req-task",
+          Data: {
+            Status: "SUCCESS",
+          },
+        };
+      }
+      return {
+        RequestId: "req-1",
+      };
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.querySqlDatabase.handler({
+      action: "describeTaskStatus",
+      request: {
+        TaskId: "16710",
+        TaskName: "DeleteDataHub",
+      },
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        status: "READY",
+      },
+    });
+    expect(payload.nextActions?.[0]).toMatchObject({
+      tool: "querySqlDatabase",
+      action: "getInstanceInfo",
+    });
+  });
+
+  it("querySqlDatabase(describeTaskStatus) returns failed destroy tasks without next actions", async () => {
+    mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
+      if (Action === "DescribeMySQLTaskStatus") {
+        return {
+          RequestId: "req-task",
+          Data: {
+            Status: "FAILED",
+          },
+        };
+      }
+      return {
+        RequestId: "req-1",
+      };
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.querySqlDatabase.handler({
+      action: "describeTaskStatus",
+      request: {
+        TaskId: "16710",
+        TaskName: "DeleteDataHub",
+      },
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: false,
+      errorCode: "MYSQL_TASK_FAILED",
+      data: {
+        status: "FAILED",
+      },
+    });
+    expect(payload.nextActions).toEqual([]);
+  });
+
   it("manageSqlDatabase(provisionMySQL) sends DbInstanceType and carries TaskId forward", async () => {
     mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
       if (Action === "DescribeCreateMySQLResult") {
@@ -295,6 +381,106 @@ describe("SQL database tools", () => {
         action: "describeTaskStatus",
         request: {
           TaskId: "38661",
+        },
+      },
+    });
+  });
+
+  it("manageSqlDatabase(destroyMySQL) blocks when no instance exists", async () => {
+    mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
+      if (Action === "DescribeCreateMySQLResult") {
+        return {
+          RequestId: "req-create",
+          Data: {
+            Status: "notexist",
+          },
+        };
+      }
+      throw new Error(`unexpected action: ${Action}`);
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.manageSqlDatabase.handler({
+      action: "destroyMySQL",
+      confirm: true,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: false,
+      errorCode: "MYSQL_NOT_CREATED",
+    });
+  });
+
+  it("manageSqlDatabase(destroyMySQL) sends DestroyMySQL and carries task request forward", async () => {
+    mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
+      if (Action === "DescribeCreateMySQLResult") {
+        return {
+          RequestId: "req-create",
+          Data: {
+            Status: "success",
+          },
+        };
+      }
+      if (Action === "DescribeMySQLClusterDetail") {
+        return {
+          RequestId: "req-cluster",
+          Data: {
+            DbClusterId: "cluster-1",
+            DbInfo: {
+              ClusterStatus: "running",
+            },
+          },
+        };
+      }
+      if (Action === "DestroyMySQL") {
+        return {
+          RequestId: "req-destroy",
+          Data: {
+            IsSuccess: true,
+            TaskId: "16710",
+            TaskName: "DeleteDataHub",
+          },
+        };
+      }
+      throw new Error(`unexpected action: ${Action}`);
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.manageSqlDatabase.handler({
+      action: "destroyMySQL",
+      confirm: true,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockCommonServiceCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Action: "DestroyMySQL",
+        Param: expect.objectContaining({
+          EnvId: "env-test",
+        }),
+      }),
+    );
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        status: "RUNNING",
+        task: {
+          request: {
+            TaskId: "16710",
+            TaskName: "DeleteDataHub",
+          },
+        },
+      },
+    });
+    expect(payload.nextActions?.[0]).toMatchObject({
+      tool: "querySqlDatabase",
+      action: "describeTaskStatus",
+      suggested_args: {
+        action: "describeTaskStatus",
+        request: {
+          TaskId: "16710",
+          TaskName: "DeleteDataHub",
         },
       },
     });

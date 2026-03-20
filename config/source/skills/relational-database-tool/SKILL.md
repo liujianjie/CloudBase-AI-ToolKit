@@ -1,6 +1,6 @@
 ---
 name: relational-database-mcp-cloudbase
-description: This is the required documentation for agents operating on the CloudBase Relational Database through MCP. It defines the canonical SQL management flow with `querySqlDatabase`, `manageSqlDatabase`, `readSecurityRule`, and `writeSecurityRule`, including MySQL provisioning, async status checks, safe query execution, schema initialization, and security rule updates.
+description: This is the required documentation for agents operating on the CloudBase Relational Database through MCP. It defines the canonical SQL management flow with `querySqlDatabase`, `manageSqlDatabase`, `readSecurityRule`, and `writeSecurityRule`, including MySQL provisioning, destroy flow, async status checks, safe query execution, schema initialization, and security rule updates.
 alwaysApply: false
 ---
 
@@ -8,7 +8,7 @@ alwaysApply: false
 
 ### Use this first when
 
-- The agent must inspect SQL data, execute SQL statements, provision MySQL, initialize table structure, or manage table security rules through MCP tools.
+- The agent must inspect SQL data, execute SQL statements, provision or destroy MySQL, initialize table structure, or manage table security rules through MCP tools.
 
 ### Read before writing code if
 
@@ -29,6 +29,7 @@ alwaysApply: false
 - Running write SQL or DDL before checking whether MySQL is provisioned and ready.
 - Treating document database tasks as MySQL management tasks.
 - Skipping `_openid` and security-rule review after creating new SQL tables.
+- Destroying MySQL without explicit confirmation or without checking whether the environment still needs the instance.
 
 ## When to use this skill
 
@@ -36,6 +37,7 @@ Use this skill when an **agent** needs to operate on **CloudBase Relational Data
 
 - Inspecting or querying SQL data
 - Provisioning MySQL for an environment
+- Destroying MySQL for an environment
 - Polling MySQL provisioning status
 - Modifying data or schema (INSERT/UPDATE/DELETE/DDL)
 - Initializing tables and indexes after MySQL is ready
@@ -54,14 +56,14 @@ Do **NOT** use this skill for:
 
 2. **Pick the right tool for the job**
    - Read-only SQL and provisioning status checks -> `querySqlDatabase`
-   - MySQL provisioning, write SQL, DDL, schema initialization -> `manageSqlDatabase`
+   - MySQL provisioning, MySQL destruction, write SQL, DDL, schema initialization -> `manageSqlDatabase`
    - Inspect rules -> `readSecurityRule`
    - Change rules -> `writeSecurityRule`
 
 3. **Always be explicit about safety**
    - Before destructive operations (DELETE, DROP, etc.), summarize what you are about to run and why.
    - Prefer `querySqlDatabase(action="getInstanceInfo")` or a read-only SQL check before writes.
-   - Provisioning MySQL requires explicit confirmation because it creates billable resources.
+   - Provisioning or destroying MySQL requires explicit confirmation because both actions have environment-level impact.
 
 ---
 
@@ -91,6 +93,7 @@ These tools are the supported way to interact with CloudBase Relational Database
 - **Purpose:** Manage SQL lifecycle and execute mutating SQL.
 - **Use for:**
   - Provisioning MySQL with `action="provisionMySQL"`
+  - Destroying MySQL with `action="destroyMySQL"`
   - Executing `INSERT`, `UPDATE`, `DELETE`, `CREATE TABLE`, `ALTER TABLE`, `DROP TABLE` with `action="runStatement"`
   - Initializing tables and indexes with `action="initializeSchema"`
 
@@ -107,6 +110,12 @@ Before calling this tool, **confirm**:
 - The current environment has a ready MySQL instance, or you have just provisioned one.
 - The target tables and conditions are correct.
 - You have run a corresponding read-only query when appropriate.
+
+When destroying MySQL, confirm:
+
+- The current environment really should lose the SQL instance.
+- You have explicit confirmation for the destructive action.
+- You are prepared to query `describeTaskStatus` afterward to inspect the destroy result.
 
 ### 3. `readSecurityRule`
 
@@ -155,12 +164,21 @@ Before calling this tool, **confirm**:
 2. Run the mutation once with `manageSqlDatabase(action="runStatement")`.
 3. Validate with another read-only query or by checking security rules.
 
+### Scenario 5: Destroy MySQL when the environment no longer needs it
+
+1. Use `querySqlDatabase(action="getInstanceInfo")` to confirm the current environment still has a SQL instance.
+2. Call `manageSqlDatabase(action="destroyMySQL", confirm=true)`.
+3. Query `querySqlDatabase(action="describeTaskStatus")` until the destroy task completes or fails.
+4. If the task succeeds, optionally call `querySqlDatabase(action="getInstanceInfo")` to confirm the instance no longer exists.
+5. If the task fails, treat the returned error as the terminal result and let the caller decide whether to retry.
+
 ---
 
 ## Key principle: MCP tools vs SDKs
 
 - **MCP tools** are for **agent operations** and **database management**:
   - Provision MySQL.
+  - Destroy MySQL.
   - Poll lifecycle state.
   - Run ad-hoc SQL.
   - Inspect and change security rules.
