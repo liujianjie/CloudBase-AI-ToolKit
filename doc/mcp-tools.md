@@ -829,7 +829,9 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
 ### `callCloudApi`
 通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。
 
-现有 OpenAPI / Swagger 能力主要覆盖 `auth`、`functions`、`cloudrun`、`storage`、`mysqldb` 等数据面 / HTTP API，不是通用的管控面 Action 集合。
+如果你的目标是通过 HTTP 协议直接集成 `auth`、`functions`、`cloudrun`、`storage`、`mysqldb` 等 CloudBase 业务 API，请不要优先使用 `callCloudApi`，而应优先查看对应 OpenAPI / Swagger。
+
+现有 OpenAPI / Swagger 能力不是通用的管控面 Action 集合。
 
 管控面 API 请优先参考：
 
@@ -841,9 +843,9 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
 <table>
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
-<tr><td><code>service</code></td><td>string</td><td>是</td><td>选择要访问的服务。可选：tcb、scf、sts、cam、lowcode、cdn、vpc。对于 <code>tcb</code> / <code>lowcode</code> 等 CloudBase 管控面 Action，请优先查官方文档，不要直接猜测 Action。 可填写的值: "tcb", "scf", "sts", "cam", "lowcode", "cdn", "vpc"</td></tr>
+<tr><td><code>service</code></td><td>string</td><td>是</td><td>选择要访问的服务。可选：tcb、scf、sts、cam、lowcode、cdn、vpc。对于 <code>tcb</code> / <code>scf</code> / <code>lowcode</code> 等 CloudBase 管控面 Action，请优先查官方文档，不要直接猜测 Action。 可填写的值: "tcb", "scf", "sts", "cam", "lowcode", "cdn", "vpc"</td></tr>
 <tr><td><code>action</code></td><td>string</td><td>是</td><td>具体 Action 名称，需符合对应服务的官方 API 定义。若不确定正确 Action，请先查官方文档；不要用近义词或历史命名进行猜测。</td></tr>
-<tr><td><code>params</code></td><td>object</td><td></td><td>Action 对应的参数对象，键名需与官方 API 定义一致。某些 Action 需要携带 EnvId 等信息；如不确定参数结构，请先查官方文档。若场景属于数据面 HTTP API，请优先使用 OpenAPI / Swagger 或 <code>searchKnowledgeBase(mode="openapi")</code>。</td></tr>
+<tr><td><code>params</code></td><td>object</td><td></td><td>Action 对应的参数对象，键名需与官方 API 定义一致。某些 Action 需要携带 EnvId 等信息；如不确定参数结构，请先查官方文档。若你的场景是通过 HTTP 协议直接集成 <code>auth</code> / <code>functions</code> / <code>cloudrun</code> / <code>storage</code> / <code>mysqldb</code>，请优先使用 OpenAPI / Swagger 或 <code>searchKnowledgeBase(mode="openapi")</code>，而不是优先使用 <code>callCloudApi</code>。</td></tr>
 </tbody>
 </table>
 

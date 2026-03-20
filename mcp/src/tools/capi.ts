@@ -19,11 +19,11 @@ const ALLOWED_SERVICES = [
 type AllowedService = (typeof ALLOWED_SERVICES)[number];
 
 function buildCapiDocGuidance(service: AllowedService) {
-    if (service === "tcb" || service === "lowcode") {
+    if (service === "tcb" || service === "lowcode" || service === "scf") {
         return `优先查阅 CloudBase API 概览 ${CLOUDBASE_CONTROL_PLANE_DOC_URL} 与云开发依赖资源接口指引 ${CLOUDBASE_DEPENDENCY_API_DOC_URL}。`;
     }
 
-    return `请优先核对对应官方云 API 文档；若你的场景其实是 auth/functions/cloudrun/storage/mysqldb 等 HTTP API，请优先使用 OpenAPI / Swagger 或 searchKnowledgeBase(mode="openapi")，不要继续猜测管控面 Action。`;
+    return `请优先核对对应官方云 API 文档；若你的场景其实是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请优先使用 OpenAPI / Swagger 或 searchKnowledgeBase(mode="openapi")，不要继续猜测管控面 Action。`;
 }
 
 function buildCapiErrorMessage(service: AllowedService, action: string, error: unknown): string {
@@ -67,12 +67,12 @@ export function registerCapiTools(server: ExtendedMcpServer) {
         {
             title: "调用云API",
             description:
-                `通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。现有 OpenAPI / Swagger 能力主要覆盖 auth/functions/cloudrun/storage/mysqldb 等数据面 / HTTP API，不是通用的管控面 Action 集合。管控面 API 请优先参考 CloudBase API 概览 ${CLOUDBASE_CONTROL_PLANE_DOC_URL} 与云开发依赖资源接口指引 ${CLOUDBASE_DEPENDENCY_API_DOC_URL}。`,
+                `通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。如果你的目标是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请不要优先使用 callCloudApi，而应优先查看对应 OpenAPI / Swagger。现有 OpenAPI / Swagger 能力不是通用的管控面 Action 集合；管控面 API 请优先参考 CloudBase API 概览 ${CLOUDBASE_CONTROL_PLANE_DOC_URL} 与云开发依赖资源接口指引 ${CLOUDBASE_DEPENDENCY_API_DOC_URL}。`,
             inputSchema: {
                 service: z
                     .enum(ALLOWED_SERVICES)
                     .describe(
-                        "选择要访问的服务。可选：tcb、scf、sts、cam、lowcode、cdn、vpc。对于 tcb / lowcode 等 CloudBase 管控面 Action，请优先查官方文档，不要直接猜测 Action。",
+                        "选择要访问的服务。可选：tcb、scf、sts、cam、lowcode、cdn、vpc。对于 tcb / scf / lowcode 等 CloudBase 管控面 Action，请优先查官方文档，不要直接猜测 Action。",
                     ),
                 action: z
                     .string()
@@ -82,7 +82,7 @@ export function registerCapiTools(server: ExtendedMcpServer) {
                     .record(z.any())
                     .optional()
                     .describe(
-                        "Action 对应的参数对象，键名需与官方 API 定义一致。某些 Action 需要携带 EnvId 等信息；如不确定参数结构，请先查官方文档。若场景属于数据面 HTTP API，请优先使用 OpenAPI / Swagger 或 searchKnowledgeBase(mode=\"openapi\")。",
+                        "Action 对应的参数对象，键名需与官方 API 定义一致。某些 Action 需要携带 EnvId 等信息；如不确定参数结构，请先查官方文档。若你的场景是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请优先使用 OpenAPI / Swagger 或 searchKnowledgeBase(mode=\"openapi\")，而不是优先使用 callCloudApi。",
                     ),
             },
             annotations: {
