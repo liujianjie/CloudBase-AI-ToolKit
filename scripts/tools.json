@@ -43,7 +43,7 @@
     },
     {
       "name": "envQuery",
-      "description": "查询云开发环境相关信息，支持查询环境列表、当前环境信息、安全域名和静态网站托管配置。（原工具名：listEnvs/getEnvInfo/getEnvAuthDomains/getWebsiteConfig，为兼容旧AI规则可继续使用这些名称）",
+      "description": "查询云开发环境相关信息，支持查询环境列表、当前环境信息、安全域名和静态网站托管配置。（原工具名：listEnvs/getEnvInfo/getEnvAuthDomains/getWebsiteConfig，为兼容旧AI规则可继续使用这些名称）当 action=list 时，标准返回字段为 EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault，并支持通过 fields 白名单裁剪这些字段。当前 MCP 输出不支持套餐/计划到期时间（expiry / expire time）查询。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -55,7 +55,41 @@
               "domains",
               "hosting"
             ],
-            "description": "查询类型：list=环境列表，info=当前环境信息，domains=安全域名列表，hosting=静态网站托管配置"
+            "description": "查询类型：list=环境列表（标准字段：EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault；不支持 expiry），info=当前环境信息，domains=安全域名列表，hosting=静态网站托管配置"
+          },
+          "alias": {
+            "type": "string",
+            "description": "按环境别名筛选。action=list 时可选"
+          },
+          "envId": {
+            "type": "string",
+            "description": "按环境 ID 精确筛选。action=list 时可选"
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "返回数量上限。action=list 时可选"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "分页偏移。action=list 时可选"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "EnvId",
+                "Alias",
+                "Status",
+                "EnvType",
+                "Region",
+                "PackageName",
+                "IsDefault"
+              ]
+            },
+            "description": "返回字段白名单。仅支持 EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault。action=list 时可选"
           }
         },
         "required": [
@@ -387,36 +421,122 @@
       }
     },
     {
-      "name": "executeReadOnlySQL",
-      "description": "Execute a read-only SQL query on the SQL database. Note: For per-user ACL, each table should contain a fixed `_openid` column defined as `_openid VARCHAR(64) DEFAULT '' NOT NULL` that represents the user and is used for access control.",
+      "name": "querySqlDatabase",
+      "description": "Query SQL database information. Supports read-only SQL execution, MySQL provisioning result lookup, MySQL task status lookup, and current instance context discovery.",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "runQuery",
+              "describeCreateResult",
+              "describeTaskStatus",
+              "getInstanceInfo"
+            ],
+            "description": "runQuery=execute read-only SQL; describeCreateResult=query CreateMySQL result; describeTaskStatus=query MySQL task status; getInstanceInfo=get current SQL instance context"
+          },
           "sql": {
             "type": "string",
-            "description": "SQL query statement (SELECT queries only)"
+            "description": "Read-only SQL used by action=runQuery"
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Official request payload used by describeCreateResult/describeTaskStatus"
+          },
+          "dbInstance": {
+            "type": "object",
+            "properties": {
+              "instanceId": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Optional SQL database instance context for runQuery"
           }
         },
         "required": [
-          "sql"
+          "action"
         ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
     {
-      "name": "executeWriteSQL",
-      "description": "Execute a write SQL statement on the SQL database (INSERT, UPDATE, DELETE, etc.). Whenever you create a new table, you **must** include a fixed `_openid` column defined as `_openid VARCHAR(64) DEFAULT '' NOT NULL` that represents the user and is used for access control.",
+      "name": "manageSqlDatabase",
+      "description": "Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, write SQL/DDL execution, and schema initialization after the instance becomes ready.",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "provisionMySQL",
+              "destroyMySQL",
+              "runStatement",
+              "initializeSchema"
+            ],
+            "description": "provisionMySQL=create MySQL instance; destroyMySQL=destroy MySQL instance; runStatement=execute write SQL or DDL; initializeSchema=run ordered schema initialization statements"
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "Explicit confirmation required for action=provisionMySQL or action=destroyMySQL"
+          },
           "sql": {
             "type": "string",
-            "description": "SQL statement (INSERT, UPDATE, DELETE, CREATE, ALTER, etc.)"
+            "description": "SQL statement used by action=runStatement"
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Official request payload used by action=provisionMySQL or action=destroyMySQL"
+          },
+          "statements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered schema initialization SQL statements used by action=initializeSchema"
+          },
+          "requireReady": {
+            "type": "boolean",
+            "description": "Whether initializeSchema should block until MySQL is confirmed ready. Defaults to true."
+          },
+          "statusContext": {
+            "type": "object",
+            "properties": {
+              "createResultRequest": {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              "taskStatusRequest": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "additionalProperties": false,
+            "description": "Optional provisioning status requests used to confirm readiness before initializeSchema"
+          },
+          "dbInstance": {
+            "type": "object",
+            "properties": {
+              "instanceId": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Optional SQL database instance context for runStatement/initializeSchema"
           }
         },
         "required": [
-          "sql"
+          "action"
         ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -1388,7 +1508,8 @@
               "scf",
               "miniprogram"
             ],
-            "description": "mode=vector 时指定。知识库范围，cloudbase=云开发全量知识，scf=云开发的云函数知识, miniprogram=小程序知识（不包含云开发与云函数知识）"
+            "default": "cloudbase",
+            "description": "mode=vector 时指定。知识库范围，默认 cloudbase。cloudbase=云开发全量知识，scf=云开发的云函数知识, miniprogram=小程序知识（不包含云开发与云函数知识）"
           },
           "content": {
             "type": "string",
@@ -1906,7 +2027,7 @@
     },
     {
       "name": "callCloudApi",
-      "description": "通用的云 API 调用工具，使用前请务必先阅读相关rules或skills，确认所需服务、Action 与 Param 的正确性和安全性",
+      "description": "通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。如果你的目标是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请不要优先使用 callCloudApi，而应优先查看对应 OpenAPI / Swagger。现有 OpenAPI / Swagger 能力不是通用的管控面 Action 集合；管控面 API 请优先参考 CloudBase API 概览 https://cloud.tencent.com/document/product/876/34809 与云开发依赖资源接口指引 https://cloud.tencent.com/document/product/876/34808。对于 tcb，可参考类似 `CreateEnv`、`ModifyEnv`、`DestroyEnv` 这类真实 Action 组织请求。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1921,17 +2042,17 @@
               "cdn",
               "vpc"
             ],
-            "description": "选择要访问的服务，必须先查看规则/技能确认是否可用。可选：tcb、scf、sts、cam、lowcode、cdn、vpc。"
+            "description": "选择要访问的服务。可选：tcb、scf、sts、cam、lowcode、cdn、vpc。对于 tcb / scf / lowcode 等 CloudBase 管控面 Action，请优先查官方文档，不要直接猜测 Action。"
           },
           "action": {
             "type": "string",
             "minLength": 1,
-            "description": "具体 Action 名称，需符合对应服务的 API 定义。"
+            "description": "具体 Action 名称，需符合对应服务的官方 API 定义。若不确定正确 Action，请先查官方文档；不要用近义词或历史命名进行猜测。对于 tcb，可优先参考 `CreateEnv`、`ModifyEnv`、`DestroyEnv`、`DescribeBillingInfo` 等真实 Action。"
           },
           "params": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Action 对应的参数对象，键名需与官方 API 定义一致。某些 Action 需要携带 EnvId 等信息，如不清楚请在调用前查看rules/skill。"
+            "description": "Action 对应的参数对象，键名需与官方 API 定义一致。某些 Action 需要携带 EnvId 等信息；如不确定参数结构，请先查官方文档。tcb 示例：`{ \"service\": \"tcb\", \"action\": \"DestroyEnv\", \"params\": { \"EnvId\": \"env-xxx\" } }` 或 `{ \"service\": \"tcb\", \"action\": \"ModifyEnv\", \"params\": { \"EnvId\": \"env-xxx\", \"Alias\": \"demo\" } }`。若你的场景是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请优先使用 OpenAPI / Swagger 或 searchKnowledgeBase(mode=\"openapi\")，而不是优先使用 callCloudApi。"
           }
         },
         "required": [
