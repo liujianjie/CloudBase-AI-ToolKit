@@ -31,7 +31,7 @@ Use this skill to:
 
 1. Start with focused `tool` and `skill` backlog queries.
 2. Process one issue at a time. Never mix evidence, notes, or worktrees across issues.
-3. Read issue detail, existing `externalUrl`, and current notes before choosing the representative run. If a GitHub issue or PR already exists, treat it as part of the current state, not a finished endpoint.
+3. Run the existing-artifact preflight before choosing the representative run: read issue detail, current notes, existing `externalUrl`, and the state of any linked GitHub issue or PR. If a GitHub issue or PR already exists, treat it as part of the current state, not a finished endpoint.
 4. Read at least one run's `result` and `trace`. Prefer to also read `evaluation-trace`.
 5. Check the relevant implementation in `mcp/src` or `config/source/skills` before deciding whether the issue is actionable.
 6. If the issue is actionable in repo code or skills content, do not stop at attribution triage. Open or link the matching GitHub issue, create a dedicated Worktrunk worktree, implement the fix, validate it, and prepare a PR.
@@ -63,6 +63,7 @@ Use this skill to:
 
 - Only update attribution issues through the local report API.
 - Treat `owner` as fixed: always set it to `codex` when you patch an attribution.
+- Before any new iteration, always inspect the latest attribution `notes`, `externalUrl`, linked GitHub issue or PR status, and any available PR comments or review decisions.
 - Do not change `resolutionStatus` until you have read at least one related run's `result` and `trace`.
 - Do not mark an issue `resolved` without clear closure evidence such as an existing GitHub issue, PR, merged fix, or a verified duplicate that already has external tracking.
 - Keep `notes` short but auditable. Include the representative run, the main failing signal, and the code or tool signal that supports the conclusion.
@@ -76,10 +77,21 @@ Use this skill to:
 - If a repair is needed, use Worktrunk's `wt` workflow for the isolated worktree. If `wt` is unavailable, stop and report that Worktrunk is missing instead of silently falling back to a shared checkout.
 - Never reuse the same worktree for multiple attribution issues.
 - Do not open or update GitHub issues until you have enough run evidence to explain the problem clearly.
-- If an issue already has a GitHub issue or PR, read that context before starting a new branch or changing direction.
+- If an issue already has a GitHub issue or PR, read its current state before starting a new branch or changing direction: open or closed status, latest comments, review decisions, and whether the linked work is already stale or superseded.
 - Review comments and post-PR evaluation failures are part of the same repair loop. Use them to drive another iteration instead of prematurely closing the attribution.
 - If a real evaluation interface is available, prefer leaving the attribution `in_progress` until the repaired branch or PR passes a fresh evaluation round.
 - Do not claim validation success from reasoning alone. Use the evaluation API and the final run result whenever that interface is available.
+
+## Required preflight
+
+Before starting a fresh diagnosis or code iteration for an attribution issue, complete this checklist in order:
+
+1. Read the attribution detail plus the latest `notes`.
+2. Read `externalUrl` if present.
+3. If `externalUrl` points to a GitHub issue, check whether it is open or closed and whether later comments changed the fix direction.
+4. If `externalUrl` points to a PR, check whether it is open, merged, closed, or superseded.
+5. Read PR comments, review comments, and review decisions before deciding whether to continue the same branch or start a new iteration.
+6. Only after that, pick the representative run and continue into `result`, `trace`, and `evaluation-trace`.
 
 ## Quick commands
 
@@ -99,6 +111,7 @@ curl -s -X POST http://127.0.0.1:5174/api/evaluations
 
 ## Minimum self-check
 
+- Did I complete the existing-artifact preflight before starting a new diagnosis or code iteration?
 - Did I inspect at least one related run's `result` and `trace` before changing status?
 - Did I keep this issue isolated from every other issue?
 - Is the issue actually actionable in `mcp/src`, `config/source/skills`, or is it environment / grader noise?

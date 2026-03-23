@@ -45,14 +45,17 @@ Examples:
 
 1. Confirm the issue is actionable from run evidence.
 2. Check whether a matching GitHub issue or PR already exists.
-3. If a PR already exists, read its comments and review state before deciding whether to continue on that line or open a new iteration.
-4. If needed, create a GitHub issue with a concise title and evidence summary.
-5. Create a dedicated Worktrunk worktree.
-6. Implement the fix inside that worktree only.
-7. Run the smallest relevant validation for the touched code.
-8. Commit and open or update a PR when the fix is ready.
-9. If a real evaluation interface exists, run a fresh evaluation after the code change or PR update.
-10. Patch the attribution with `owner=codex`, updated `notes`, `resolutionStatus`, and `externalUrl` when relevant.
+3. If a GitHub issue or PR already exists, read its state first:
+   - issue open or closed
+   - PR open, merged, closed, or superseded
+4. If a PR already exists, read its comments and review state before deciding whether to continue on that line or open a new iteration.
+5. If needed, create a GitHub issue with a concise title and evidence summary.
+6. Create a dedicated Worktrunk worktree.
+7. Implement the fix inside that worktree only.
+8. Run the smallest relevant validation for the touched code.
+9. Commit and open or update a PR when the fix is ready.
+10. If a real evaluation interface exists, run a fresh evaluation after the code change or PR update.
+11. Patch the attribution with `owner=codex`, updated `notes`, `resolutionStatus`, and `externalUrl` when relevant.
 
 Do not stop after step 4 for a repairable issue unless the environment prevents code work, PR creation, or real evaluation.
 
@@ -104,7 +107,7 @@ If you implement a fix:
 
 If the PR already exists:
 
-- read comments and review state before changing direction
+- read its state, comments, and review state before changing direction
 - prefer continuing the existing PR when the fix direction is still fundamentally correct
 - start a new iteration only when review or new evidence shows the approach itself was wrong
 
