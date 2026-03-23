@@ -19,9 +19,14 @@ Do not assume that:
 When an attribution already has `externalUrl` or notes pointing to previous work:
 
 1. Read that issue or PR first.
-2. Read comments, review decisions, and any follow-up discussion.
-3. Compare that feedback with the latest attribution run evidence.
-4. Decide whether to continue the same approach or redirect it.
+2. Capture its current state first:
+   - issue open or closed
+   - PR open, merged, closed, or superseded
+3. Read comments, review comments, review decisions, and any follow-up discussion.
+4. Compare that feedback with the latest attribution run evidence.
+5. Decide whether to continue the same approach or redirect it.
+
+Do not start a new branch, worktree, or diagnosis pass until this check is complete.
 
 ## Continue vs restart
 
@@ -40,6 +45,7 @@ Prefer a new worktree or branch when:
 - review or fresh evaluation shows the first direction was wrong
 - the repair target moved from `mcp/src` to `config/source/skills`, or vice versa
 - the PR became too mixed or too far from the new diagnosis
+- the linked PR is closed, stale, or superseded and continuing it would hide the new root cause
 
 ## Post-PR evaluation
 
@@ -88,3 +94,14 @@ iteration=<n>; prior=<issue or PR link>; new_signal=<review or eval summary>; co
 ```
 
 This keeps the attribution auditable across multiple rounds.
+
+## Mandatory iteration checklist
+
+Before each new iteration:
+
+1. read attribution `notes`
+2. read `externalUrl`
+3. inspect linked issue or PR state
+4. read comments and review decisions
+5. decide continue vs restart
+6. only then inspect the next representative run

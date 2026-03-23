@@ -53,17 +53,37 @@ Do not rely on the broad query as the default work source.
 For each candidate issue:
 
 1. Read issue detail with `GET /api/attributions/:issueId`.
-2. Review the current `notes` and `externalUrl`. If there is already a linked GitHub issue or PR, treat that as existing repair context.
-3. Review the `runs` array and pick one representative run.
-4. Read:
+2. Review the current `notes` and `externalUrl`.
+3. If there is already a linked GitHub issue or PR, read it as existing repair context before touching run evidence.
+4. Capture the state of the linked artifact:
+   - issue open or closed
+   - PR open, merged, closed, or superseded
+   - latest comments, review comments, and review decisions
+5. Only after that, review the `runs` array and pick one representative run.
+6. Read:
    - `result`
    - `trace`
    - preferably `evaluation-trace`
-5. Summarize the concrete failure signal.
-6. Only then decide whether the issue is non-actionable or should proceed into repo repair.
-7. Patch the issue with the current evidence.
-8. If the issue is actionable in `mcp/src` or `config/source/skills`, continue into the worktree and PR workflow instead of stopping here.
-9. If the issue already has a linked PR, use later review or evaluation evidence to decide whether the same line of work should continue or whether a new iteration is needed.
+7. Summarize the concrete failure signal.
+8. Only then decide whether the issue is non-actionable or should proceed into repo repair.
+9. Patch the issue with the current evidence.
+10. If the issue is actionable in `mcp/src` or `config/source/skills`, continue into the worktree and PR workflow instead of stopping here.
+11. If the issue already has a linked PR, use its current status plus later review or evaluation evidence to decide whether the same line of work should continue or whether a new iteration is needed.
+
+## Existing-artifact preflight
+
+Before starting a new iteration, always check:
+
+1. current attribution `notes`
+2. `externalUrl`
+3. linked GitHub issue or PR state
+4. latest comments and review decisions on the linked GitHub artifact
+
+Do not skip this preflight just because the attribution already has a linked PR. The purpose is to decide whether the next action is:
+
+- continue the same PR
+- update the linked issue first
+- start a new worktree and branch because the previous direction is stale or wrong
 
 ## Working set rules
 
