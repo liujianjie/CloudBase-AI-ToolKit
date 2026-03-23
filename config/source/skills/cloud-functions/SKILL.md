@@ -74,8 +74,11 @@ Use this skill for **cloud function operations** when you need to:
    - Must select correct runtime during initial creation
    - If runtime needs to change, must delete and recreate function
 
-3. **Deploy functions correctly**
-   - **Preferred MCP Tools**: Use `queryFunctions` for reads, `manageFunctions(action="createFunction")` for creation, and `manageFunctions(action="updateFunctionCode")` for code deployment
+3. **Write code AND deploy — do not stop after writing files**
+   - **CRITICAL**: After writing function code, you MUST also deploy it using `manageFunctions`. Creating files locally without deploying is incomplete.
+   - Use `manageFunctions(action="createFunction")` to create AND deploy in one step
+   - Provide `functionRootPath` as the **parent directory** of the function folder (e.g., `/project/cloudfunctions/` not `/project/cloudfunctions/myFunction/`)
+   - **Preferred MCP Tools**: Use `queryFunctions` for reads, `manageFunctions(action="createFunction")` for creation, and `manageFunctions(action="updateFunctionCode")` for code updates
    - **Legacy compatibility**: If older prompts mention `createFunction` / `updateFunctionCode`, map them to the `manageFunctions` actions above
    - **CLI**: Use `tcb fn deploy` (Event) or `tcb fn deploy --httpFn` (HTTP)
    - HTTP Functions require `scf_bootstrap` file in the function directory
