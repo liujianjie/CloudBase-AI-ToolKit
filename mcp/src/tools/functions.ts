@@ -850,25 +850,68 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       }
 
       logCloudBaseResult(server.logger, result);
+
+      // Auto-create HTTP access path for HTTP-type functions
+      const nextActions = [
+        {
+          tool: "queryFunctions",
+          action: "getFunctionDetail",
+          reason: "确认函数配置",
+        },
+        {
+          tool: "queryFunctions",
+          action: "listFunctionTriggers",
+          reason: "检查函数触发器",
+        },
+      ];
+
+      let accessResult: unknown | undefined;
+      let accessError: string | undefined;
+      if (func.type === "HTTP") {
+        try {
+          const cloudbase = await getManager();
+          const accessPath = `/${functionName}`;
+          accessResult = await cloudbase.access.createAccess({
+            name: functionName,
+            path: accessPath,
+            type: 6 as 1 | 2,
+          });
+          logCloudBaseResult(server.logger, accessResult);
+          nextActions.push({
+            tool: "queryGateway",
+            action: "getAccess",
+            reason: "确认 HTTP 访问路径是否已生效",
+          });
+        } catch (err) {
+          accessError = err instanceof Error ? err.message : String(err);
+          console.warn(
+            `[createFunction] HTTP 函数 ${functionName} 创建成功，但自动创建 HTTP 访问路径失败: ${accessError}`,
+          );
+          nextActions.push({
+            tool: "manageGateway",
+            action: "createAccess",
+            reason:
+              "HTTP 函数需要创建 HTTP 触发路径才能通过 URL 访问，请手动创建访问路径",
+          });
+        }
+      }
+
+      const message =
+        func.type === "HTTP"
+          ? accessError
+            ? `已创建 HTTP 函数 ${functionName}，但自动创建 HTTP 访问路径失败（${accessError}），请手动调用 manageGateway(action="createAccess") 创建访问路径`
+            : `已创建 HTTP 函数 ${functionName} 并自动创建了 HTTP 访问路径 /${functionName}`
+          : `已创建函数 ${functionName}`;
+
       return buildEnvelope(
         {
           action: input.action,
           functionName,
           raw: result as Record<string, unknown>,
+          ...(accessResult ? { accessPath: accessResult } : {}),
         },
-        `已创建函数 ${functionName}`,
-        [
-          {
-            tool: "queryFunctions",
-            action: "getFunctionDetail",
-            reason: "确认函数配置",
-          },
-          {
-            tool: "queryFunctions",
-            action: "listFunctionTriggers",
-            reason: "检查函数触发器",
-          },
-        ],
+        message,
+        nextActions,
       );
     }
     case "updateFunctionCode": {
