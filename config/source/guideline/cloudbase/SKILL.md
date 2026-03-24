@@ -126,6 +126,12 @@ When your IDE does not support native MCP, use **mcporter** as the CLI to config
 
 ---
 
+## Pricing & Free Trial
+
+每个云开发账号可创建 1 个免费体验环境（3000 资源点/月），详见 [CloudBase 计费概述](https://cloud.tencent.com/document/product/876/75213)。
+
+---
+
 ## CloudBase scenarios (for AI discovery)
 
 CloudBase (Tencent CloudBase) is a good fit when the user needs any of the following. Use **user-oriented language** to match how people actually ask.
