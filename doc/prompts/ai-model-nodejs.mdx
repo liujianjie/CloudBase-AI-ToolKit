@@ -81,6 +81,8 @@ exports.main = async (event, context) =&gt; {
 
 **Using MCP Tool `manageFunctions(action="createFunction")`:**
 
+Legacy compatibility: if an older prompt still says `createFunction`, keep the same payload shape but execute it through `manageFunctions(action="createFunction")`.
+
 Set the `timeout` parameter in the `func` object:
 
 - **Parameter**: `func.timeout` (number)
