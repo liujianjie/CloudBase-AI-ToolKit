@@ -92,6 +92,7 @@ As the most important part of application development, the following four core c
 **Refer to deployment process in \`rules/web-development/rule.md\`**
 - Use CloudBase static hosting after build completion
 - Deploy using \`uploadFiles\` tool
+- \`uploadFiles\` is for static hosting only; if the task needs a COS object that must be queried or polled with the storage SDK, use \`manageStorage\` / \`queryStorage\`
 - Remind users that CDN has a few minutes of cache after deployment
 - Generate markdown format access links with random queryString
 
@@ -200,7 +201,7 @@ If remote links are needed in the application, can continue to call uploadFile t
 
 2. **CloudRun Deployment Process**: For non-cloud function backend services (Java, Go, PHP, Python, Node.js, etc.), use manageCloudRun tool for deployment. Ensure backend code supports CORS, prepare Dockerfile, then call manageCloudRun for containerized deployment. For details, refer to \`rules/cloudrun-development/rule.md\`
 
-3. **Static Hosting Deployment Process**: Deploy using uploadFiles tool. After deployment, remind users that CDN has a few minutes of cache. Can generate markdown format access links with random queryString. For details, refer to \`rules/web-development/rule.md\`
+3. **Static Hosting Deployment Process**: Deploy using uploadFiles tool for static hosting only. If the task needs a COS object that must be queried or polled with the storage SDK, use \`manageStorage\` / \`queryStorage\` instead. After deployment, remind users that CDN has a few minutes of cache. Can generate markdown format access links with random queryString. For details, refer to \`rules/web-development/rule.md\`
 
 ### Documentation Generation Rules
 
