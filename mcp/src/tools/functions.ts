@@ -883,10 +883,10 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
             reason: "确认 HTTP 访问路径是否已生效",
           });
           nextActions.push({
-            tool: "manageGateway",
-            action: "createAccess",
+            tool: "writeSecurityRule",
+            action: "写入安全规则",
             reason:
-              "如果外部调用 HTTP 函数返回 EXCEED_AUTHORITY，需要配置安全规则放开访问权限",
+              "HTTP 函数默认安全规则不允许匿名访问，调用返回 EXCEED_AUTHORITY 时需配置函数安全规则放开权限",
           });
         } catch (err) {
           accessError = err instanceof Error ? err.message : String(err);
@@ -906,7 +906,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         func.type === "HTTP"
           ? accessError
             ? `已创建 HTTP 函数 ${functionName}，但自动创建 HTTP 访问路径失败（${accessError}），请手动调用 manageGateway(action="createAccess") 创建访问路径`
-            : `已创建 HTTP 函数 ${functionName} 并自动创建了 HTTP 访问路径 /${functionName}`
+            : `已创建 HTTP 函数 ${functionName} 并自动创建了 HTTP 访问路径 /${functionName}。注意：HTTP 函数默认安全规则不允许匿名访问，如果外部调用返回 EXCEED_AUTHORITY 错误，请调用 writeSecurityRule(resourceType="function", aclTag="CUSTOM", rule="true") 放开函数的访问权限。`
           : `已创建函数 ${functionName}`;
 
       return buildEnvelope(
