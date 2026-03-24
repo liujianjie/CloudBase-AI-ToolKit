@@ -882,6 +882,12 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
             action: "getAccess",
             reason: "确认 HTTP 访问路径是否已生效",
           });
+          nextActions.push({
+            tool: "manageGateway",
+            action: "createAccess",
+            reason:
+              "如果外部调用 HTTP 函数返回 EXCEED_AUTHORITY，需要配置安全规则放开访问权限",
+          });
         } catch (err) {
           accessError = err instanceof Error ? err.message : String(err);
           console.warn(
