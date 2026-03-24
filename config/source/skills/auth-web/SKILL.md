@@ -1,6 +1,6 @@
 ---
 name: auth-web-cloudbase
-description: CloudBase Web Authentication Quick Guide - Provides concise and practical Web frontend authentication solutions with multiple login methods and complete user management.
+description: CloudBase Web Authentication Quick Guide for frontend integration after auth-tool has already been checked. Provides concise and practical Web authentication solutions with multiple login methods and complete user management.
 alwaysApply: false
 ---
 
@@ -8,16 +8,21 @@ alwaysApply: false
 
 ### Use this first when
 
-- The task is a CloudBase Web login, registration, session, or user profile flow built with `@cloudbase/js-sdk`.
+- The task is a CloudBase Web login, registration, session, or user profile flow built with `@cloudbase/js-sdk` and the auth provider setup has already been checked.
 
 ### Read before writing code if
 
-- The user needs a login page, auth modal, session handling, or protected Web route. Read `auth-tool` first to ensure providers are enabled.
+- The user needs a login page, auth modal, session handling, or protected Web route. Read `auth-tool` first to ensure providers are enabled, then return here for frontend integration.
 
 ### Then also read
 
 - `../auth-tool/SKILL.md` for provider setup
 - `../web-development/SKILL.md` for Web project structure and deployment
+
+### Do not start here first when
+
+- The request is a Web auth flow but provider configuration has not been verified yet.
+- In that case, activate `auth-tool-cloudbase` before `auth-web-cloudbase`.
 
 ### Do NOT use for
 

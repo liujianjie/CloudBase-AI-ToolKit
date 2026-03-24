@@ -1,6 +1,6 @@
 ---
 name: auth-tool-cloudbase
-description: Use CloudBase Auth tool to configure and manage authentication providers for web applications - enable/disable login methods (SMS, Email, WeChat Open Platform, Google, Anonymous, Username/password, OAuth, SAML, CAS, Dingding, etc.) and configure provider settings via MCP tools `callCloudApi`.
+description: First-step CloudBase auth provider setup skill for login and registration flows. Use it before auth-web to configure and manage authentication providers for web applications - enable/disable login methods (SMS, Email, WeChat Open Platform, Google, Anonymous, Username/password, OAuth, SAML, CAS, Dingding, etc.) and configure provider settings via MCP tools `callCloudApi`.
 alwaysApply: false
 ---
 
@@ -10,6 +10,7 @@ alwaysApply: false
 
 - The user mentions login, registration, authentication, provider setup, SMS, email, anonymous login, or third-party login.
 - A Web, native App, or backend flow needs CloudBase auth configuration before implementation.
+- For any CloudBase Web auth flow, activate this skill before `auth-web`.
 
 ### Read before writing code if
 
