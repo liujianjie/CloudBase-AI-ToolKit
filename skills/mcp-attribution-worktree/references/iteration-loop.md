@@ -28,6 +28,19 @@ When an attribution already has `externalUrl` or notes pointing to previous work
 
 Do not start a new branch, worktree, or diagnosis pass until this check is complete.
 
+## Closure sweep
+
+Before you change an attribution from `in_progress` to `resolved`, repeat the artifact check one more time even if you already did it at the start of the iteration.
+
+You must re-read:
+
+1. the latest top-level PR comments
+2. review comments
+3. review decisions
+4. linked issue comments when relevant
+
+Treat any newer unresolved feedback as a new iteration signal. Do not close the attribution off an older snapshot of the PR.
+
 ## Continue vs restart
 
 ### Continue the same PR
@@ -76,6 +89,7 @@ Move to `resolved` only when:
 
 - the PR or linked issue provides explicit closure
 - and any available fresh evaluation no longer shows the original failure mode
+- and the closure sweep found no newer unresolved PR comments, review comments, review decisions, or issue comments
 
 ### Move to `invalid`
 
@@ -105,3 +119,5 @@ Before each new iteration:
 4. read comments and review decisions
 5. decide continue vs restart
 6. only then inspect the next representative run
+
+Before `resolved`, repeat steps 2-4 after the latest push or evaluation result so the closure decision is based on a fresh artifact read rather than an older preflight snapshot.

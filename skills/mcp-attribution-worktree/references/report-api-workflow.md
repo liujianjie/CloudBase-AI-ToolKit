@@ -85,6 +85,21 @@ Do not skip this preflight just because the attribution already has a linked PR.
 - update the linked issue first
 - start a new worktree and branch because the previous direction is stale or wrong
 
+## Closure preflight
+
+Do this again immediately before moving an attribution to `resolved`, even if you already completed the normal preflight earlier in the same session.
+
+Check:
+
+1. the latest linked GitHub issue or PR state
+2. top-level PR comments
+3. review comments
+4. review decisions
+5. issue comments when `externalUrl` points to an issue
+6. whether any of the above arrived after the latest code push, PR update, or fresh evaluation result
+
+If new unresolved feedback exists, do not mark the attribution `resolved`. Move it back to or keep it at `in_progress` and continue the repair loop.
+
 ## Working set rules
 
 Build the default working set from two buckets:
@@ -193,6 +208,8 @@ Never mark `resolved` from intuition alone.
 
 Do not mark `resolved` just because you understand the bug. Mark it only after you have explicit closure evidence.
 
+Do not mark `resolved` from a stale artifact read. If a linked PR or issue exists, you must complete the closure preflight immediately before patching `resolved`.
+
 If a post-PR evaluation interface is available, prefer using that fresh evaluation result as part of the closure evidence.
 
 ### `invalid`
@@ -237,3 +254,5 @@ Stop and keep the issue unclosed if any of these are true:
 - you cannot tell whether the problem lives in MCP code, the environment, or the grader
 
 Also stop short of `resolved` if you have not yet completed the GitHub issue / worktree / PR loop for an actionable repo bug.
+
+Also stop short of `resolved` if there are newer PR comments, review comments, review decisions, or issue comments that have not been re-read after the latest push or evaluation.

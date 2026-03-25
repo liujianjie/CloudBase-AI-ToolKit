@@ -111,6 +111,8 @@ If the PR already exists:
 - prefer continuing the existing PR when the fix direction is still fundamentally correct
 - start a new iteration only when review or new evidence shows the approach itself was wrong
 
+Before changing the attribution to `resolved`, read the PR state, top-level comments, review comments, and review decisions again after the latest push or evaluation result. Do not close from a stale read.
+
 Do not mark the attribution `resolved` until the closure link is real and the repair path is clear.
 
 If real evaluation is available, do not treat PR creation alone as closure. Use the fresh evaluation result to decide whether another repair loop is needed.
@@ -139,6 +141,7 @@ Use `resolved` when:
 
 - there is an exact GitHub issue or PR link in `externalUrl`
 - or the fix is already landed and the closure is explicit in `notes`
+- and there is no newer unresolved PR comment, review comment, or review decision waiting on follow-up
 
 ## Evidence template for GitHub issue creation
 
@@ -172,3 +175,4 @@ Before closing the attribution loop, verify:
 - `notes` explain why the current status is justified
 - the agent did not stop at attribution state changes when repo repair was possible
 - if a PR or issue already existed, the agent incorporated that context into the new iteration
+- if the attribution was marked `resolved`, the agent re-read the latest PR comments and review state immediately before closing it
