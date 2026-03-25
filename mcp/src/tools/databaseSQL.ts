@@ -510,9 +510,11 @@ function buildProvisionNextActions(
   return [
     buildNextAction(
       QUERY_SQL_DATABASE,
-      "describeTaskStatus",
-      "MySQL provisioning is still running. Check task status before initializing schema.",
-      request ? { action: "describeTaskStatus", request } : { action: "describeTaskStatus" },
+      "describeCreateResult",
+      "MySQL provisioning is still running. Check the create result again before initializing schema.",
+      request
+        ? { action: "describeCreateResult", request }
+        : { action: "describeCreateResult" },
     ),
   ];
 }
