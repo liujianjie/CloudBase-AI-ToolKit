@@ -48,6 +48,7 @@ describe('Environment List Field Optimization', () => {
       PackageName: '个人版',
       IsDefault: true,
     });
+    expect(simplified[0]).not.toHaveProperty('PackageId');
 
     // Verify removed fields are not present
     expect(simplified[0]).not.toHaveProperty('CreateTime');
@@ -134,6 +135,7 @@ describe('Environment List Field Optimization', () => {
       PackageName: '个人版',
       IsDefault: true,
     });
+    expect(simplified[0]).not.toHaveProperty('PackageId');
     expect(simplified[1]).toEqual({
       EnvId: 'env-2',
       Alias: 'Environment 2',
@@ -143,6 +145,7 @@ describe('Environment List Field Optimization', () => {
       PackageName: '免费版',
       IsDefault: false,
     });
+    expect(simplified[1]).not.toHaveProperty('PackageId');
   });
 
   test('should preserve undefined values for optional fields', () => {
@@ -171,6 +174,5 @@ describe('Environment List Field Optimization', () => {
     expect(simplified[0]).not.toHaveProperty('PackageName');
   });
 });
-
 
 

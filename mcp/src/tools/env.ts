@@ -49,7 +49,6 @@ export function simplifyEnvList(envList: any[]): any[] {
     if (env.EnvType !== undefined) simplified.EnvType = env.EnvType;
     if (env.Region !== undefined) simplified.Region = env.Region;
     if (env.PackageName !== undefined) simplified.PackageName = env.PackageName;
-    if (env.PackageId !== undefined) simplified.PackageId = env.PackageId;
     if (env.IsDefault !== undefined) simplified.IsDefault = env.IsDefault;
     
     return simplified;
@@ -64,7 +63,6 @@ const DEFAULT_ENV_FIELDS = [
   "EnvType",
   "Region",
   "PackageName",
-  "PackageId",
   "IsDefault",
 ] as const;
 
@@ -688,12 +686,12 @@ export function registerEnvTools(server: ExtendedMcpServer) {
     {
       title: "环境查询",
       description:
-        "查询云开发环境相关信息，支持查询环境列表、当前环境信息、安全域名和静态网站托管配置。（原工具名：listEnvs/getEnvInfo/getEnvAuthDomains/getWebsiteConfig，为兼容旧AI规则可继续使用这些名称）当 action=list 时，标准返回字段为 EnvId、Alias、Status、EnvType、Region、PackageName、PackageId、IsDefault，并支持通过 fields 白名单裁剪这些字段。当前 MCP 输出不支持套餐/计划到期时间（expiry / expire time）查询。",
+        "查询云开发环境相关信息，支持查询环境列表、当前环境信息、安全域名和静态网站托管配置。（原工具名：listEnvs/getEnvInfo/getEnvAuthDomains/getWebsiteConfig，为兼容旧AI规则可继续使用这些名称）当 action=list 时，标准返回字段为 EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault，并支持通过 fields 白名单裁剪这些字段；如需查看包含 PackageId 在内的更丰富环境详情，请使用 action=info。当前 MCP 输出不支持套餐/计划到期时间（expiry / expire time）查询。",
       inputSchema: {
         action: z
           .enum(["list", "info", "domains", "hosting"])
           .describe(
-            "查询类型：list=环境列表（标准字段：EnvId、Alias、Status、EnvType、Region、PackageName、PackageId、IsDefault；不支持 expiry），info=当前环境信息，domains=安全域名列表，hosting=静态网站托管配置",
+            "查询类型：list=环境列表（标准字段：EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault；不支持 expiry），info=当前环境信息（详情中可查看 PackageId 等更丰富字段），domains=安全域名列表，hosting=静态网站托管配置",
           ),
         alias: z.string().optional().describe("按环境别名筛选。action=list 时可选"),
         envId: z.string().optional().describe("按环境 ID 精确筛选。action=list 时可选"),
@@ -702,7 +700,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
         fields: z
           .array(z.enum(DEFAULT_ENV_FIELDS))
           .optional()
-          .describe("返回字段白名单。仅支持 EnvId、Alias、Status、EnvType、Region、PackageName、PackageId、IsDefault。action=list 时可选"),
+          .describe("返回字段白名单。仅支持 EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault。action=list 时可选"),
       },
       annotations: {
         readOnlyHint: true,

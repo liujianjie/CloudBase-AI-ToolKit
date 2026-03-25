@@ -295,6 +295,7 @@ describe("env tools - envQuery", () => {
               Status: "NORMAL",
               EnvType: "baas",
               Region: "ap-guangzhou",
+              PackageId: "pkg-id-a",
               PackageName: "pkg-a",
               IsDefault: true,
             },
@@ -304,6 +305,7 @@ describe("env tools - envQuery", () => {
               Status: "NORMAL",
               EnvType: "baas",
               Region: "ap-shanghai",
+              PackageId: "pkg-id-b",
               PackageName: "pkg-b",
               IsDefault: false,
             },
@@ -338,6 +340,7 @@ describe("env tools - envQuery", () => {
         Alias: "alpha-beta",
       },
     ]);
+    expect(payload.EnvList[0]).not.toHaveProperty("PackageId");
     expect(payload.TotalCount).toBe(2);
     expect(payload.Offset).toBe(1);
     expect(payload.Limit).toBe(1);
@@ -375,5 +378,33 @@ describe("env tools - envQuery", () => {
     expect(unfiltered.AppliedFilters.currentEnvOnly).toBe(true);
     expect(filtered.EnvList).toEqual([{ EnvId: "env-other", Alias: "other" }]);
     expect(filtered.AppliedFilters.currentEnvOnly).toBe(false);
+  });
+
+  it("envQuery(info) should preserve detailed fields such as PackageId", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      env: {
+        getEnvInfo: vi.fn().mockResolvedValue({
+          EnvInfo: {
+            EnvId: "env-test",
+            Alias: "bound",
+            PackageId: "baas_personal",
+            PackageName: "个人版",
+            Storages: [{ Bucket: "bucket-1" }],
+          },
+        }),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const payload = JSON.parse((await tools.envQuery.handler({ action: "info" })).content[0].text);
+
+    expect(payload).toMatchObject({
+      EnvInfo: {
+        EnvId: "env-test",
+        PackageId: "baas_personal",
+        PackageName: "个人版",
+      },
+    });
+    expect(payload.EnvInfo.Storages).toEqual([{ Bucket: "bucket-1" }]);
   });
 });
