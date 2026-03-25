@@ -516,4 +516,67 @@ describe("env tools - envQuery", () => {
       }),
     );
   });
+
+  it("envQuery(hosting) should read CdnDomain and Bucket from StaticStorages", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      hosting: {
+        getWebsiteConfig: vi.fn().mockResolvedValue({
+          IndexDocument: "index.html",
+          ErrorDocument: "404.html",
+        }),
+      },
+      env: {
+        getEnvInfo: vi.fn().mockResolvedValue({
+          EnvInfo: {
+            StaticStorages: [
+              {
+                StaticDomain: "static.example.com",
+                Bucket: "hosting-bucket",
+              },
+            ],
+            Storages: [
+              {
+                Bucket: "storage-bucket",
+              },
+            ],
+          },
+        }),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const payload = JSON.parse((await tools.envQuery.handler({ action: "hosting" })).content[0].text);
+
+    expect(payload).toMatchObject({
+      IndexDocument: "index.html",
+      ErrorDocument: "404.html",
+      CdnDomain: "static.example.com",
+      Bucket: "hosting-bucket",
+    });
+    expect(payload.Bucket).not.toBe("storage-bucket");
+  });
+
+  it("envQuery(hosting) should keep website config when env enrichment fails", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      hosting: {
+        getWebsiteConfig: vi.fn().mockResolvedValue({
+          IndexDocument: "index.html",
+          ErrorDocument: "404.html",
+        }),
+      },
+      env: {
+        getEnvInfo: vi.fn().mockRejectedValue(new Error("env info timeout")),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const payload = JSON.parse((await tools.envQuery.handler({ action: "hosting" })).content[0].text);
+
+    expect(payload).toMatchObject({
+      IndexDocument: "index.html",
+      ErrorDocument: "404.html",
+      CdnDomain: null,
+      Bucket: null,
+    });
+  });
 });

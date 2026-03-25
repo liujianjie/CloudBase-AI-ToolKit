@@ -913,11 +913,35 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             logCloudBaseResult(server.logger, result);
             break;
 
-          case "hosting":
+          case "hosting": {
             const cloudbaseHosting = await getManager();
-            result = await cloudbaseHosting.hosting.getWebsiteConfig();
-            logCloudBaseResult(server.logger, result);
+            const websiteConfig = await cloudbaseHosting.hosting.getWebsiteConfig();
+            logCloudBaseResult(server.logger, websiteConfig);
+            const hostingResult = {
+              ...(websiteConfig as Record<string, unknown>),
+              CdnDomain: (websiteConfig as Record<string, unknown>).CdnDomain ?? null,
+              Bucket: (websiteConfig as Record<string, unknown>).Bucket ?? null,
+            };
+
+            try {
+              const envInfo = await cloudbaseHosting.env.getEnvInfo() as {
+                EnvInfo?: {
+                  StaticStorages?: Array<{ StaticDomain?: string; Bucket?: string }>;
+                };
+              };
+              logCloudBaseResult(server.logger, envInfo);
+
+              hostingResult.CdnDomain = envInfo.EnvInfo?.StaticStorages?.[0]?.StaticDomain ?? hostingResult.CdnDomain;
+              hostingResult.Bucket = envInfo.EnvInfo?.StaticStorages?.[0]?.Bucket ?? hostingResult.Bucket;
+            } catch (hostingInfoError) {
+              debug("Failed to enrich hosting envQuery result with env info", {
+                error: hostingInfoError,
+              });
+            }
+
+            result = hostingResult;
             break;
+          }
 
           default:
             throw new Error(`不支持的查询类型: ${action}`);
