@@ -19,7 +19,42 @@ import AIDevelopmentPrompt from '../components/AIDevelopmentPrompt';
 
 ## Skill 
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+<TabItem value="SKILL" label="SKILL">
+
 ````markdown title="rule.md"
+## Activation Contract
+
+### Use this first when
+
+- The request involves any page, component, screen, visual prototype, or frontend styling work.
+
+### Read before writing code if
+
+- The response will include UI code, layout structure, typography, color decisions, or visual behavior.
+
+### Then also read
+
+- Web implementation -&gt; `../web-development/SKILL.md`
+- Mini program implementation -&gt; `../miniprogram-development/SKILL.md`
+
+### Do NOT use for
+
+- Backend-only tasks, database design, or pure API work without interface output.
+
+### Common mistakes / gotchas
+
+- Writing JSX, WXML, or CSS before outputting the design specification.
+- Falling back to generic AI layouts instead of an explicit aesthetic direction.
+- Ignoring platform constraints after the visual concept is defined.
+
+### Minimal checklist
+
+- Read [UI Design Activation Checklist](checklist.md) before interface generation.
+
 ## When to use this skill
 
 Use this skill for **frontend UI design and interface creation** in any project that requires:
@@ -296,3 +331,37 @@ All interface prototypes must:
 
 Remember: You are capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
 ````
+
+</TabItem>
+
+<TabItem value="checklist" label="checklist">
+
+````markdown title="checklist.md"
+# UI Design Activation Checklist
+
+Use this checklist before generating any page, component, or visual interface.
+
+## Required checks
+
+1. Output the design specification first.
+2. Choose a concrete aesthetic direction rather than generic adjectives.
+3. Define a color palette and typography before writing markup or styles.
+4. Confirm the target platform: Web or mini program.
+5. Read the platform implementation skill after the design spec is fixed.
+
+## Common failure patterns
+
+- Starting with JSX, WXML, or CSS before design intent is stated.
+- Falling back to generic AI visual patterns.
+- Missing platform-specific layout or asset constraints.
+
+## Done criteria
+
+- The design spec is visible in the response.
+- Aesthetic direction, palette, and typography are explicit.
+- The next implementation skill is known before UI code starts.
+````
+
+</TabItem>
+
+</Tabs>

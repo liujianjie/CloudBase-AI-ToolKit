@@ -346,6 +346,59 @@ describe("env tools - envQuery", () => {
     expect(payload.HasMore).toBe(false);
     expect(payload.AppliedFilters).toMatchObject({
       alias: "alpha",
+      aliasExact: null,
+      envId: null,
+      fields: ["EnvId", "Alias"],
+      currentEnvOnly: false,
+    });
+  });
+
+  it("envQuery(list) should support exact alias filtering when requested", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      commonService: vi.fn(() => ({
+        call: vi.fn().mockResolvedValue({
+          EnvList: [
+            {
+              EnvId: "env-test",
+              Alias: "alpha",
+              Status: "NORMAL",
+              EnvType: "baas",
+              Region: "ap-guangzhou",
+            },
+            {
+              EnvId: "env-extra",
+              Alias: "alpha-beta",
+              Status: "NORMAL",
+              EnvType: "baas",
+              Region: "ap-shanghai",
+            },
+          ],
+        }),
+      })),
+      env: {
+        listEnvs: vi.fn(),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.envQuery.handler({
+      action: "list",
+      alias: "alpha",
+      aliasExact: true,
+      fields: ["EnvId", "Alias"],
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.EnvList).toEqual([
+      {
+        EnvId: "env-test",
+        Alias: "alpha",
+      },
+    ]);
+    expect(payload.TotalCount).toBe(1);
+    expect(payload.AppliedFilters).toMatchObject({
+      alias: "alpha",
+      aliasExact: true,
       envId: null,
       fields: ["EnvId", "Alias"],
       currentEnvOnly: false,

@@ -20,7 +20,42 @@ import AIDevelopmentPrompt from '../components/AIDevelopmentPrompt';
 
 ## Skill 
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+<TabItem value="SKILL" label="SKILL">
+
 ````markdown title="rule.md"
+## Activation Contract
+
+### Use this first when
+
+- The request comes from Android, iOS, Flutter, React Native, non-Node backends, or admin scripts that must call CloudBase via raw HTTP.
+
+### Read before writing code if
+
+- The platform does not support a CloudBase SDK, or the user explicitly asks for HTTP API integration.
+
+### Then also read
+
+- Auth configuration -&gt; `../auth-tool/SKILL.md`
+- MySQL MCP management -&gt; `../relational-database-tool/SKILL.md`
+
+### Do NOT use for
+
+- CloudBase Web SDK flows, mini program SDK flows, or MCP-driven management tasks.
+
+### Common mistakes / gotchas
+
+- Treating Web SDK examples as valid for native Apps.
+- Guessing endpoints without reading OpenAPI definitions.
+- Mixing raw HTTP API integration with MCP management logic.
+
+### Minimal checklist
+
+- Read [HTTP API Routing Checklist](checklist.md) before implementation.
+
 ## When to use this skill
 
 Use this skill whenever you need to call **CloudBase platform features** via **raw HTTP APIs**, for example:
@@ -468,3 +503,37 @@ This is the **preferred** authentication flow for native mobile apps (iOS/Androi
 7. **Phone number format**: Always use international format with space: `"+86 13800138000"`
 8. **Verification flow**: Save `verification_id` from send step, use it in verify step
 ````
+
+</TabItem>
+
+<TabItem value="checklist" label="checklist">
+
+````markdown title="checklist.md"
+# HTTP API Routing Checklist
+
+Use this checklist when the request comes from Android, iOS, Flutter, React Native, backend scripts, or any environment that is not using a CloudBase SDK.
+
+## Required checks
+
+1. Confirm the caller really needs raw HTTP APIs rather than Web SDK or MCP tools.
+2. Confirm environment ID, region, and gateway base URL.
+3. Choose the auth mechanism: AccessToken, API Key, or Publishable Key.
+4. Query the matching OpenAPI definition before writing request code.
+5. For database work, confirm whether the task is MySQL REST API, MCP SQL management, or Web SDK data access.
+
+## Do not route here when
+
+- The user is building a Web frontend with `@cloudbase/js-sdk`.
+- The user is building a CloudBase mini program with `wx.cloud`.
+- The task is MCP-driven database management rather than raw HTTP calls.
+
+## Done criteria
+
+- SDK support boundary is explicit.
+- OpenAPI source has been checked.
+- The auth method and request base URL are fixed before code generation.
+````
+
+</TabItem>
+
+</Tabs>

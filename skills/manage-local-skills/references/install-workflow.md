@@ -6,10 +6,10 @@ Use this reference when mounting a local skill into one or more agent directorie
 
 Treat installation as a two-stage process:
 
-1. Copy the maintained source into a canonical install directory.
-2. Expose that canonical install to one or more agent directories.
+1. Create or refresh the canonical entry in the install directory.
+2. Expose that canonical entry to one or more agent directories.
 
-This keeps maintained sources separate from runtime install state.
+In this repo's `symlink` mode, the canonical entry should itself be a symlink back to the maintained source so `skills/` remains the only maintained copy.
 
 ## Scope
 
@@ -33,6 +33,12 @@ Before performing a real install, confirm with the user when:
 
 Use `symlink` mode by default when the filesystem supports it and the user does not require physical copies.
 
+In `symlink` mode:
+
+- create the canonical path as a symlink to the maintained source
+- if the target agent is universal and reuses `.agents/skills`, that canonical symlink is the final installed entry
+- if the target agent has its own skills directory, symlink the target entry to the canonical path
+
 Use `copy` mode when:
 
 - the user asks for independent copies
@@ -40,6 +46,11 @@ Use `copy` mode when:
 - a target environment rejects symlinks
 
 If symlink mode fails, report the fallback and switch to copy mode.
+
+In `copy` mode:
+
+- materialize the canonical path as a copied directory
+- if needed, materialize copied agent targets from the canonical path
 
 ## Conflict handling
 
@@ -74,5 +85,6 @@ After installation:
 
 - verify the canonical path exists
 - verify the target path exists
-- if symlink mode was used, verify the target resolves to the canonical path
+- if symlink mode was used, verify the canonical path resolves to the maintained source
+- if the target path differs from the canonical path, verify the target resolves to the canonical path
 - if copy mode was used, verify that required files such as `SKILL.md` are present

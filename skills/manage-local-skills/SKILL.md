@@ -29,7 +29,7 @@ Use this skill to:
 1. Identify whether the user wants analysis only, migration, validation, mapping changes, or installation.
 2. If the source is not obviously standard, read `references/source-classification.md` and run `scripts/inspect-source.mjs` first.
 3. If migration is needed, read `references/migration-playbook.md` and convert the source into a standard skill folder before installation.
-4. Before mounting a skill, read `references/cli-alignment.md` and `references/install-workflow.md` to preserve the canonical-install model.
+4. Before mounting a skill, read `references/cli-alignment.md` and `references/install-workflow.md` to preserve the source-first install model used in this repo.
 5. Use `scripts/validate-skill.mjs` before and after installation when structure or path correctness is in doubt.
 6. If the target agent is new or unclear, read `references/mapping-extension.md` before adding or changing mappings.
 
@@ -53,10 +53,10 @@ Use this skill to:
 
 ## Operating rules
 
-- Treat `skills` CLI installation semantics as the behavioral baseline for canonical directory layout, scope handling, and symlink fallback.
+- Treat `skills` CLI installation semantics as the baseline, but follow this repo's source-first project install model for locally maintained skills.
 - Prefer analysis first when the source structure is ambiguous.
 - Do not execute arbitrary scripts from the source folder while inspecting it.
-- Keep local source directories distinct from canonical install directories.
+- In `symlink` mode, keep `skills/` as the single maintained source of truth and expose `.agents` entries as links instead of extra copies.
 - Prefer symlinks when supported and safe. Fall back to copy when the user requests it or symlinks fail.
 - Make scope explicit: `project` means the current workspace, `global` means the user-level agent directory.
 - Ask the user to confirm before writing files, replacing existing installs, changing mappings, or converting a non-standard source into a standard skill.
@@ -75,7 +75,7 @@ node skills/manage-local-skills/scripts/install-skill.mjs --source-dir skills --
 
 - Is the source clearly classified as `standard`, `nonstandard`, or `mixed`?
 - Is the target skill structure valid before installation?
-- Is the canonical install path separate from the maintained source directory?
+- If `symlink` mode was requested, does the installed `.agents` entry resolve back to the maintained source?
 - Is the selected agent mapping explicit and correct for the requested scope?
 - If symlink mode is used, is there a defined fallback to copy mode?
 - If behavior differs from `skills` CLI, did you state the difference clearly?

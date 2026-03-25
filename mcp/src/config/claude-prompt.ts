@@ -92,12 +92,15 @@ As the most important part of application development, the following four core c
 **Refer to deployment process in \`rules/web-development/rule.md\`**
 - Use CloudBase static hosting after build completion
 - Deploy using \`uploadFiles\` tool
+- \`uploadFiles\` is only for static hosting deployment; do not use it for COS / cloud storage uploads. For storage objects, use \`manageStorage(action="upload")\`
 - Remind users that CDN has a few minutes of cache after deployment
 - Generate markdown format access links with random queryString
 
 ### 4. Backend Deployment (Cloud Functions or CloudRun)
 **Refer to \`rules/cloudrun-development/rule.md\`**
-- **Cloud Function Deployment**: Prefer \`queryFunctions\` to inspect current state, then use \`manageFunctions\` with \`action="createFunction"\` or \`action="updateFunctionCode"\`
+- **Cloud Function Deployment**: Prefer \`queryFunctions\` to inspect current state, then use \`manageFunctions\` with \`action="createFunction"\` or \`action="updateFunctionCode"\`.
+- In agent / non-interactive runs, treat \`manageFunctions\` as the default deployment path for both Event and HTTP functions; do not fall back to CLI login flows unless MCP tools are unavailable.
+- For HTTP functions, create or update them through \`manageFunctions\` with \`func.type="HTTP"\` instead of relying on \`tcb fn deploy\` as the primary path.
 - **CloudRun Deployment**: Use \`manageCloudRun\` tool for containerized deployment
 - Ensure backend code supports CORS, prepare Dockerfile (for container type)
 
@@ -196,11 +199,11 @@ If remote links are needed in the application, can continue to call uploadFile t
 
 ### Deployment Process
 
-1. **Cloud Function Deployment Process**: Prefer \`queryFunctions\` to query current functions, then call \`manageFunctions\` with \`action="createFunction"\` or \`action="updateFunctionCode"\` to deploy cloud function code. Only need to point \`functionRootPath\` to the parent directory of the cloud function directory (for example, the absolute path of the \`cloudfunctions\` directory). No need for code compression or other preprocessing.
+1. **Cloud Function Deployment Process**: Prefer \`queryFunctions\` to query current functions, then call \`manageFunctions\` with \`action="createFunction"\` or \`action="updateFunctionCode"\` to deploy cloud function code. In agent / non-interactive runs, keep deployment on MCP tools instead of CLI login flows. For HTTP functions, set \`func.type="HTTP"\` when creating them. Only need to point \`functionRootPath\` to the parent directory of the cloud function directory (for example, the absolute path of the \`cloudfunctions\` directory). No need for code compression or other preprocessing.
 
 2. **CloudRun Deployment Process**: For non-cloud function backend services (Java, Go, PHP, Python, Node.js, etc.), use manageCloudRun tool for deployment. Ensure backend code supports CORS, prepare Dockerfile, then call manageCloudRun for containerized deployment. For details, refer to \`rules/cloudrun-development/rule.md\`
 
-3. **Static Hosting Deployment Process**: Deploy using uploadFiles tool. After deployment, remind users that CDN has a few minutes of cache. Can generate markdown format access links with random queryString. For details, refer to \`rules/web-development/rule.md\`
+3. **Static Hosting Deployment Process**: Deploy using uploadFiles tool for static hosting only. If the task needs a COS object that must be queried or polled with the storage SDK, use \`manageStorage\` / \`queryStorage\` instead. After deployment, remind users that CDN has a few minutes of cache. Can generate markdown format access links with random queryString. For details, refer to \`rules/web-development/rule.md\`
 
 ### Documentation Generation Rules
 

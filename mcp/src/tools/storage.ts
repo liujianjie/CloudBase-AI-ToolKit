@@ -143,7 +143,7 @@ export function registerStorageTools(server: ExtendedMcpServer) {
     "manageStorage",
     {
       title: "管理存储文件",
-      description: "管理云存储文件，支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。",
+      description: "管理云存储文件，仅用于 COS/Storage 对象，不用于静态网站托管。支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。",
       inputSchema: manageStorageInputSchema,
       annotations: {
         readOnlyHint: false,

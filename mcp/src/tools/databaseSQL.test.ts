@@ -255,6 +255,53 @@ describe("SQL database tools", () => {
     });
   });
 
+  it("querySqlDatabase(describeCreateResult) suggests polling the create result again", async () => {
+    mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
+      if (Action === "DescribeCreateMySQLResult") {
+        return {
+          RequestId: "req-create",
+          Data: {
+            Status: "doing",
+            TaskId: "38661",
+          },
+        };
+      }
+      return {
+        RequestId: "req-1",
+      };
+    });
+
+    const { tools } = createMockServer();
+    const result = await tools.querySqlDatabase.handler({
+      action: "describeCreateResult",
+      request: { TaskId: "38661" },
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        status: "PENDING",
+        rawStatus: "doing",
+        task: {
+          request: {
+            TaskId: "38661",
+          },
+        },
+      },
+    });
+    expect(payload.nextActions?.[0]).toMatchObject({
+      tool: "querySqlDatabase",
+      action: "describeCreateResult",
+      suggested_args: {
+        action: "describeCreateResult",
+        request: {
+          TaskId: "38661",
+        },
+      },
+    });
+  });
+
   it("querySqlDatabase(describeTaskStatus) suggests getInstanceInfo for destroy tasks", async () => {
     mockCommonServiceCall.mockImplementation(async ({ Action }: { Action: string }) => {
       if (Action === "DescribeMySQLTaskStatus") {
@@ -376,9 +423,9 @@ describe("SQL database tools", () => {
     });
     expect(payload.nextActions?.[0]).toMatchObject({
       tool: "querySqlDatabase",
-      action: "describeTaskStatus",
+      action: "describeCreateResult",
       suggested_args: {
-        action: "describeTaskStatus",
+        action: "describeCreateResult",
         request: {
           TaskId: "38661",
         },

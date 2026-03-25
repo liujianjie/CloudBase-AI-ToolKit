@@ -107,6 +107,8 @@ describe("gateway tools", () => {
     });
     expect(payload).toMatchObject({
       success: true,
+      message:
+        "已为目标 helloFn 创建网关访问路径。注意：路由配置传播通常需要等待 30 秒到 3 分钟，请勿立即访问。",
       data: {
         action: "createAccess",
         targetType: "function",
@@ -117,6 +119,7 @@ describe("gateway tools", () => {
         expect.objectContaining({
           tool: "queryGateway",
           action: "getAccess",
+          reason: "等待 30 秒到 3 分钟后再确认访问入口是否已生效",
         }),
       ],
     });

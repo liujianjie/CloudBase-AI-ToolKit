@@ -39,6 +39,12 @@ export function copyDirectory(sourceDir, targetDir) {
   }
 }
 
+function symlinkDirectory(sourceDir, targetPath) {
+  ensureDir(path.dirname(targetPath));
+  const relativeTarget = path.relative(path.dirname(targetPath), sourceDir);
+  fs.symlinkSync(relativeTarget, targetPath, platform() === 'win32' ? 'junction' : undefined);
+}
+
 export function getCanonicalBaseDir(scope, cwd) {
   return scope === 'global' ? path.join(homedir(), '.agents', 'skills') : path.join(cwd, '.agents', 'skills');
 }
@@ -94,6 +100,9 @@ export function installLocalSkill(options) {
     : getAgentSkillPath(agentKey, skillName, scope, cwd);
   const canonicalConflict = detectConflict(canonicalPath);
   const targetConflict = targetPath === canonicalPath ? canonicalConflict : detectConflict(targetPath);
+  const canonicalPointsToSource = mode === 'symlink';
+  let canonicalSymlinkFailed = false;
+  let canonicalSymlinkError = null;
 
   const plan = {
     sourceDir,
@@ -106,6 +115,7 @@ export function installLocalSkill(options) {
     canonicalConflict,
     targetConflict,
     targetIsUniversal: isUniversalAgent(agentKey),
+    canonicalPointsToSource,
   };
 
   if (dryRun) {
@@ -119,9 +129,31 @@ export function installLocalSkill(options) {
 
   removePath(canonicalPath);
   ensureDir(path.dirname(canonicalPath));
-  copyDirectory(sourceDir, canonicalPath);
 
-  if (targetPath === canonicalPath || mode === 'copy') {
+  if (mode === 'symlink') {
+    try {
+      symlinkDirectory(sourceDir, canonicalPath);
+    } catch (error) {
+      canonicalSymlinkFailed = true;
+      canonicalSymlinkError = error instanceof Error ? error.message : String(error);
+      copyDirectory(sourceDir, canonicalPath);
+
+      if (targetPath === canonicalPath) {
+        return {
+          success: true,
+          dryRun: false,
+          mode: 'copy',
+          symlinkFailed: true,
+          error: canonicalSymlinkError,
+          ...plan,
+        };
+      }
+    }
+  } else {
+    copyDirectory(sourceDir, canonicalPath);
+  }
+
+  if (targetPath === canonicalPath) {
     if (targetPath !== canonicalPath) {
       removePath(targetPath);
       copyDirectory(canonicalPath, targetPath);
@@ -130,7 +162,19 @@ export function installLocalSkill(options) {
     return {
       success: true,
       dryRun: false,
-      mode: targetPath === canonicalPath ? 'canonical' : 'copy',
+      mode,
+      ...plan,
+    };
+  }
+
+  if (mode === 'copy') {
+    removePath(targetPath);
+    copyDirectory(canonicalPath, targetPath);
+
+    return {
+      success: true,
+      dryRun: false,
+      mode: 'copy',
       ...plan,
     };
   }
@@ -145,7 +189,13 @@ export function installLocalSkill(options) {
     return {
       success: true,
       dryRun: false,
-      mode: 'symlink',
+      mode: canonicalSymlinkFailed ? 'copy' : 'symlink',
+      ...(canonicalSymlinkFailed
+        ? {
+            symlinkFailed: true,
+            error: canonicalSymlinkError,
+          }
+        : {}),
       ...plan,
     };
   } catch (error) {

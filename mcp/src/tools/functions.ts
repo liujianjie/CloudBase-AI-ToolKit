@@ -9,6 +9,7 @@ import { isCloudMode } from "../utils/cloud-mode.js";
 import { debug } from "../utils/logger.js";
 
 import { IEnvVariable } from "@cloudbase/manager-node/types/function/types.js";
+import { existsSync } from "fs";
 import path from "path";
 
 export const SUPPORTED_RUNTIMES = {
@@ -306,7 +307,18 @@ function getExpectedFunctionPath(
   return path.join(path.normalize(functionRootPath), functionName);
 }
 
-function buildFunctionOperationErrorMessage(
+export function shouldInstallDependencyForFunction(
+  functionType: string | undefined,
+  hasPackageJson: boolean,
+): boolean {
+  if (functionType === "HTTP") {
+    return hasPackageJson;
+  }
+
+  return true;
+}
+
+export function buildFunctionOperationErrorMessage(
   operation: "createFunction" | "updateFunctionCode",
   functionName: string,
   functionRootPath: string | undefined,
@@ -327,6 +339,21 @@ function buildFunctionOperationErrorMessage(
       `当前工具会从 \`functionRootPath + 函数名\` 查找代码目录，期望目录是 \`${expectedFunctionPath}\`。`,
     );
     suggestions.push("如果你传入的已经是函数目录本身，请改为传它的父目录。");
+  }
+
+  if (/paths\[0\].*undefined/i.test(baseMessage)) {
+    suggestions.push(
+      "HTTP 函数创建时需要提供 functionRootPath（指向 cloudfunctions 父目录）或 zipFile，否则 SDK 无法定位函数目录。",
+    );
+  }
+
+  if (/依赖安装失败|package\.json/i.test(baseMessage)) {
+    suggestions.push(
+      "如果 HTTP 函数只使用原生 Node.js API 且没有第三方依赖，可以保留函数目录中的 index.js 和 scf_bootstrap，工具会跳过依赖安装。",
+    );
+    suggestions.push(
+      "如果你确实依赖 npm 包，请在函数目录下补充 package.json 后重试。",
+    );
   }
 
   if (suggestions.length === 0) {
@@ -827,11 +854,36 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         }
       }
 
-      func.installDependency = true;
       const processedRootPath = processFunctionRootPath(
         input.functionRootPath,
         functionName,
       );
+      const functionType =
+        typeof func.type === "string" ? func.type : undefined;
+      const expectedFunctionPath = getExpectedFunctionPath(
+        processedRootPath,
+        functionName,
+      );
+
+      if (functionType === "HTTP" && !processedRootPath && !input.zipFile) {
+        throw new Error(
+          "createFunction 创建 HTTP 函数时，需要提供 functionRootPath（指向 cloudfunctions 父目录）或 zipFile。",
+        );
+      }
+
+      const hasPackageJson =
+        expectedFunctionPath !== undefined
+          ? existsSync(path.join(expectedFunctionPath, "package.json"))
+          : false;
+      func.installDependency = input.zipFile
+        ? true
+        : shouldInstallDependencyForFunction(functionType, hasPackageJson);
+
+      if (functionType === "HTTP" && processedRootPath && !hasPackageJson) {
+        console.warn(
+          `检测到 HTTP 函数 ${functionName} 目录下没有 package.json，已跳过依赖安装；如果你需要第三方依赖，请补充 package.json 后重试。`,
+        );
+      }
 
       let result: unknown;
       try {
@@ -850,25 +902,59 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       }
 
       logCloudBaseResult(server.logger, result);
+
+      const nextActions = [
+        {
+          tool: "queryFunctions",
+          action: "getFunctionDetail",
+          reason: "确认函数配置",
+        },
+        {
+          tool: "queryFunctions",
+          action: "listFunctionTriggers",
+          reason: "检查函数触发器",
+        },
+      ];
+
+      if (func.type === "HTTP") {
+        nextActions.push({
+          tool: "manageGateway",
+          action: "createAccess",
+          reason:
+            "如果需要通过 URL 访问 HTTP 函数，请按实际路径和鉴权需求显式创建访问入口，不要默认假设 /函数名 已存在",
+        });
+        nextActions.push({
+          tool: "queryGateway",
+          action: "getAccess",
+          reason: "交付前确认 HTTP 访问路径是否已存在并已生效",
+        });
+        nextActions.push({
+          tool: "readSecurityRule",
+          action: "读取安全规则",
+          reason:
+            "评测、浏览器或其他外部调用方可能以匿名身份访问；若直接报 EXCEED_AUTHORITY，应先读取当前函数安全规则",
+        });
+        nextActions.push({
+          tool: "writeSecurityRule",
+          action: "写入安全规则",
+          reason:
+            "只有在确认需要匿名访问时，才按实际安全要求调整函数安全规则，例如处理 EXCEED_AUTHORITY",
+        });
+      }
+
+      const message =
+        func.type === "HTTP"
+          ? `已创建 HTTP 函数 ${functionName}。如果后续需要通过 URL 访问，请显式调用 manageGateway(action="createAccess") 按实际路径和鉴权需求创建访问入口。评测或其他外部调用方可能会以匿名身份访问，而且失败后不一定会把 EXCEED_AUTHORITY 再反馈给 AI；交付前请主动确认访问路径和函数安全规则，若已出现 EXCEED_AUTHORITY，请先调用 readSecurityRule(resourceType="function") 查看当前规则，再按需要使用 writeSecurityRule 调整权限。`
+          : `已创建函数 ${functionName}`;
+
       return buildEnvelope(
         {
           action: input.action,
           functionName,
           raw: result as Record<string, unknown>,
         },
-        `已创建函数 ${functionName}`,
-        [
-          {
-            tool: "queryFunctions",
-            action: "getFunctionDetail",
-            reason: "确认函数配置",
-          },
-          {
-            tool: "queryFunctions",
-            action: "listFunctionTriggers",
-            reason: "检查函数触发器",
-          },
-        ],
+        message,
+        nextActions,
       );
     }
     case "updateFunctionCode": {

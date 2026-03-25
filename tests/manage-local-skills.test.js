@@ -100,7 +100,7 @@ test('sanitizeSkillName matches upstream-compatible character handling', () => {
   expect(sanitizeSkillName('***')).toBe('unnamed-skill');
 });
 
-test('installLocalSkill creates a canonical install and symlink target', () => {
+test('installLocalSkill symlinks the canonical entry to source and the agent target to canonical', () => {
   const rootDir = makeTempDir('manage-local-skills-install-');
   const sourceDir = path.join(rootDir, 'skills', 'demo-skill');
   fs.mkdirSync(sourceDir, { recursive: true });
@@ -118,10 +118,38 @@ test('installLocalSkill creates a canonical install and symlink target', () => {
   expect(result.success).toBe(true);
   expect(result.mode).toBe('symlink');
   expect(fs.existsSync(result.canonicalPath)).toBe(true);
+  expect(fs.lstatSync(result.canonicalPath).isSymbolicLink()).toBe(true);
+  expect(
+    path.resolve(path.dirname(result.canonicalPath), fs.readlinkSync(result.canonicalPath)),
+  ).toBe(sourceDir);
   expect(fs.lstatSync(result.targetPath).isSymbolicLink()).toBe(true);
   expect(
     path.resolve(path.dirname(result.targetPath), fs.readlinkSync(result.targetPath)),
   ).toBe(result.canonicalPath);
+});
+
+test('installLocalSkill keeps universal project targets as symlinks to the maintained source', () => {
+  const rootDir = makeTempDir('manage-local-skills-universal-');
+  const sourceDir = path.join(rootDir, 'skills', 'demo-skill');
+  fs.mkdirSync(sourceDir, { recursive: true });
+  writeStandardSkill(sourceDir);
+
+  const result = installLocalSkill({
+    sourceDir,
+    skillName: 'demo-skill',
+    agentKey: 'codex',
+    scope: 'project',
+    mode: 'symlink',
+    cwd: rootDir,
+  });
+
+  expect(result.success).toBe(true);
+  expect(result.mode).toBe('symlink');
+  expect(result.targetPath).toBe(result.canonicalPath);
+  expect(fs.lstatSync(result.canonicalPath).isSymbolicLink()).toBe(true);
+  expect(
+    path.resolve(path.dirname(result.canonicalPath), fs.readlinkSync(result.canonicalPath)),
+  ).toBe(sourceDir);
 });
 
 test('installLocalSkill supports explicit copy mode', () => {
@@ -143,6 +171,7 @@ test('installLocalSkill supports explicit copy mode', () => {
   expect(result.mode).toBe('copy');
   expect(fs.existsSync(path.join(result.targetPath, 'SKILL.md'))).toBe(true);
   expect(fs.lstatSync(result.targetPath).isDirectory()).toBe(true);
+  expect(fs.lstatSync(result.canonicalPath).isDirectory()).toBe(true);
 });
 
 test('validateSkill passes for a valid skill and fails for missing references', () => {

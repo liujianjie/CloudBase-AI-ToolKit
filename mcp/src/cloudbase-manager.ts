@@ -350,9 +350,9 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
 
     try {
         // Get region from environment variable for auth URL
-        const region = cloudBaseOptions?.region ?? process.env.TCB_REGION;
+        const fallbackRegion = cloudBaseOptions?.region ?? process.env.TCB_REGION;
         const loginState = authStrategy === 'ensure'
-            ? await getLoginState({ region })
+            ? await getLoginState({ region: fallbackRegion })
             : await peekLoginState();
 
         if (!loginState) {
@@ -404,13 +404,29 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
 
         // envId priority: envManager.cachedEnvId > envManager.getEnvId() > loginState.envId > undefined
         // Note: envManager.cachedEnvId has highest priority as it reflects user's latest environment switch
-        // Region priority: process.env.TCB_REGION > undefined (use SDK default)
-        // At this point, cloudBaseOptions is undefined (checked above), so only use env var if present
-        // Reuse region variable declared above (line 259) for CloudBase initialization
+        // Region priority: envCandidates[].region (actual env region) > process.env.TCB_REGION > undefined
+        // Resolving the environment's own region avoids INVALID_REGION errors when TCB_REGION
+        // is set to a different region than the target environment.
+        const resolvedEnvId = finalEnvId || loginEnvId;
+        let region = fallbackRegion;
+        if (resolvedEnvId && !cloudBaseOptions?.region) {
+            try {
+                const envCandidates = await listAvailableEnvCandidates({ loginState });
+                const matchedEnv = envCandidates.find(c => c.envId === resolvedEnvId);
+                if (matchedEnv?.region) {
+                    region = matchedEnv.region;
+                    debug('使用环境实际 region:', { envId: resolvedEnvId, region });
+                }
+            } catch {
+                // If env listing fails, fall back to TCB_REGION / undefined
+                debug('无法获取环境列表，使用 fallback region');
+            }
+        }
+
         const manager = new CloudBase({
             secretId,
             secretKey,
-            envId: finalEnvId || loginEnvId,
+            envId: resolvedEnvId,
             token,
             proxy: process.env.http_proxy,
             region,
