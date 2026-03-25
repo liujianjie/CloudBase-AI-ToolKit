@@ -81,10 +81,10 @@ export function registerHostingTools(server: ExtendedMcpServer) {
     "uploadFiles",
     {
       title: "上传静态文件",
-      description: "上传文件到静态网站托管。部署前请先完成构建；如果站点会部署到子路径，请检查构建配置中的 publicPath、base、assetPrefix 等是否使用相对路径，避免静态资源加载失败。",
+      description: "上传文件到静态网站托管，仅用于 Web 站点部署，不用于云存储对象上传。部署前请先完成构建；如果站点会部署到子路径，请检查构建配置中的 publicPath、base、assetPrefix 等是否使用相对路径，避免静态资源加载失败。若需要上传 COS 云存储文件，请使用 manageStorage。",
       inputSchema: {
         localPath: z.string().optional().describe("本地文件或文件夹路径，需要是绝对路径，例如 /tmp/files/data.txt。"),
-        cloudPath: z.string().optional().describe("云端文件或文件夹路径，例如 files/data.txt。若部署到子路径，请同时检查构建配置中的 publicPath、base、assetPrefix 等是否为相对路径。"),
+        cloudPath: z.string().optional().describe("静态托管云端文件或文件夹路径，例如 files/data.txt。若部署到子路径，请同时检查构建配置中的 publicPath、base、assetPrefix 等是否为相对路径。云存储对象路径请改用 manageStorage。"),
         files: z.array(z.object({
           localPath: z.string(),
           cloudPath: z.string()

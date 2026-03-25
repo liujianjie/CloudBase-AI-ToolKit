@@ -92,7 +92,7 @@ As the most important part of application development, the following four core c
 **Refer to deployment process in \`rules/web-development/rule.md\`**
 - Use CloudBase static hosting after build completion
 - Deploy using \`uploadFiles\` tool
-- \`uploadFiles\` is for static hosting only; if the task needs a COS object that must be queried or polled with the storage SDK, use \`manageStorage\` / \`queryStorage\`
+- \`uploadFiles\` is only for static hosting deployment; do not use it for COS / cloud storage uploads. For storage objects, use \`manageStorage(action="upload")\`
 - Remind users that CDN has a few minutes of cache after deployment
 - Generate markdown format access links with random queryString
 
