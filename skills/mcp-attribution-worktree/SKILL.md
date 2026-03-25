@@ -37,8 +37,9 @@ Use this skill to:
 6. If the issue is actionable in repo code or skills content, do not stop at attribution triage. Open or link the matching GitHub issue, create a dedicated Worktrunk worktree, implement the fix, validate it, and prepare a PR.
 7. If review comments, review decisions, or later evidence show the direction is wrong, start another focused iteration from the existing GitHub issue or PR context and continue improving instead of treating the first PR as final.
 8. Update attribution fields through the report API after you have the right evidence, and update them again when the GitHub issue, PR, or evaluation result becomes available.
-9. When a real evaluation interface exists, run a post-PR evaluation and use the result to decide whether to continue iterating or mark the issue closed.
-10. Only stop after the issue is either clearly non-actionable or has been carried through the repair loop as far as the current environment allows.
+9. Before changing an attribution to `resolved`, run a closure preflight on the linked GitHub artifact again: reread the latest PR comments, review comments, review decisions, and issue comments after the most recent code push or evaluation result.
+10. When a real evaluation interface exists, run a post-PR evaluation and use the result plus the closure preflight to decide whether to continue iterating or mark the issue closed.
+11. Only stop after the issue is either clearly non-actionable or has been carried through the repair loop as far as the current environment allows.
 
 ## Common requests
 
@@ -58,14 +59,17 @@ Use this skill to:
 | Create GitHub issues, use Worktrunk, and repair the repo in isolation | `references/worktree-repair.md` |
 | Continue from review feedback or real evaluation results after a PR already exists | `references/iteration-loop.md` |
 | Trigger real evaluation runs and interpret the result | `references/evaluation-verification.md` |
+| Dispatch one issue per worker and enforce closure-sweep rules in sub-agent prompts | `references/subagent-orchestration.md` |
 
 ## Operating rules
 
 - Only update attribution issues through the local report API.
 - Treat `owner` as fixed: always set it to `codex` when you patch an attribution.
 - Before any new iteration, always inspect the latest attribution `notes`, `externalUrl`, linked GitHub issue or PR status, and any available PR comments or review decisions.
+- Before moving any issue to `resolved`, always perform a fresh closure sweep on the linked issue or PR after the latest push or evaluation has completed. Do not rely on an earlier preflight.
 - Do not change `resolutionStatus` until you have read at least one related run's `result` and `trace`.
 - Do not mark an issue `resolved` without clear closure evidence such as an existing GitHub issue, PR, merged fix, or a verified duplicate that already has external tracking.
+- Do not mark an issue `resolved` if there are unread or unaddressed PR comments, review comments, review decisions, or issue comments that arrived after the last time you inspected the linked artifact.
 - Keep `notes` short but auditable. Include the representative run, the main failing signal, and the code or tool signal that supports the conclusion.
 - If the evidence is incomplete, keep the issue `todo` or move it to `in_progress` and explicitly state what is still missing.
 - For a real and repairable issue in `mcp/src` or `config/source/skills`, the default expectation is full follow-through: attribution triage, GitHub issue linkage, isolated worktree repair, validation, and PR creation.
@@ -92,6 +96,16 @@ Before starting a fresh diagnosis or code iteration for an attribution issue, co
 4. If `externalUrl` points to a PR, check whether it is open, merged, closed, or superseded.
 5. Read PR comments, review comments, and review decisions before deciding whether to continue the same branch or start a new iteration.
 6. Only after that, pick the representative run and continue into `result`, `trace`, and `evaluation-trace`.
+
+## Required closure preflight
+
+Before changing an attribution to `resolved`, complete this checklist in order even if you already did the normal preflight earlier:
+
+1. Reopen the linked GitHub issue or PR.
+2. Re-read the latest top-level comments, review comments, and review decisions.
+3. Confirm whether any comment arrived after the latest code push, PR update, or evaluation result.
+4. If new feedback exists, keep the attribution `in_progress` and continue the loop.
+5. Only if there is no newer unresolved feedback, evaluate whether closure evidence is now strong enough.
 
 ## Quick commands
 
@@ -122,3 +136,4 @@ curl -s -X POST http://127.0.0.1:5174/api/evaluations
 - If I patched the attribution, did I keep the change limited to `resolutionStatus`, `owner`, `notes`, and `externalUrl` when relevant?
 - If I started a fix, does it live in its own Worktrunk worktree and branch?
 - If I marked something `resolved`, is there explicit closure evidence?
+- If I marked something `resolved`, did I re-read the latest PR comments, review comments, review decisions, and issue comments immediately before closing it?
