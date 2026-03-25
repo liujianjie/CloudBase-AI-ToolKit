@@ -45,6 +45,7 @@ describe('Environment List Field Optimization', () => {
       Status: 'NORMAL',
       EnvType: 'baas',
       Region: 'ap-shanghai',
+      PackageId: 'baas_personal',
       PackageName: '个人版',
       IsDefault: true,
     });
@@ -106,6 +107,7 @@ describe('Environment List Field Optimization', () => {
         Status: 'NORMAL',
         EnvType: 'baas',
         Region: 'ap-shanghai',
+        PackageId: 'baas_personal',
         PackageName: '个人版',
         IsDefault: true,
         Databases: [{ InstanceId: 'db-1' }],
@@ -116,6 +118,7 @@ describe('Environment List Field Optimization', () => {
         Status: 'NORMAL',
         EnvType: 'weda',
         Region: 'ap-beijing',
+        PackageId: 'baas_free',
         PackageName: '免费版',
         IsDefault: false,
         Databases: [{ InstanceId: 'db-2' }],
@@ -131,6 +134,7 @@ describe('Environment List Field Optimization', () => {
       Status: 'NORMAL',
       EnvType: 'baas',
       Region: 'ap-shanghai',
+      PackageId: 'baas_personal',
       PackageName: '个人版',
       IsDefault: true,
     });
@@ -140,6 +144,7 @@ describe('Environment List Field Optimization', () => {
       Status: 'NORMAL',
       EnvType: 'weda',
       Region: 'ap-beijing',
+      PackageId: 'baas_free',
       PackageName: '免费版',
       IsDefault: false,
     });
@@ -171,6 +176,4 @@ describe('Environment List Field Optimization', () => {
     expect(simplified[0]).not.toHaveProperty('PackageName');
   });
 });
-
-
 

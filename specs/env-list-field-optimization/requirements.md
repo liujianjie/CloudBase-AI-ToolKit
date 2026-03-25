@@ -28,6 +28,7 @@
    - `Status` - 环境状态（如 "NORMAL"，用于判断环境可用性）
    - `EnvType` - 环境类型（"baas" 或 "weda"，用于区分环境类型）
    - `Region` - 地域（如 "ap-shanghai"，用于了解环境部署位置）
+   - `PackageId` - 套餐ID（用于识别具体套餐档位，支持自动化评测和程序化判断）
    - `PackageName` - 包名称（如 "个人版"、"免费版"，用于了解环境套餐类型）
    - `IsDefault` - 是否为默认环境（用于标识默认环境）
 
@@ -42,7 +43,6 @@
    - `CreateTime` - 创建时间（对 AI 助手选择环境不太有用）
    - `UpdateTime` - 更新时间（对 AI 助手选择环境不太有用）
    - `Source` - 来源信息（对 AI 助手选择环境不太有用）
-   - `PackageId` - 包ID（已有 PackageName，ID 不太有用）
    - `PackageType` - 包类型（已有 EnvType，信息重复）
    - `EnvStatus` - 环境状态（与 Status 重复）
    - `IsAutoDegrade` - 是否自动降级（对 AI 助手不太有用）
@@ -62,9 +62,8 @@
 ## 字段分析结果
 
 基于实际 API 调用结果，每个环境对象包含约 20+ 个字段，其中：
-- **核心字段**（7个）：`EnvId`, `Alias`, `Status`, `EnvType`, `Region`, `PackageName`, `IsDefault`
+- **核心字段**（8个）：`EnvId`, `Alias`, `Status`, `EnvType`, `Region`, `PackageId`, `PackageName`, `IsDefault`
 - **详细资源信息**（占用大量 token）：`Databases`, `Storages`, `Functions`, `LogServices`, `StaticStorages` 等数组字段
 - **其他元数据**：`CreateTime`, `UpdateTime`, `Source`, `Tags`, `EnvPreferences` 等
 
 **精简效果预估：** 单个环境对象从约 2000+ 字符减少到约 200-300 字符，减少约 85-90% 的数据量。当环境数量较多时（如 10+ 个环境），可显著减少 token 消耗。
-

@@ -48,6 +48,7 @@ export function simplifyEnvList(envList: any[]): any[] {
     if (env.Status !== undefined) simplified.Status = env.Status;
     if (env.EnvType !== undefined) simplified.EnvType = env.EnvType;
     if (env.Region !== undefined) simplified.Region = env.Region;
+    if (env.PackageId !== undefined) simplified.PackageId = env.PackageId;
     if (env.PackageName !== undefined) simplified.PackageName = env.PackageName;
     if (env.IsDefault !== undefined) simplified.IsDefault = env.IsDefault;
     
@@ -62,6 +63,7 @@ const DEFAULT_ENV_FIELDS = [
   "Status",
   "EnvType",
   "Region",
+  "PackageId",
   "PackageName",
   "IsDefault",
 ] as const;
@@ -244,6 +246,14 @@ function buildEnvQueryListResult(params: {
     envId: params.filters.envId,
   });
   const paginated = paginateEnvList(filteredList, params.filters.offset, params.filters.limit);
+  const exactEnvIdSummaryHint = params.filters.envId
+    ? {
+        tool: "envQuery",
+        action: "info",
+        reason:
+          "action=list with envId only returns a concise summary. Use action=info to fetch detailed environment information such as full resource metadata and additional environment details.",
+      }
+    : undefined;
 
   return {
     EnvList: paginated.items.map((env) => selectEnvFields(env, params.filters.fields)),
@@ -258,7 +268,65 @@ function buildEnvQueryListResult(params: {
       fields: params.filters.fields ?? [...DEFAULT_ENV_FIELDS],
       currentEnvOnly: shouldRestrictToCurrentEnv,
     },
+    ...(exactEnvIdSummaryHint
+      ? {
+          RecommendedNextAction: exactEnvIdSummaryHint,
+        }
+      : {}),
   };
+}
+
+async function enrichEnvInfoWithBilling(params: {
+  manager: any;
+  result: any;
+  envId?: string;
+  logger?: any;
+}) {
+  const targetEnvId =
+    params.envId ||
+    params.result?.EnvInfo?.EnvId;
+
+  if (!targetEnvId || !params.result?.EnvInfo) {
+    return params.result;
+  }
+
+  try {
+    const billingResult = await params.manager.commonService("tcb", "2018-06-08").call({
+      Action: "DescribeBillingInfo",
+      Param: {
+        EnvId: targetEnvId,
+      },
+    });
+    logCloudBaseResult(params.logger, billingResult);
+
+    const billingList =
+      billingResult?.EnvBillingInfoList ||
+      billingResult?.Response?.EnvBillingInfoList ||
+      billingResult?.Data?.EnvBillingInfoList ||
+      [];
+
+    const matchedBillingInfo = Array.isArray(billingList)
+      ? billingList.find((item: any) => item?.EnvId === targetEnvId) ?? billingList[0]
+      : undefined;
+
+    if (!matchedBillingInfo) {
+      return params.result;
+    }
+
+    return {
+      ...params.result,
+      EnvInfo: {
+        ...params.result.EnvInfo,
+        BillingInfo: matchedBillingInfo,
+      },
+    };
+  } catch (billingError) {
+    debug("DescribeBillingInfo enrichment failed, continuing without billing info", {
+      error: billingError,
+      envId: targetEnvId,
+    });
+    return params.result;
+  }
 }
 
 async function getGuidePrompt(server: ExtendedMcpServer): Promise<string> {
@@ -282,6 +350,18 @@ export function registerEnvTools(server: ExtendedMcpServer) {
   const cloudBaseOptions = server.cloudBaseOptions;
 
   const getManager = () => getCloudBaseManager({ cloudBaseOptions, mcpServer: server });
+  const getManagerForEnvQuery = (targetEnvId?: string, requireEnvId = true) =>
+    getCloudBaseManager({
+      cloudBaseOptions:
+        targetEnvId && targetEnvId !== cloudBaseOptions?.envId
+          ? {
+              ...cloudBaseOptions,
+              envId: targetEnvId,
+            }
+          : cloudBaseOptions,
+      requireEnvId,
+      mcpServer: server,
+    });
 
   const hasEnvId = typeof cloudBaseOptions?.envId === 'string' && cloudBaseOptions?.envId.length > 0;
   const supportedAuthActions = getSupportedAuthActions(server);
@@ -696,22 +776,22 @@ export function registerEnvTools(server: ExtendedMcpServer) {
     {
       title: "环境查询",
       description:
-        "查询云开发环境相关信息，支持查询环境列表、当前环境信息、安全域名和静态网站托管配置。（原工具名：listEnvs/getEnvInfo/getEnvAuthDomains/getWebsiteConfig，为兼容旧AI规则可继续使用这些名称）当 action=list 时，标准返回字段为 EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault，并支持通过 fields 白名单裁剪这些字段；aliasExact=true 时会按别名精确筛选，避免把前缀相近的环境误当作候选。当前 MCP 输出不支持套餐/计划到期时间（expiry / expire time）查询。",
+        "查询云开发环境相关信息，支持查询环境列表、当前环境信息、安全域名和静态网站托管配置。（原工具名：listEnvs/getEnvInfo/getEnvAuthDomains/getWebsiteConfig，为兼容旧AI规则可继续使用这些名称）当 action=list 时，标准返回字段为 EnvId、Alias、Status、EnvType、Region、PackageId、PackageName、IsDefault，并支持通过 fields 白名单裁剪这些字段；aliasExact=true 时会按别名精确筛选，避免把前缀相近的环境误当作候选；即使传入 envId，action=list 也只返回摘要，不会返回完整资源明细或 expiry。如需查询某个已知环境的详细信息，请使用 action=info。action=info 会在可用时补充 BillingInfo（如 ExpireTime、PayMode、IsAutoRenew 等计费字段）。",
       inputSchema: {
         action: z
           .enum(["list", "info", "domains", "hosting"])
           .describe(
-            "查询类型：list=环境列表（标准字段：EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault；不支持 expiry），info=当前环境信息，domains=安全域名列表，hosting=静态网站托管配置",
+            "查询类型：list=环境列表/摘要筛选（即使传 envId 也只返回 EnvId、Alias、Status、EnvType、Region、PackageId、PackageName、IsDefault，不支持 expiry），info=当前环境详细信息（详情中可查看更完整资源字段），domains=安全域名列表，hosting=静态网站托管配置",
           ),
         alias: z.string().optional().describe("按环境别名筛选。action=list 时可选"),
         aliasExact: z.boolean().optional().describe("按环境别名精确筛选。action=list 时可选；与 alias 配合使用"),
-        envId: z.string().optional().describe("按环境 ID 精确筛选。action=list 时可选"),
+        envId: z.string().optional().describe("按环境 ID 精确筛选。action=list 时可选；注意 list + envId 仍只返回摘要，如需该环境详情请改用 action=info"),
         limit: z.number().int().positive().optional().describe("返回数量上限。action=list 时可选"),
         offset: z.number().int().min(0).optional().describe("分页偏移。action=list 时可选"),
         fields: z
           .array(z.enum(DEFAULT_ENV_FIELDS))
           .optional()
-          .describe("返回字段白名单。仅支持 EnvId、Alias、Status、EnvType、Region、PackageName、IsDefault。action=list 时可选"),
+          .describe("返回字段白名单。仅支持 EnvId、Alias、Status、EnvType、Region、PackageId、PackageName、IsDefault。action=list 时可选"),
       },
       annotations: {
         readOnlyHint: true,
@@ -816,9 +896,15 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             break;
 
           case "info":
-            const cloudbaseInfo = await getManager();
+            const cloudbaseInfo = await getManagerForEnvQuery(envId);
             result = await cloudbaseInfo.env.getEnvInfo();
             logCloudBaseResult(server.logger, result);
+            result = await enrichEnvInfoWithBilling({
+              manager: cloudbaseInfo,
+              result,
+              envId,
+              logger: server.logger,
+            });
             break;
 
           case "domains":
