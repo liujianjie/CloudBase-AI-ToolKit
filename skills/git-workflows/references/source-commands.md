@@ -1,3 +1,95 @@
+## Source commands (migrated from `.cursor/commands/`)
+
+### git_commit.md
+
+```md
+# Git Commit Workflow
+
+## Function
+Git commit and push workflow following OpenAgentKit standards
+
+## Trigger Condition
+When user inputs `/git_commit`
+
+## Behavior
+1. Commit code using conventional-changelog style
+2. Execute `git push origin <branch-name>`
+
+## Commit Message Format
+Follow conventional-changelog style:
+```
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+### Commit Types
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+
+### Examples
+```
+feat(auth): add OAuth2 authentication support
+fix(ui): resolve button alignment issue in mobile view
+docs(api): update authentication endpoint documentation
+```
+
+## Quality Checklist
+- [ ] Commit message follows conventional-changelog format
+- [ ] Changes are properly staged
+- [ ] No sensitive information in commit
+- [ ] Code passes linting and tests
+```
+
+### git_push.md
+
+```md
+# Git Push Workflow
+
+## Function
+Complete git workflow including branch management and PR creation
+
+## Trigger Condition
+When user inputs `/git_push`
+
+## Behavior
+1. Commit code using conventional-changelog style
+2. Create or switch to feature branch (e.g., feature/xxx) instead of directly to main
+3. Execute `git push origin <branch-name>`
+4. Automatically create PR after push
+5. Switch back to main branch after PR creation
+
+## Branch Naming Convention
+- `feature/description`: New features
+- `fix/description`: Bug fixes
+- `docs/description`: Documentation updates
+- `refactor/description`: Code refactoring
+- `chore/description`: Maintenance tasks
+
+## PR Creation
+- Use conventional-changelog style for PR title
+- Include detailed description of changes
+- Reference related issues if applicable
+- Add appropriate labels and reviewers
+
+## Quality Checklist
+- [ ] Working on appropriate feature branch
+- [ ] Commit message follows conventional-changelog format
+- [ ] All changes are committed and pushed
+- [ ] PR is created with proper title and description
+- [ ] Switched back to main branch
+```
+
+### releasenote.md
+
+```md
 ---
 name: releasenote
 description: Generate and publish release note using gh CLI
@@ -136,29 +228,5 @@ When user inputs `/releasenote`
 - [ ] Maintenance commits are excluded
 - [ ] Breaking changes are highlighted
 - [ ] Release URL is provided after publishing
-
-## Example Workflow
-
-```bash
-# User triggers command
-/releasenote
-
-# AI executes:
-1. Detect: v2.8.0 (latest) vs v2.7.7 (previous)
-2. Analyze: 15 commits found
-   - 8 feat commits → 新功能
-   - 4 fix commits → 问题修复
-   - 2 docs commits → 文档更新
-   - 1 chore commit → (exclude)
-3. Generate release note in Chinese with brand name "CloudBase MCP"
-4. Show preview and ask for confirmation
-5. Publish using gh CLI
-6. Display release URL
 ```
 
-## Notes
-- Always use `--no-merges` to exclude merge commits
-- Preserve commit scope information for better categorization
-- If emoji in commit message exists, keep it in the description
-- For breaking changes, add a prominent "⚠️ 重要变更" section at the top
-- Consider adding "升级指南" section if breaking changes exist
