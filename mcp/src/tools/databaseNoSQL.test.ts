@@ -154,6 +154,20 @@ describe("NoSQL database tools", () => {
     expect(payload).not.toHaveProperty("nextActions");
   });
 
+  it("writeNoSqlDatabaseContent should describe partial updates using MongoDB operators", () => {
+    const { tools } = createMockServer();
+    const meta = tools.writeNoSqlDatabaseContent.meta;
+
+    expect(meta.description).toContain("MongoDB updateOne/updateMany");
+    expect(meta.description).toContain("$set/$inc/$push");
+    expect(meta.inputSchema.update.description).toContain(
+      "{ \"$set\": { \"status\": \"pending\" } }",
+    );
+    expect(meta.inputSchema.update.description).toContain(
+      "{ \"status\": \"pending\" }",
+    );
+  });
+
   it("collection-scoped responses should echo the requested collection name", async () => {
     const { tools } = createMockServer();
 
