@@ -34,12 +34,13 @@ Use this skill to:
 3. Run the existing-artifact preflight before choosing the representative run: read issue detail, current notes, existing `externalUrl`, and the state of any linked GitHub issue or PR. If a GitHub issue or PR already exists, treat it as part of the current state, not a finished endpoint.
 4. Read at least one run's `result` and `trace`. Prefer to also read `evaluation-trace`.
 5. Check the relevant implementation in `mcp/src` or `config/source/skills` before deciding whether the issue is actionable.
-6. If the issue is actionable in repo code or skills content, do not stop at attribution triage. Open or link the matching GitHub issue, create a dedicated Worktrunk worktree, implement the fix, validate it, and prepare a PR.
-7. If review comments, review decisions, or later evidence show the direction is wrong, start another focused iteration from the existing GitHub issue or PR context and continue improving instead of treating the first PR as final.
-8. Update attribution fields through the report API after you have the right evidence, and update them again when the GitHub issue, PR, or evaluation result becomes available.
-9. Before changing an attribution to `resolved`, run a closure preflight on the linked GitHub artifact again: reread the latest PR comments, review comments, review decisions, and issue comments after the most recent code push or evaluation result.
-10. When a real evaluation interface exists, run a post-PR evaluation and use the result plus the closure preflight to decide whether to continue iterating or mark the issue closed.
-11. Only stop after the issue is either clearly non-actionable or has been carried through the repair loop as far as the current environment allows.
+6. When the failure is caused by model misunderstanding, prefer repairs that translate repo-specific behavior into concepts the model already knows well. Reuse familiar abstractions, canonical API names, and one safe example instead of adding long product-specific explanations.
+7. If the issue is actionable in repo code or skills content, do not stop at attribution triage. Open or link the matching GitHub issue, create a dedicated Worktrunk worktree, implement the fix, validate it, and prepare a PR.
+8. If review comments, review decisions, or later evidence show the direction is wrong, start another focused iteration from the existing GitHub issue or PR context and continue improving instead of treating the first PR as final.
+9. Update attribution fields through the report API after you have the right evidence, and update them again when the GitHub issue, PR, or evaluation result becomes available.
+10. Before changing an attribution to `resolved`, run a closure preflight on the linked GitHub artifact again: reread the latest PR comments, review comments, review decisions, and issue comments after the most recent code push or evaluation result.
+11. When a real evaluation interface exists, run a post-PR evaluation and use the result plus the closure preflight to decide whether to continue iterating or mark the issue closed.
+12. Only stop after the issue is either clearly non-actionable or has been carried through the repair loop as far as the current environment allows.
 
 ## Common requests
 
@@ -61,6 +62,16 @@ Use this skill to:
 | Trigger real evaluation runs and interpret the result | `references/evaluation-verification.md` |
 | Dispatch one issue per worker and enforce closure-sweep rules in sub-agent prompts | `references/subagent-orchestration.md` |
 
+## Model-oriented repair heuristic
+
+When attribution evidence shows the model is failing because a tool or skill exposes repo-specific semantics in an unfamiliar way, prefer repairs that reduce translation work for the model.
+
+- Map the behavior to concepts the model already knows well, such as MongoDB `updateOne` or `updateMany`, HTTP methods, SQL CRUD verbs, filesystem path conventions, or common SDK idioms.
+- Keep model-facing guidance short and high-signal. One canonical safe example is usually better than a long product-specific explanation.
+- Explicitly name dangerous defaults or footguns when they are easy for the model to miss, such as replacement vs partial update, destructive writes, ambiguous path resolution, or auth-sensitive side effects.
+- Prefer changing the tool description, parameter description, skill wording, or generated docs when that is enough to correct the model's mental model. Do not jump to implementation changes if the real gap is contract clarity.
+- Do not assume the model will infer hidden semantics from traces, backend behavior, or evaluator expectations. If a safe rule matters, state it directly where the model sees it.
+
 ## Operating rules
 
 - Only update attribution issues through the local report API.
@@ -73,6 +84,7 @@ Use this skill to:
 - Keep `notes` short but auditable. Include the representative run, the main failing signal, and the code or tool signal that supports the conclusion.
 - If the evidence is incomplete, keep the issue `todo` or move it to `in_progress` and explicitly state what is still missing.
 - For a real and repairable issue in `mcp/src` or `config/source/skills`, the default expectation is full follow-through: attribution triage, GitHub issue linkage, isolated worktree repair, validation, and PR creation.
+- When the likely root cause is model misunderstanding rather than backend behavior, first try to repair the model-facing contract: clearer tool descriptions, safer parameter wording, skill guidance, canonical examples, and explicit warning about dangerous defaults.
 - When the fix belongs to CloudBase skill content, edit `config/source/skills/` as the source of truth. Do not treat the root `skills/` directory as the source for those external skills.
 - Only stop at status-only attribution updates when the issue is non-actionable, blocked by missing evidence, blocked by missing Worktrunk, or clearly outside MCP repo control.
 - Do not use broad uncategorized backlog queries as the default source of work. Only use them in explicit fallback mode when category labels are incomplete or the user asks for a full backlog sweep.
@@ -135,5 +147,6 @@ curl -s -X POST http://127.0.0.1:5174/api/evaluations
 - Did I base the validation conclusion on the final evaluation result instead of my own guess?
 - If I patched the attribution, did I keep the change limited to `resolutionStatus`, `owner`, `notes`, and `externalUrl` when relevant?
 - If I started a fix, does it live in its own Worktrunk worktree and branch?
+- If the issue was caused by model misunderstanding, did I reduce model-facing complexity by mapping repo-specific behavior to familiar concepts and by explicitly naming dangerous defaults?
 - If I marked something `resolved`, is there explicit closure evidence?
 - If I marked something `resolved`, did I re-read the latest PR comments, review comments, review decisions, and issue comments immediately before closing it?

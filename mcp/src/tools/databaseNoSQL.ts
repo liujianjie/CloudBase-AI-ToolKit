@@ -551,7 +551,8 @@ deleteCollection: 删除集合`),
     "writeNoSqlDatabaseContent",
     {
       title: "修改 NoSQL 数据库数据记录",
-      description: "修改 NoSQL 数据库数据记录",
+      description:
+        "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 $set/$inc/$push 等更新操作符；如果直接传 { field: value } 这类普通对象，底层会把它当作替换内容，存在覆盖整条文档的风险。",
       inputSchema: {
         action: z
           .enum(["insert", "update", "delete"])
@@ -570,7 +571,9 @@ deleteCollection: 删除集合`),
         update: z
           .union([z.object({}).passthrough(), z.string()])
           .optional()
-          .describe("更新内容(对象或字符串,推荐对象)(update 操作必填)"),
+          .describe(
+            "更新内容(对象或字符串,推荐对象)(update 操作必填)。按 MongoDB 更新语义传入 MgoUpdate：部分更新请使用 $set/$inc/$unset/$push 等操作符，例如 { \"$set\": { \"status\": \"pending\" } }；不要直接传 { \"status\": \"pending\" }，否则可能替换整条文档。",
+          ),
         isMulti: z
           .boolean()
           .optional()
