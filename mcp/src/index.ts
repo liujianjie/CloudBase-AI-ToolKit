@@ -26,6 +26,12 @@ export type {
 } from "./types.js";
 
 export { getLoginState, logout } from "./auth.js";
+export type {
+  AuthFlowMode,
+  AuthOptions,
+  DeviceFlowAuthInfo,
+  EnsureLoginOptions,
+} from "./auth.js";
 
 export { isCloudMode, enableCloudMode, getCloudModeStatus, shouldRegisterTool } from "./utils/cloud-mode.js";
 

@@ -3,6 +3,8 @@ import { registerEnvTools } from "./env.js";
 import type { ExtendedMcpServer } from "../server.js";
 
 const {
+  mockBuildAuthConfigSummary,
+  mockGetAuthConfigValidationError,
   mockSupervisorLoginByWebAuth,
   mockEnsureLogin,
   mockPeekLoginState,
@@ -13,7 +15,32 @@ const {
   mockListAvailableEnvCandidates,
   mockGetCloudBaseManager,
   mockResetCloudBaseManagerCache,
+  mockResolveAuthOptions,
 } = vi.hoisted(() => ({
+  mockBuildAuthConfigSummary: vi.fn((options: any) => ({
+    auth_mode: options.authMode,
+    client_id: options.clientId ?? null,
+    oauth_endpoint: options.oauthEndpoint ?? null,
+    oauth_custom: options.oauthCustom ?? false,
+    uses_toolbox_defaults: options.usesToolboxDefaults ?? false,
+  })),
+  mockGetAuthConfigValidationError: vi.fn((options: any) => {
+    if (
+      options.authMode === "web" &&
+      (options.clientId !== undefined ||
+        options.oauthEndpoint !== undefined ||
+        options.oauthCustom)
+    ) {
+      return "自定义 device 登录参数仅支持 authMode=device。";
+    }
+    if (options.oauthCustom && !options.oauthEndpoint) {
+      return "oauthCustom=true 时必须同时提供 oauthEndpoint。";
+    }
+    if (options.oauthEndpoint && !options.oauthCustom) {
+      return "配置自定义 oauthEndpoint 时必须启用 oauthCustom=true。";
+    }
+    return null;
+  }),
   mockSupervisorLoginByWebAuth: vi.fn(),
   mockEnsureLogin: vi.fn(),
   mockPeekLoginState: vi.fn(),
@@ -24,6 +51,27 @@ const {
   mockListAvailableEnvCandidates: vi.fn(),
   mockGetCloudBaseManager: vi.fn(),
   mockResetCloudBaseManagerCache: vi.fn(),
+  mockResolveAuthOptions: vi.fn((options: any = {}) => ({
+    authMode: options.authMode ?? options.serverAuthOptions?.authMode ?? "device",
+    clientId: options.clientId ?? options.serverAuthOptions?.clientId,
+    oauthEndpoint:
+      options.oauthEndpoint ?? options.serverAuthOptions?.oauthEndpoint,
+    oauthCustom:
+      options.oauthCustom ??
+      options.serverAuthOptions?.oauthCustom ??
+      ((options.oauthEndpoint ?? options.serverAuthOptions?.oauthEndpoint)
+        ? true
+        : false),
+    usesToolboxDefaults:
+      !options.authMode &&
+      !options.clientId &&
+      !options.oauthEndpoint &&
+      !(options.oauthCustom ?? false) &&
+      !options.serverAuthOptions?.authMode &&
+      !options.serverAuthOptions?.clientId &&
+      !options.serverAuthOptions?.oauthEndpoint &&
+      !(options.serverAuthOptions?.oauthCustom ?? false),
+  })),
 }));
 
 vi.mock("@cloudbase/toolbox", () => ({
@@ -35,11 +83,14 @@ vi.mock("@cloudbase/toolbox", () => ({
 }));
 
 vi.mock("../auth.js", () => ({
+  buildAuthConfigSummary: mockBuildAuthConfigSummary,
   ensureLogin: mockEnsureLogin,
+  getAuthConfigValidationError: mockGetAuthConfigValidationError,
   peekLoginState: mockPeekLoginState,
   getAuthProgressState: mockGetAuthProgressState,
   logout: mockLogout,
   rejectAuthProgressState: vi.fn(),
+  resolveAuthOptions: mockResolveAuthOptions,
   resolveAuthProgressState: vi.fn(),
   setPendingAuthProgressState: vi.fn(),
 }));
@@ -59,7 +110,7 @@ vi.mock("./rag.js", () => ({
   getClaudePrompt: vi.fn().mockResolvedValue(""),
 }));
 
-function createMockServer(ide = "TestIDE") {
+function createMockServer(ide = "TestIDE", authOptions?: any) {
   const tools: Record<
     string,
     {
@@ -70,6 +121,7 @@ function createMockServer(ide = "TestIDE") {
 
   const server: ExtendedMcpServer = {
     cloudBaseOptions: { envId: "env-test", region: "ap-guangzhou" },
+    authOptions,
     ide,
     server: {
       sendLoggingMessage: vi.fn(),
@@ -123,6 +175,13 @@ describe("env tools - auth", () => {
     expect(payload).toHaveProperty("auth_status", "REQUIRED");
     expect(payload).toHaveProperty("env_status");
     expect(payload).toHaveProperty("current_env_id");
+    expect(payload.auth_config).toMatchObject({
+      auth_mode: "device",
+      client_id: null,
+      oauth_endpoint: null,
+      oauth_custom: false,
+      uses_toolbox_defaults: true,
+    });
     expect(payload.next_step).toMatchObject({
       tool: "auth",
       action: "start_auth",
@@ -187,6 +246,64 @@ describe("env tools - auth", () => {
     });
   });
 
+  it("auth(action=start_auth) should pass custom device auth options to toolbox", async () => {
+    mockSupervisorLoginByWebAuth.mockImplementation(
+      async ({ onDeviceCode }: { onDeviceCode: (info: any) => void }) => {
+        onDeviceCode({
+          user_code: "WDJB-MJHT",
+          verification_uri: "https://example.com/device",
+          device_code: "device-code",
+          expires_in: 600,
+        });
+        return new Promise(() => {});
+      },
+    );
+
+    await tools.auth.handler({
+      action: "start_auth",
+      oauthEndpoint: "https://custom.example.com/oauth",
+      clientId: "custom-client",
+      oauthCustom: true,
+    });
+
+    expect(mockSupervisorLoginByWebAuth).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: "device",
+        client_id: "custom-client",
+        custom: true,
+        getOAuthEndpoint: expect.any(Function),
+      }),
+    );
+    const callArgs = mockSupervisorLoginByWebAuth.mock.calls[0][0];
+    expect(callArgs.getOAuthEndpoint("ignored")).toBe(
+      "https://custom.example.com/oauth",
+    );
+    expect(callArgs.custom).toBe(true);
+  });
+
+  it("auth(action=start_auth) should reject oauthCustom without endpoint", async () => {
+    const result = await tools.auth.handler({
+      action: "start_auth",
+      oauthCustom: true,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toHaveProperty("code", "INVALID_ARGS");
+    expect(payload.message).toContain("oauthCustom=true");
+  });
+
+  it("auth(action=start_auth) should reject oauthEndpoint when oauthCustom is explicitly false", async () => {
+    const result = await tools.auth.handler({
+      action: "start_auth",
+      oauthEndpoint: "https://custom.example.com/oauth",
+      oauthCustom: false,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toHaveProperty("code", "INVALID_ARGS");
+    expect(payload.message).toContain("oauthEndpoint");
+  });
+
   it("auth(action=set_env, envId) should accept direct env binding", async () => {
     mockPeekLoginState.mockResolvedValue({
       secretId: "sid",
@@ -232,8 +349,27 @@ describe("env tools - auth", () => {
       "set_env",
     ]);
     expect(codeBuddyTools.auth.meta.inputSchema.authMode).toBeUndefined();
+    expect(codeBuddyTools.auth.meta.inputSchema.oauthEndpoint).toBeUndefined();
+    expect(codeBuddyTools.auth.meta.inputSchema.clientId).toBeUndefined();
+    expect(codeBuddyTools.auth.meta.inputSchema.oauthCustom).toBeUndefined();
     expect(codeBuddyTools.auth.meta.inputSchema.forceUpdate).toBeUndefined();
     expect(codeBuddyTools.auth.meta.inputSchema.confirm).toBeUndefined();
+  });
+
+  it("auth(action=status) should reflect explicit server auth config", async () => {
+    const { tools: serverConfiguredTools } = createMockServer("TestIDE", {
+      oauthEndpoint: "https://server.example.com/oauth",
+      oauthCustom: true,
+    });
+
+    const result = await serverConfiguredTools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.auth_config).toMatchObject({
+      oauth_endpoint: "https://server.example.com/oauth",
+      oauth_custom: true,
+      uses_toolbox_defaults: false,
+    });
   });
 
   it("CodeBuddy status should not recommend start_auth", async () => {

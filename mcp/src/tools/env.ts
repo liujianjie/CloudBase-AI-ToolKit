@@ -1,13 +1,17 @@
 import { AuthSupervisor } from "@cloudbase/toolbox";
 import { z } from "zod";
 import {
+  buildAuthConfigSummary,
   ensureLogin,
+  getAuthConfigValidationError,
   getAuthProgressState,
   logout,
   peekLoginState,
   rejectAuthProgressState,
+  resolveAuthOptions,
   resolveAuthProgressState,
   setPendingAuthProgressState,
+  type AuthOptions,
   type DeviceFlowAuthInfo,
 } from "../auth.js";
 import {
@@ -345,6 +349,26 @@ async function getGuidePrompt(server: ExtendedMcpServer): Promise<string> {
   }
 }
 
+function normalizeOptionalToolString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
+function normalizeOptionalToolBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function resolveToolAuthOptions(
+  server: ExtendedMcpServer,
+  overrides?: AuthOptions,
+) {
+  return resolveAuthOptions({
+    ...overrides,
+    serverAuthOptions: server.authOptions,
+  });
+}
+
 export function registerEnvTools(server: ExtendedMcpServer) {
   // 获取 cloudBaseOptions，如果没有则为 undefined
   const cloudBaseOptions = server.cloudBaseOptions;
@@ -387,6 +411,18 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                 .enum(["device", "web"])
                 .optional()
                 .describe("认证模式：device=设备码授权，web=浏览器回调授权"),
+              oauthEndpoint: z
+                .string()
+                .optional()
+                .describe("高级可选：自定义 device-code 登录 endpoint。配置后 oauthCustom 默认按 true 处理"),
+              clientId: z
+                .string()
+                .optional()
+                .describe("高级可选：自定义 device-code 登录 client_id，不传则使用默认值"),
+              oauthCustom: z
+                .boolean()
+                .optional()
+                .describe("高级可选：自定义 endpoint 返回格式开关。未配置 endpoint 时默认 false；配置 endpoint 后默认 true，且不能设为 false"),
             }
           : {}),
         envId: z
@@ -413,6 +449,9 @@ export function registerEnvTools(server: ExtendedMcpServer) {
     async (rawArgs: {
       action?: AuthAction;
       authMode?: unknown;
+      oauthEndpoint?: unknown;
+      clientId?: unknown;
+      oauthCustom?: unknown;
       envId?: string;
       confirm?: unknown;
     }) => {
@@ -421,8 +460,18 @@ export function registerEnvTools(server: ExtendedMcpServer) {
         rawArgs.authMode === "device" || rawArgs.authMode === "web"
           ? rawArgs.authMode
           : undefined;
+      const oauthEndpoint = normalizeOptionalToolString(rawArgs.oauthEndpoint);
+      const clientId = normalizeOptionalToolString(rawArgs.clientId);
+      const oauthCustom = normalizeOptionalToolBoolean(rawArgs.oauthCustom);
       const envId = rawArgs.envId;
       const confirm = rawArgs.confirm === "yes" ? "yes" : undefined;
+      const resolvedAuthOptions = resolveToolAuthOptions(server, {
+        authMode,
+        oauthEndpoint,
+        clientId,
+        oauthCustom,
+      });
+      const authConfigSummary = buildAuthConfigSummary(resolvedAuthOptions);
       let deviceAuthInfo: DeviceFlowAuthInfo | undefined;
       const onDeviceCode = (info: DeviceFlowAuthInfo) => {
         deviceAuthInfo = info;
@@ -486,6 +535,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             auth_status: authStatus,
             env_status: envStatus,
             current_env_id: envId || null,
+            auth_config: authConfigSummary,
             ...buildEnvCandidatePayload(envCandidates),
             auth_challenge:
               authFlowState.status === "PENDING" && authFlowState.authChallenge
@@ -561,13 +611,21 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             // 忽略 getLoginState 错误，继续尝试发起登录
           }
 
+          const validationError = getAuthConfigValidationError(resolvedAuthOptions);
+          if (validationError) {
+            return buildJsonToolResult({
+              ok: false,
+              code: "INVALID_ARGS",
+              message: validationError,
+              auth_config: authConfigSummary,
+              next_step: buildAuthNextStep("start_auth", {
+                suggestedArgs: { action: "start_auth", authMode: "device" },
+              }),
+            });
+          }
+
           // 2. 设备码模式：监听到 device code 即返回 AUTH_PENDING，后续由 toolbox 异步轮询并更新本地 credential
-          const effectiveMode: "device" | "web" =
-            authMode && (authMode === "device" || authMode === "web")
-              ? authMode
-              : process.env.TCB_AUTH_MODE === "web"
-                ? "web"
-                : "device";
+          const effectiveMode = resolvedAuthOptions.authMode;
 
           if (effectiveMode === "device") {
             let resolveCode: (() => void) | undefined;
@@ -589,6 +647,15 @@ export function registerEnvTools(server: ExtendedMcpServer) {
               auth
                 .loginByWebAuth({
                   flow: "device",
+                  ...(resolvedAuthOptions.clientId
+                    ? { client_id: resolvedAuthOptions.clientId }
+                    : {}),
+                  ...(resolvedAuthOptions.oauthEndpoint
+                    ? { getOAuthEndpoint: () => resolvedAuthOptions.oauthEndpoint! }
+                    : {}),
+                  ...(resolvedAuthOptions.oauthCustom
+                    ? { custom: true }
+                    : {}),
                   onDeviceCode: deviceOnCode,
                 })
                 .then(() => {
@@ -651,6 +718,9 @@ export function registerEnvTools(server: ExtendedMcpServer) {
           const loginState = await ensureLogin({
             region,
             authMode: effectiveMode,
+            clientId: resolvedAuthOptions.clientId,
+            oauthEndpoint: resolvedAuthOptions.oauthEndpoint,
+            oauthCustom: resolvedAuthOptions.oauthCustom,
           });
 
           if (!loginState) {

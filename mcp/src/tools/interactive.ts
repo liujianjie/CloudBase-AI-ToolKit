@@ -266,6 +266,7 @@ export async function _promptAndSetEnvironmentId(
     region,
     authMode: options?.authMode,
     clientId: options?.clientId,
+    serverAuthOptions: server?.authOptions,
     onDeviceCode: options?.onDeviceCode,
   });
   debug("[interactive] Login state:", {

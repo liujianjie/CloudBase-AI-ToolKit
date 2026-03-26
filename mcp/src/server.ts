@@ -18,6 +18,7 @@ import { registerGatewayTools } from "./tools/gateway.js";
 import { registerInviteCodeTools } from "./tools/invite-code.js";
 import { registerSecurityRuleTools } from "./tools/security-rule.js";
 import { CloudBaseOptions, Logger } from "./types.js";
+import type { AuthOptions } from "./auth.js";
 import { enableCloudMode } from "./utils/cloud-mode.js";
 import { info } from './utils/logger.js';
 import { isInternationalRegion } from "./utils/tencet-cloud.js";
@@ -124,6 +125,7 @@ function parseEnabledPlugins(
 // 扩展 McpServer 类型以包含 cloudBaseOptions 和新的registerTool方法
 export interface ExtendedMcpServer extends McpServer {
   cloudBaseOptions?: CloudBaseOptions;
+  authOptions?: AuthOptions;
   ide?: string;
   logger?: Logger;
 
@@ -155,6 +157,7 @@ export async function createCloudBaseMcpServer(options?: {
   version?: string;
   enableTelemetry?: boolean;
   cloudBaseOptions?: CloudBaseOptions;
+  authOptions?: AuthOptions;
   cloudMode?: boolean;
   ide?: string;
   logger?: Logger;
@@ -166,6 +169,7 @@ export async function createCloudBaseMcpServer(options?: {
     version = "1.0.0",
     enableTelemetry = true,
     cloudBaseOptions,
+    authOptions,
     cloudMode = false,
     ide,
     logger,
@@ -218,6 +222,10 @@ export async function createCloudBaseMcpServer(options?: {
     server.cloudBaseOptions = cloudBaseOptions;
   }
 
+  if (authOptions) {
+    server.authOptions = authOptions;
+  }
+
   // Store ide in server instance for telemetry
   if (ide) {
     server.ide = ide;
@@ -266,4 +274,3 @@ export {
   reportToolkitLifecycle,
   telemetryReporter
 } from "./utils/telemetry.js";
-
