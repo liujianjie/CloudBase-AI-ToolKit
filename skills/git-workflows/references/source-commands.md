@@ -133,7 +133,8 @@ When user inputs `/releasenote`
 - Focus on user-facing changes and benefits
 - Group by feature categories (e.g., IDE 支持、环境管理、开发工具、文档和用户体验、数据库、云函数、AI 能力等)
 - Weaken technical implementation details
-- Exclude maintenance-related commits (chore, ci, internal refactoring)
+- Exclude maintenance-related commits (chore, ci, internal refactoring) from the main highlights by default
+- If maintenance / engineering changes are worth mentioning, place them in a dedicated section at the very end and keep the wording lightweight (optional reading)
 - Highlight breaking changes if any
 - Use friendly, non-technical language where possible
 - Add emoji for better readability (optional but recommended for sections)
@@ -167,6 +168,10 @@ When user inputs `/releasenote`
 ## 🔧 其他改进
 
 - {Other improvements}
+
+## 🔧 维护与工程改进（可选阅读）
+
+- {Lightweight summary of maintenance / workflows / CI / ecosystem improvements}
 ```
 
 ### Step 4: Interactive Confirmation

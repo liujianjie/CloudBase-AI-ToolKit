@@ -52,8 +52,14 @@ import TabItem from '@theme/TabItem';
 ### Common mistakes / gotchas
 
 - Picking the wrong function type and trying to compensate later.
+- Mixing Event Function code shape (`exports.main(event, context)`) with HTTP Function code shape (`req` / `res` on port 9000).
+- Treating HTTP Access as the implementation model for HTTP Functions. HTTP Access is a gateway configuration for Event Functions, not the HTTP Function runtime model.
 - Forgetting that runtime cannot be changed after creation.
 - Using cloud functions as the first solution for Web login.
+- Forgetting that HTTP Functions do NOT auto-install dependencies — always include `node_modules`.
+- Forgetting to add `app.use(express.json())` or equivalent body parsing middleware for POST/PUT requests.
+- Leaving HTTP handlers without sending a response (causes request timeout).
+- Not returning proper HTTP status codes (400, 401, 405) for error cases.
 
 ### Minimal checklist
 
@@ -65,6 +71,12 @@ Use this skill when developing, deploying, and managing CloudBase cloud function
 
 - **Event Functions (普通云函数)**: Traditional serverless functions triggered by events (SDK calls, timers)
 - **HTTP Functions (HTTP 云函数)**: Web service functions triggered by HTTP requests, supporting multiple languages
+
+### Writing mode at a glance
+
+- If the request is for a normal CloudBase function triggered by SDK calls, timers, or other events, write an **Event Function** with `exports.main = async (event, context) =&gt; {}`.
+- If the request is for an HTTP endpoint, REST API, SSE, or WebSocket service, write an **HTTP Function** that listens on port `9000` and handles `req` / `res`.
+- If the user mentions HTTP access for an existing Event Function, keep the Event Function code shape and add gateway access separately.
 
 ## When to use this skill
 
@@ -88,16 +100,22 @@ Use this skill for **cloud function operations** when you need to:
 1. **Choose the right function type**
    - **Event Function**: For SDK calls, scheduled tasks, event-driven scenarios
    - **HTTP Function**: For Web APIs, REST services, SSE/WebSocket, multi-language support
+   - If the prompt says "HTTP 云函数", use the HTTP Function model first; if it says "触发器云函数" or omits HTTP, default to the Event Function model.
 
 2. **Understand runtime limitations**
    - Runtime **CANNOT be changed** after function creation
    - Must select correct runtime during initial creation
    - If runtime needs to change, must delete and recreate function
 
-3. **Deploy functions correctly**
-   - **Preferred MCP Tools**: Use `queryFunctions` for reads, `manageFunctions(action="createFunction")` for creation, and `manageFunctions(action="updateFunctionCode")` for code deployment
+3. **Write code AND deploy — do not stop after writing files**
+   - **CRITICAL**: After writing function code, you MUST also deploy it using `manageFunctions`. Creating files locally without deploying is incomplete.
+   - Use `manageFunctions(action="createFunction")` to create AND deploy in one step
+   - Provide `functionRootPath` as the **parent directory** of the function folder (e.g., `/project/cloudfunctions/` not `/project/cloudfunctions/myFunction/`)
+   - **Preferred MCP Tools**: Use `queryFunctions` for reads, `manageFunctions(action="createFunction")` for creation, and `manageFunctions(action="updateFunctionCode")` for code updates
    - **Legacy compatibility**: If older prompts mention `createFunction` / `updateFunctionCode`, map them to the `manageFunctions` actions above
-   - **CLI**: Use `tcb fn deploy` (Event) or `tcb fn deploy --httpFn` (HTTP)
+   - **CLI**: Use `tcb fn deploy` (Event) or `tcb fn deploy --httpFn` (HTTP) only as a fallback when MCP tools are unavailable
+   - In agent / non-interactive runs, never default to CLI login flows for deployment; keep the flow on `manageFunctions`
+   - For HTTP functions, create or update them through `manageFunctions` with `func.type="HTTP"` as the primary path
    - HTTP Functions require `scf_bootstrap` file in the function directory
    - Provide correct `functionRootPath` (parent directory of function folder)
 
@@ -215,6 +233,12 @@ Use `manageFunctions(action="updateFunctionCode")`:
 
 HTTP Functions are optimized for Web service scenarios, supporting standard HTTP request/response patterns.
 
+**HTTP Function coding model**
+- Use a web-server style handler with `req` / `res`
+- Parse query, headers, and body from the HTTP request directly
+- Return HTTP status codes and response bodies explicitly
+- Do not use `exports.main(event, context)` as the primary HTTP Function shape
+
 **Key Characteristics:**
 - **Must listen on port 9000** (platform requirement)
 - Requires `scf_bootstrap` startup script
@@ -252,19 +276,104 @@ export PYTHONPATH="./third_party:$PYTHONPATH"
 java -jar *.jar
 ```
 
+### HTTP Function Request &amp; Response Handling
+
+**⚠️ CRITICAL: HTTP Functions are standard web servers.** They receive full HTTP requests (method, headers, query string, body) and must return complete HTTP responses (status code, headers, body). Unlike Event Functions, there is no CloudBase-specific request envelope.
+
+**Dependencies:**
+- **HTTP Functions do NOT auto-install dependencies.** You MUST include `node_modules` in the function directory or use layers.
+- Common packages: `express`, `body-parser` (built into Express 4.16+), `cors`, `helmet`
+
+**Handling Different HTTP Methods:**
+
+```javascript
+const express = require('express');
+const app = express();
+
+// IMPORTANT: Must parse JSON body for POST/PUT requests
+app.use(express.json());
+
+// GET - read query parameters from req.query
+app.get('/users', (req, res) =&gt; {
+  const { userId, page = 1, pageSize = 10 } = req.query;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  res.json({
+    method: 'GET',
+    params: { userId, page: Number(page), pageSize: Number(pageSize) },
+    message: 'Query parameters processed'
+  });
+});
+
+// POST - read body from req.body, query from req.query
+app.post('/users', (req, res) =&gt; {
+  const { action } = req.query;    // query string: ?action=create
+  const { name, email } = req.body; // JSON body
+
+  if (!name || !email) {
+    return res.status(400).json({ error: 'name and email are required' });
+  }
+
+  res.json({
+    method: 'POST',
+    action,
+    data: { name, email },
+    message: 'Body and query parameters processed'
+  });
+});
+
+// PUT - read custom headers from req.headers
+app.put('/users/:id', (req, res) =&gt; {
+  const userId = req.headers['x-user-id']; // custom header
+
+  if (!userId) {
+    return res.status(401).json({ error: 'x-user-id header is required' });
+  }
+
+  const { status } = req.body;
+  res.json({
+    method: 'PUT',
+    userId,
+    status,
+    message: 'Headers and body processed'
+  });
+});
+
+// For unsupported methods, return 405
+app.all('*', (req, res) =&gt; {
+  res.status(405).json({ error: 'Method Not Allowed' });
+});
+
+app.listen(9000); // Must be port 9000
+```
+
+**Key Rules:**
+- `req.query` - URL query string parameters (e.g., `?userId=123&amp;page=1`)
+- `req.body` - Parsed request body (requires `app.use(express.json())` or equivalent middleware)
+- `req.headers` - All HTTP headers (lowercased, e.g., `req.headers['x-user-id']`)
+- `req.params` - URL path parameters (e.g., `/users/:id`)
+- Always return proper HTTP status codes: 200 (success), 400 (bad request), 401 (unauthorized), 405 (method not allowed)
+- Always call `res.json()`, `res.send()`, or `res.status().json()` to send a response
+- Never leave a request handler without sending a response
+
 ### HTTP Function Structure &amp; Example
 
 ```
 my-http-function/
 ├── scf_bootstrap      # Required: startup script
 ├── package.json       # Dependencies
+├── node_modules/      # Required for HTTP Functions (no auto-install)
 └── index.js           # Application code
 ```
 
-**Node.js Example (Express):**
+**Minimal Node.js Example (Express):**
 ```javascript
 const express = require('express');
 const app = express();
+app.use(express.json());
 
 app.get('/', (req, res) =&gt; res.json({ message: 'Hello!' }));
 app.listen(9000);  // Must be port 9000
@@ -317,9 +426,15 @@ manageGateway({
   targetName: "myHttpFunction",
   type: "HTTP",           // "HTTP" for HTTP Function
   path: "/api/hello",     // Trigger path
-  // auth: false            // Optional gateway auth switch
+  // auth: false            // Optional: only set this when you intentionally need anonymous/public access
 })
 ```
+
+Notes:
+- `manageFunctions(action="createFunction")` 只创建 HTTP 云函数本身，不会默认替你创建 HTTP 访问路径。
+- 如果用户明确说“不需要配置 HTTP 访问服务”，不要额外调用 `manageGateway(action="createAccess")`。
+- 评测、浏览器或其他外部调用方可能会以匿名身份访问，而且失败后不一定会把 `EXCEED_AUTHORITY` 再反馈给 AI。只要场景涉及匿名 URL 访问，就要主动确认两件事：访问路径是否已创建，以及函数安全规则是否允许该访问方式。
+- 若外部请求已经报 `EXCEED_AUTHORITY`，先调用 `readSecurityRule(resourceType="function")` 查看当前规则，再根据实际需求决定是否用 `writeSecurityRule(resourceType="function", aclTag="CUSTOM", rule="true")` 或更细粒度规则放开权限。
 
 ```bash
 # Access via default domain
@@ -475,6 +590,7 @@ Use CloudBase HTTP API to invoke event functions:
 
 - **HTTP API**: Uses CloudBase API endpoint with authentication token
 - **HTTP Access**: Creates direct HTTP/HTTPS endpoint for standard REST API access without SDK
+- **Important**: This section applies to Event Functions only. It does not change an HTTP Function into an Event Function or vice versa.
 
 **Creating HTTP Access:**
 
@@ -726,6 +842,8 @@ Use this checklist before creating or updating a CloudBase function.
 ## Required checks
 
 1. Decide whether this is an Event Function or an HTTP Function.
+   - Event Function: `exports.main(event, context)`, SDK/timer driven
+   - HTTP Function: `req` / `res`, listens on port `9000`
 2. Pick the runtime before creation and state it explicitly.
 3. For HTTP Functions, confirm `scf_bootstrap` exists and the service listens on port `9000`.
 4. Confirm the function root path points to the parent directory, not the function directory itself.
@@ -734,6 +852,7 @@ Use this checklist before creating or updating a CloudBase function.
 ## Common failure patterns
 
 - Choosing the wrong function type and compensating later.
+- Mixing Event Function and HTTP Function handler shapes in the same implementation.
 - Forgetting that runtime cannot be changed after creation.
 - Treating Cloud Functions as the default answer for Web authentication.
 
