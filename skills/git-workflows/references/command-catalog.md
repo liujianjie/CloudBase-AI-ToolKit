@@ -20,3 +20,9 @@ These workflows are derived from former local command templates.
 - **Source**: `references/source-commands.md`
 - **Intent**: generate/publish release notes from git/GitHub signals
 
+### Version publish (main)
+
+- **Command**: `/version_publish_main`
+- **Source**: `references/source-commands.md`
+- **Intent**: build on main -> bump version -> generate/publish release notes
+

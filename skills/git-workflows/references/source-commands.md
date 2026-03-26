@@ -235,3 +235,52 @@ When user inputs `/releasenote`
 - [ ] Release URL is provided after publishing
 ```
 
+### version_publish_main.md
+
+```md
+---
+name: version_publish_main
+description: Build, bump version, and publish release on main
+---
+
+# Version Publish (main branch) Command
+
+## Function
+Publish a new version from the `main` branch with a consistent sequence:
+build -> commit+push to main -> bump version in `mcp/` -> generate/publish release notes.
+
+## Trigger Condition
+When user inputs `/version_publish_main`
+
+## Behavior
+
+### Step 0: Preconditions (must pass)
+1. Ensure current branch is `main`
+2. Ensure working tree is clean: `git status --porcelain` is empty
+3. Ensure local main is up to date:
+   - `git fetch origin`
+   - `git pull --ff-only origin main`
+
+### Step 1: Build on main
+1. Run build: `npm run build`
+2. Stage build outputs (only if the repo expects build artifacts to be committed)
+3. Commit build changes and push directly to `main`:
+   - Commit message MUST be English and conventional-changelog style
+   - Example: `chore(release): build artifacts for vX.Y.Z`
+   - Push: `git push origin main`
+
+### Step 2: Bump version in `mcp/`
+1. `cd mcp`
+2. Run `npx bumpp` and use the interactive prompts to select the target version
+3. After bump, commit the version change on `main` and push:
+   - Example: `chore(release): bump version to vX.Y.Z`
+   - `git push origin main`
+
+### Step 3: Release note
+Run `/releasenote` and follow the interactive confirmation before publishing.
+
+## Safety Notes
+- This workflow has direct side effects on `main` (commit + push). Always ask for explicit user confirmation right before pushing.
+- If the repository does NOT commit build artifacts, skip Step 1.2 and only ensure the build passes.
+```
+
