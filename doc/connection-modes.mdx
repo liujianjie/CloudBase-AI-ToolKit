@@ -111,7 +111,7 @@ TCB_AUTH_OAUTH_ENDPOINT=https://auth.your-domain.com/oauth
 https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag&disable_plugins=env
 ```
 
-当前可配置的插件名：`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `interactive`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`。
+当前可配置的插件名：`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`。
 
 ### 托管模式环境变量说明
 
@@ -131,7 +131,6 @@ https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag&
 | `hosting` | 静态托管：上传/删除/搜索文件、域名管理 |
 | `storage` | 云存储：查询、上传/下载/删除文件 |
 | `setup` | 配置与规则：下载模板、IDE 规则与配置文件 |
-| `interactive` | 交互：需求澄清、操作确认对话框 |
 | `rag` | 知识库与联网：知识库检索、网页搜索 |
 | `download` | 下载：项目模板、远程文件到本地 |
 | `gateway` | 网关：云函数 HTTP 访问 |
@@ -154,7 +153,6 @@ https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag&
 | hosting | `uploadFiles`, `deleteFiles`, `findFiles`, `domainManagement` |
 | storage | `queryStorage`, `manageStorage` |
 | setup | `downloadTemplate`, `downloadRemoteFile` |
-| interactive | `interactiveDialog` |
 | rag | `searchWeb`, `searchKnowledgeBase` |
 | gateway | `queryGateway`, `manageGateway` |
 | cloudrun | `queryCloudRun`, `manageCloudRun` |

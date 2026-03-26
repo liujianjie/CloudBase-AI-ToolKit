@@ -5,7 +5,6 @@ import { registerDownloadTools } from "./tools/download.js";
 import { registerEnvTools } from "./tools/env.js";
 import { registerFunctionTools } from "./tools/functions.js";
 import { registerHostingTools } from "./tools/hosting.js";
-import { registerInteractiveTools } from "./tools/interactive.js";
 import { registerRagTools } from "./tools/rag.js";
 import { registerSetupTools } from "./tools/setup.js";
 import { registerStorageTools } from "./tools/storage.js";
@@ -39,7 +38,6 @@ const DEFAULT_PLUGINS = [
   "hosting",
   "storage",
   "setup",
-  "interactive",
   "rag",
   "cloudrun",
   "gateway",
@@ -67,7 +65,6 @@ const AVAILABLE_PLUGINS: Record<string, PluginDefinition> = {
   hosting: { name: "hosting", register: registerHostingTools },
   storage: { name: "storage", register: registerStorageTools },
   setup: { name: "setup", register: registerSetupTools },
-  interactive: { name: "interactive", register: registerInteractiveTools },
   rag: { name: "rag", register: registerRagTools },
   download: { name: "download", register: registerDownloadTools },
   gateway: { name: "gateway", register: registerGatewayTools },

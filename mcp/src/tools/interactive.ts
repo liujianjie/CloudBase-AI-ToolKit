@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { getLoginState } from "../auth.js";
 import {
   envManager,
@@ -6,7 +5,6 @@ import {
   logCloudBaseResult,
 } from "../cloudbase-manager.js";
 import { getInteractiveServer } from "../interactive-server.js";
-import { ExtendedMcpServer } from "../server.js";
 import { isCloudMode } from "../utils/cloud-mode.js";
 import { debug, error, warn } from "../utils/logger.js";
 import { telemetryReporter } from "../utils/telemetry.js";
@@ -60,136 +58,6 @@ async function getUserAppIdFromCam(): Promise<{ Uin: string; OwnerUin: string; A
       error instanceof Error ? error : new Error(String(error)));
     return null;
   }
-}
-
-export function registerInteractiveTools(server: ExtendedMcpServer) {
-  // 统一的交互式对话工具 (cloud-incompatible)
-  server.registerTool(
-    "interactiveDialog",
-    {
-      title: "交互式对话",
-      description:
-        "统一的交互式对话工具，支持需求澄清和任务确认，当需要和用户确认下一步的操作的时候，可以调用这个工具的clarify，如果有敏感的操作，需要用户确认，可以调用这个工具的confirm",
-      inputSchema: {
-        type: z
-          .enum(["clarify", "confirm"])
-          .describe("交互类型: clarify=需求澄清, confirm=任务确认"),
-        message: z.string().optional().describe("对话消息内容"),
-        options: z.array(z.string()).optional().describe("可选的预设选项"),
-        forceUpdate: z.boolean().optional().describe("是否强制更新环境ID配置"),
-        risks: z.array(z.string()).optional().describe("操作风险提示"),
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: false,
-        category: "interactive",
-      },
-    },
-    async ({
-      type,
-      message,
-      options,
-      forceUpdate = false,
-      risks,
-    }: {
-      type: "clarify" | "confirm";
-      message?: string;
-      options?: string[];
-      forceUpdate?: boolean;
-      risks?: string[];
-    }) => {
-      try {
-        switch (type) {
-          case "clarify": {
-            if (!message) {
-              throw new Error("需求澄清必须提供message参数");
-            }
-
-            const interactiveServer = getInteractiveServer(server);
-            const result = await interactiveServer.clarifyRequest(
-              message,
-              options,
-            );
-
-            if (result.cancelled) {
-              return {
-                content: [{ type: "text", text: "用户取消了需求澄清" }],
-              };
-            }
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `📝 用户澄清反馈:\n${result.data}`,
-                },
-              ],
-            };
-          }
-
-          case "confirm": {
-            if (!message) {
-              throw new Error("任务确认必须提供message参数");
-            }
-
-            let dialogMessage = `🎯 即将执行任务:\n${message}`;
-
-            if (risks && risks.length > 0) {
-              dialogMessage += `\n\n⚠️ 风险提示:\n${risks.map((risk) => `• ${risk}`).join("\n")}`;
-            }
-
-            dialogMessage += `\n\n是否继续执行此任务？`;
-
-            const dialogOptions = options || [
-              "确认执行",
-              "取消操作",
-              "需要修改任务",
-            ];
-
-            const interactiveServer = getInteractiveServer(server);
-            const result = await interactiveServer.clarifyRequest(
-              dialogMessage,
-              dialogOptions,
-            );
-
-            if (
-              result.cancelled ||
-              (result.data &&
-                result.data.includes &&
-                result.data.includes("取消"))
-            ) {
-              return {
-                content: [{ type: "text", text: "❌ 用户取消了任务执行" }],
-              };
-            }
-
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `✅ 用户确认: ${result.data}`,
-                },
-              ],
-            };
-          }
-
-          default:
-            throw new Error(`不支持的交互类型: ${type}`);
-        }
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `交互对话出错: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-        };
-      }
-    },
-  );
 }
 
 /**

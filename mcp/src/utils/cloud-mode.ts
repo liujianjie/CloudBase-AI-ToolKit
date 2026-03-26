@@ -92,8 +92,6 @@ export function shouldRegisterTool(toolName: string): boolean {
     // Setup tools - local config file operations
     'setupEnvironmentId',
     
-    // Interactive tools - local server and file operations
-    'interactiveDialog',
     // CloudRun tools - local file operations
     'manageCloudRun',
     // Download tools - local file downloads
@@ -108,5 +106,4 @@ export function shouldRegisterTool(toolName: string): boolean {
   
   return shouldRegister;
 }
-
 

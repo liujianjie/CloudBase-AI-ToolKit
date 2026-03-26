@@ -343,7 +343,7 @@ When an app has issues, AI automatically views logs, analyzes errors, and genera
 | **Cloud Functions** | 9 | Create, update, invoke, logs, triggers |
 | **Static Hosting** | 5 | File upload, domain configuration, website deployment |
 | **Mini-Program** | 7 | Upload, preview, build, configuration, debugging |
-| **Tool Support** | 4 | Templates, knowledge base search, web search, interactive dialogs |
+| **Tool Support** | 3 | Templates, knowledge base search, web search |
 
 [View complete tool documentation](doc/mcp-tools.md) | [Tool specification JSON](scripts/tools.json)
 

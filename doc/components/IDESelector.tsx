@@ -403,8 +403,7 @@ const IDES: IDE[] = [
       "command": "npx",
       "args": ["@cloudbase/cloudbase-mcp@latest"],
       "env": {
-        "INTEGRATION_IDE": "WindSurf",
-        "CLOUDBASE_MCP_PLUGINS_DISABLED": "interactive"
+        "INTEGRATION_IDE": "WindSurf"
       }
     }
   }

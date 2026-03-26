@@ -31,6 +31,11 @@ import {
   toolPayloadErrorToResult,
 } from "../utils/tool-result.js";
 import { getClaudePrompt } from "./rag.js";
+import {
+  checkAndCreateFreeEnv,
+  checkAndInitTcbService,
+  type EnvSetupContext,
+} from "./env-setup.js";
 
 /**
  * Simplify environment list data by keeping only essential fields for AI assistant
@@ -223,6 +228,231 @@ function buildSetEnvNextStep(envCandidates: EnvCandidate[]) {
       ? { action: "set_env", envId: singleEnvId }
       : { action: "set_env" },
   });
+}
+
+type AuthEnvSetupStatus =
+  | "NOT_NEEDED"
+  | "AUTO_BOUND"
+  | "AUTO_CREATED"
+  | "SELECTION_REQUIRED"
+  | "ACTION_REQUIRED";
+
+type AuthEnvSetupFailure = {
+  reason: string;
+  error_code: string;
+  message: string;
+  help_url?: string;
+  need_real_name_auth?: boolean;
+  need_cam_auth?: boolean;
+};
+
+type AuthEnvPreparationResult = {
+  currentEnvId: string | null;
+  envStatus: "READY" | "MULTIPLE" | "NONE";
+  envCandidates: EnvCandidate[];
+  envSetupStatus: AuthEnvSetupStatus;
+  envSetupActions: string[];
+  envSetupFailure?: AuthEnvSetupFailure;
+  message: string;
+  nextStep: ReturnType<typeof buildAuthNextStep>;
+};
+
+function dedupeActions(actions: string[]) {
+  return actions.filter((action, index) => actions.indexOf(action) === index);
+}
+
+function buildAuthEnvSetupFailure(params: {
+  reason: string;
+  errorCode: string;
+  message: string;
+  helpUrl?: string;
+  needRealNameAuth?: boolean;
+  needCamAuth?: boolean;
+}): AuthEnvSetupFailure {
+  return {
+    reason: params.reason,
+    error_code: params.errorCode,
+    message: params.message,
+    help_url: params.helpUrl,
+    need_real_name_auth: params.needRealNameAuth,
+    need_cam_auth: params.needCamAuth,
+  };
+}
+
+function buildAuthEnvSetupPayload(preparation: AuthEnvPreparationResult) {
+  return {
+    current_env_id: preparation.currentEnvId,
+    env_status: preparation.envStatus,
+    env_setup_status: preparation.envSetupStatus,
+    env_setup_actions: preparation.envSetupActions,
+    ...(preparation.envSetupFailure
+      ? {
+          env_setup_failure: preparation.envSetupFailure,
+        }
+      : {}),
+    ...buildEnvCandidatePayload(preparation.envCandidates),
+  };
+}
+
+async function prepareAuthEnvironment(params: {
+  server: ExtendedMcpServer;
+  cloudBaseOptions: any;
+  loginState: any;
+}): Promise<AuthEnvPreparationResult> {
+  const { server, cloudBaseOptions, loginState } = params;
+  const currentEnvId =
+    getCachedEnvId() ||
+    process.env.CLOUDBASE_ENV_ID ||
+    (typeof loginState?.envId === "string" && loginState.envId.length > 0
+      ? loginState.envId
+      : null);
+
+  if (currentEnvId) {
+    return {
+      currentEnvId,
+      envStatus: "READY",
+      envCandidates: [],
+      envSetupStatus: "NOT_NEEDED",
+      envSetupActions: [],
+      message: `当前已登录，环境: ${currentEnvId}`,
+      nextStep: buildAuthNextStep("status", {
+        suggestedArgs: { action: "status" },
+      }),
+    };
+  }
+
+  const envSetupActions = ["list_envs"];
+  const envCandidates = await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+
+  if (envCandidates.length === 1) {
+    const singleEnvId = envCandidates[0].envId;
+    await envManager.setEnvId(singleEnvId);
+    return {
+      currentEnvId: singleEnvId,
+      envStatus: "READY",
+      envCandidates,
+      envSetupStatus: "AUTO_BOUND",
+      envSetupActions: dedupeActions(envSetupActions),
+      message: `当前已登录，已自动绑定唯一环境: ${singleEnvId}`,
+      nextStep: buildAuthNextStep("status", {
+        suggestedArgs: { action: "status" },
+      }),
+    };
+  }
+
+  if (envCandidates.length > 1) {
+    return {
+      currentEnvId: null,
+      envStatus: "MULTIPLE",
+      envCandidates,
+      envSetupStatus: "SELECTION_REQUIRED",
+      envSetupActions: dedupeActions(envSetupActions),
+      message: "当前已登录，但存在多个可用环境，请先选择环境。",
+      nextStep: buildSetEnvNextStep(envCandidates),
+    };
+  }
+
+  let setupContext: EnvSetupContext = {};
+  const manager = await getCloudBaseManager({
+    requireEnvId: false,
+    cloudBaseOptions: cloudBaseOptions
+      ? {
+          ...cloudBaseOptions,
+          envId: undefined,
+        }
+      : undefined,
+    mcpServer: server,
+  });
+
+  setupContext = await checkAndInitTcbService(manager, setupContext);
+  if (setupContext.checkTcbServiceAttempted) {
+    envSetupActions.push("check_tcb_service");
+  }
+  if (setupContext.initTcbAttempted) {
+    envSetupActions.push("init_tcb");
+  }
+
+  if (setupContext.initTcbError || !setupContext.tcbServiceInitialized) {
+    const failure = setupContext.initTcbError
+      ? buildAuthEnvSetupFailure({
+          reason: "tcb_init_failed",
+          errorCode: setupContext.initTcbError.code || "TCB_INIT_FAILED",
+          message: setupContext.initTcbError.message,
+          helpUrl: setupContext.initTcbError.helpUrl,
+          needRealNameAuth: setupContext.initTcbError.needRealNameAuth,
+          needCamAuth: setupContext.initTcbError.needCamAuth,
+        })
+      : buildAuthEnvSetupFailure({
+          reason: "tcb_init_failed",
+          errorCode: "TCB_INIT_FAILED",
+          message: "CloudBase 服务初始化失败，请稍后重试。",
+          helpUrl: "https://buy.cloud.tencent.com/lowcode?buyType=tcb&channel=mcp",
+        });
+
+    return {
+      currentEnvId: null,
+      envStatus: "NONE",
+      envCandidates: [],
+      envSetupStatus: "ACTION_REQUIRED",
+      envSetupActions: dedupeActions(envSetupActions),
+      envSetupFailure: failure,
+      message: failure.message,
+      nextStep: buildAuthNextStep("status", {
+        suggestedArgs: { action: "status" },
+      }),
+    };
+  }
+
+  const createResult = await checkAndCreateFreeEnv(manager, setupContext);
+  setupContext = createResult.context;
+  if (setupContext.promotionalActivitiesChecked) {
+    envSetupActions.push("check_promotional_activity");
+  }
+  if (setupContext.createFreeEnvAttempted) {
+    envSetupActions.push("create_free_env");
+  }
+
+  if (createResult.success && createResult.envId) {
+    await envManager.setEnvId(createResult.envId);
+    return {
+      currentEnvId: createResult.envId,
+      envStatus: "READY",
+      envCandidates: [],
+      envSetupStatus: "AUTO_CREATED",
+      envSetupActions: dedupeActions(envSetupActions),
+      message: `当前已登录，已自动创建并绑定环境: ${createResult.envId}`,
+      nextStep: buildAuthNextStep("status", {
+        suggestedArgs: { action: "status" },
+      }),
+    };
+  }
+
+  const createFailure = setupContext.createEnvError
+    ? buildAuthEnvSetupFailure({
+        reason: "env_creation_failed",
+        errorCode: setupContext.createEnvError.code || "ENV_CREATION_FAILED",
+        message: setupContext.createEnvError.message,
+        helpUrl: setupContext.createEnvError.helpUrl,
+      })
+    : buildAuthEnvSetupFailure({
+        reason: "env_creation_failed",
+        errorCode: "ENV_CREATION_FAILED",
+        message: "环境创建失败，请稍后重试或手动创建环境。",
+        helpUrl: "https://buy.cloud.tencent.com/lowcode?buyType=tcb&channel=mcp",
+      });
+
+  return {
+    currentEnvId: null,
+    envStatus: "NONE",
+    envCandidates: [],
+    envSetupStatus: "ACTION_REQUIRED",
+    envSetupActions: dedupeActions(envSetupActions),
+    envSetupFailure: createFailure,
+    message: createFailure.message,
+    nextStep: buildAuthNextStep("status", {
+      suggestedArgs: { action: "status" },
+    }),
+  };
 }
 
 function buildEnvQueryListResult(params: {
@@ -502,41 +732,44 @@ export function registerEnvTools(server: ExtendedMcpServer) {
         if (action === "status") {
           const loginState = await peekLoginState();
           const authFlowState = await getAuthProgressState();
-          const envId =
-            getCachedEnvId() ||
-            process.env.CLOUDBASE_ENV_ID ||
-            (typeof loginState?.envId === "string" ? loginState.envId : undefined);
 
           const authStatus = loginState
             ? "READY"
             : authFlowState.status === "PENDING"
               ? "PENDING"
               : "REQUIRED";
-          const envCandidates = await fetchAvailableEnvCandidates(cloudBaseOptions, server);
-          const envStatus = envId
-            ? "READY"
-            : envCandidates.length > 1
-              ? "MULTIPLE"
-              : envCandidates.length === 1
-                ? "READY"
-                : "NONE";
+          let envPreparation:
+            | AuthEnvPreparationResult
+            | undefined;
           const message =
             authStatus === "READY"
-              ? `当前已登录${envId ? `，环境: ${envId}` : "，但未绑定环境"}`
+              ? undefined
               : authStatus === "PENDING"
                 ? "设备码授权进行中，请完成浏览器授权后再次调用 auth(action=\"status\")"
                 : isCodeBuddyIde(server)
                   ? "当前未登录。CodeBuddy 暂不支持在 tool 内发起认证，请在外部完成认证后再次调用 auth(action=\"status\")。"
                   : "当前未登录，请先执行 auth(action=\"start_auth\")";
 
+          if (authStatus === "READY" && loginState) {
+            envPreparation = await prepareAuthEnvironment({
+              server,
+              cloudBaseOptions,
+              loginState,
+            });
+          }
+
           return buildJsonToolResult({
             ok: true,
             code: "STATUS",
             auth_status: authStatus,
-            env_status: envStatus,
-            current_env_id: envId || null,
             auth_config: authConfigSummary,
-            ...buildEnvCandidatePayload(envCandidates),
+            ...(envPreparation
+              ? buildAuthEnvSetupPayload(envPreparation)
+              : {
+                  env_status: "NONE",
+                  current_env_id: null,
+                  ...buildEnvCandidatePayload([]),
+                }),
             auth_challenge:
               authFlowState.status === "PENDING" && authFlowState.authChallenge
                 ? {
@@ -553,11 +786,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                   ? buildAuthNextStep("status", {
                       suggestedArgs: { action: "status" },
                     })
-                  : !envId
-                    ? buildSetEnvNextStep(envCandidates)
-                    : buildAuthNextStep("status", {
-                        suggestedArgs: { action: "status" },
-                      }),
+                  : envPreparation?.nextStep,
           });
         }
 
@@ -587,24 +816,18 @@ export function registerEnvTools(server: ExtendedMcpServer) {
           try {
             const existingLoginState = await peekLoginState();
             if (existingLoginState) {
-              const envId =
-                typeof existingLoginState.envId === "string" ? existingLoginState.envId : null;
-              const envCandidates = envId
-                ? []
-                : await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+              const envPreparation = await prepareAuthEnvironment({
+                server,
+                cloudBaseOptions,
+                loginState: existingLoginState,
+              });
               return buildJsonToolResult({
                 ok: true,
                 code: "AUTH_READY",
-                message: envId
-                  ? `认证成功，当前登录态 envId: ${envId}`
-                  : "认证成功",
+                message: envPreparation.message,
                 auth_challenge: authChallenge(),
-                ...buildEnvCandidatePayload(envCandidates),
-                next_step: envId
-                  ? buildAuthNextStep("status", {
-                      suggestedArgs: { action: "status" },
-                    })
-                  : buildSetEnvNextStep(envCandidates),
+                ...buildAuthEnvSetupPayload(envPreparation),
+                next_step: envPreparation.nextStep,
               });
             }
           } catch {
@@ -734,22 +957,18 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             });
           }
 
-          const envId =
-            typeof loginState.envId === "string" ? loginState.envId : null;
-          const envCandidates = envId
-            ? []
-            : await fetchAvailableEnvCandidates(cloudBaseOptions, server);
+          const envPreparation = await prepareAuthEnvironment({
+            server,
+            cloudBaseOptions,
+            loginState,
+          });
           return buildJsonToolResult({
             ok: true,
             code: "AUTH_READY",
-            message: envId ? `认证成功，当前登录态 envId: ${envId}` : "认证成功",
+            message: envPreparation.message,
             auth_challenge: authChallenge(),
-            ...buildEnvCandidatePayload(envCandidates),
-            next_step: envId
-              ? buildAuthNextStep("status", {
-                  suggestedArgs: { action: "status" },
-                })
-              : buildSetEnvNextStep(envCandidates),
+            ...buildAuthEnvSetupPayload(envPreparation),
+            next_step: envPreparation.nextStep,
           });
         }
 

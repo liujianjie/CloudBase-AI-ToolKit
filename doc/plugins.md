@@ -14,7 +14,6 @@ CloudBase MCP 采用插件化架构，支持按需启用工具模块，解决 MC
 | `hosting` | 静态托管 (文件上传、域名配置) |
 | `storage` | 云存储管理 (文件存储、CDN) |
 | `setup` | 项目初始化 (模板下载、配置) |
-| `interactive` | 交互对话 (用户确认、选择) |
 | `security-rule` | 安全规则管理（数据库、云函数、存储安全规则读写） |
 
 ### 可选插件 (按需启用)
@@ -66,10 +65,10 @@ CloudBase MCP 采用插件化架构，支持按需启用工具模块，解决 MC
 | 场景 | 推荐插件 |
 |------|----------|
 | **基础开发** | `env,database,functions,hosting` |
-| **完整功能** | `env,database,functions,hosting,storage,setup,interactive,rag,download,gateway,miniprogram` |
+| **完整功能** | `env,database,functions,hosting,storage,setup,rag,download,gateway,miniprogram` |
 | **纯后端** | `env,database,functions` |
 | **小程序** | `env,database,functions,storage,setup,miniprogram` |
-| **AI 应用** | `env,database,functions,hosting,rag,interactive` |
+| **AI 应用** | `env,database,functions,hosting,rag` |
 
 ## 相关文档
 

@@ -124,10 +124,6 @@
       "description": "Download project templates with CloudBase best practices"
     },
     {
-      "name": "interactiveDialog",
-      "description": "Interactive dialog for user confirmations and requirement clarification"
-    },
-    {
       "name": "uploadMiniprogramCode",
       "description": "Upload WeChat Mini-Program code to WeChat platform for deployment"
     },

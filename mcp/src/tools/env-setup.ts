@@ -30,10 +30,14 @@ export interface EnvSetupError {
  */
 export interface EnvSetupContext {
   uin?: string; // User UIN for telemetry
+  checkTcbServiceAttempted?: boolean; // Whether CheckTcbService was called
+  initTcbAttempted?: boolean; // Whether InitTcb was called
   tcbServiceChecked?: boolean; // Whether TCB service check was performed
   tcbServiceInitialized?: boolean; // Result of TCB service check
   initTcbError?: EnvSetupError; // Error from InitTcb if any
+  promotionalActivitiesChecked?: boolean; // Whether promotional activities were checked
   promotionalActivities?: string[]; // List of available promotional activity keys
+  createFreeEnvAttempted?: boolean; // Whether CreateFreeEnvByActivity was called
   createEnvError?: EnvSetupError; // Error from CreateFreeEnvByActivity if any
 }
 
@@ -50,13 +54,22 @@ export interface EnvSetupResult {
  * Parse InitTcb error and extract user-friendly information
  */
 function parseInitTcbError(err: any): EnvSetupError {
-  const rawMessage = err.message || String(err);
+  const rawMessage = err?.message || err?.Message || String(err);
   const errorCode = err.code || err.Code || "UnknownError";
   const requestId = err.requestId || err.RequestId || '';
+  const searchBlob = [
+    errorCode,
+    rawMessage,
+    err?.ErrorMessage,
+    err?.Response?.Error?.Message,
+    err?.Response?.Error?.Code,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 
-  // User-friendly error message
-  let friendlyMessage = "准备工作";
-  let actionText = "为了开始使用 CloudBase，请先完成账号认证和服务授权";
+  let friendlyMessage = rawMessage || "CloudBase 服务初始化失败";
+  let actionText = "请完成所需的账号准备后重新调用 auth(action=\"status\")。";
 
   const errorInfo: EnvSetupError = {
     code: errorCode,
@@ -66,6 +79,45 @@ function parseInitTcbError(err: any): EnvSetupError {
     requestId
   };
 
+  const realNamePatterns = [
+    "realname",
+    "real-name",
+    "实名认证",
+    "实名",
+    "身份认证",
+    "identity verification",
+  ];
+  const camPatterns = [
+    "cam",
+    "not authorized",
+    "unauthorized",
+    "forbidden",
+    "开通cloudbase",
+    "开通 cloudbase",
+    "开通服务",
+    "未开通",
+    "未授权",
+    "service not activated",
+    "activate cloudbase",
+    "cloudbase service",
+  ];
+
+  if (realNamePatterns.some((pattern) => searchBlob.includes(pattern))) {
+    errorInfo.needRealNameAuth = true;
+    errorInfo.message = "当前账号需要先完成实名认证";
+    errorInfo.actionText = "请先完成实名认证，完成后重新调用 auth(action=\"status\")。";
+    return errorInfo;
+  }
+
+  if (camPatterns.some((pattern) => searchBlob.includes(pattern))) {
+    errorInfo.needCamAuth = true;
+    errorInfo.message = "当前账号需要先开通 CloudBase 服务";
+    errorInfo.actionText = "请先开通 CloudBase 服务，完成后重新调用 auth(action=\"status\")。";
+    return errorInfo;
+  }
+
+  errorInfo.message = friendlyMessage;
+  errorInfo.actionText = actionText;
   return errorInfo;
 }
 
@@ -134,6 +186,7 @@ export async function checkAndInitTcbService(
       tcbServiceChecked: newContext.tcbServiceChecked
     });
 
+    newContext.checkTcbServiceAttempted = true;
     const checkResult = await cloudbase.commonService("tcb", "2018-06-08").call({
       Action: "CheckTcbService",
       Param: {}
@@ -160,6 +213,7 @@ export async function checkAndInitTcbService(
       debug('[env-setup] InitTcb params:', { Source: "qcloud", Channel: "mcp" });
 
       try {
+        newContext.initTcbAttempted = true;
         const initResult = await cloudbase.commonService("tcb", "2018-06-08").call({
           Action: "InitTcb",
           Param: {
@@ -263,6 +317,7 @@ export async function checkAndCreateFreeEnv(
       Names: ["NewUser", "ReturningUser", "BaasFree"]
     });
 
+    newContext.promotionalActivitiesChecked = true;
     const activityResult = await cloudbase.commonService("tcb", "2018-06-08").call({
       Action: "DescribeUserPromotionalActivity",
       Param: {
@@ -321,11 +376,15 @@ export async function checkAndCreateFreeEnv(
       const createParams = {
         Alias: "ai-native",
         Type: activityType,
+        CloseAutoPay: true,
+        EnableExcess: "true",
+        IsAutoRenew: "false",
         Source: "qcloud"
       };
 
       debug('[env-setup] CreateFreeEnvByActivity params:', createParams);
 
+      newContext.createFreeEnvAttempted = true;
       const createResult = await cloudbase.commonService("tcb", "2018-06-08").call({
         Action: "CreateFreeEnvByActivity",
         Param: createParams
@@ -509,4 +568,3 @@ export async function getUinForTelemetry(): Promise<string | undefined> {
     return undefined;
   }
 }
-

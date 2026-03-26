@@ -27,7 +27,7 @@ async function createTestClient() {
     env: {
       ...process.env,
       // Enable CloudRun plugin for testing
-      CLOUDBASE_MCP_PLUGINS_ENABLED: "env,database,functions,hosting,storage,setup,interactive,rag,gateway,download,security-rule,invite-code,cloudrun"
+      CLOUDBASE_MCP_PLUGINS_ENABLED: "env,database,functions,hosting,storage,setup,rag,gateway,download,security-rule,invite-code,cloudrun"
     }
   });
 

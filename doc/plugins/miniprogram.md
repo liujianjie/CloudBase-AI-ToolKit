@@ -13,7 +13,7 @@ export MINIPROGRAM_PRIVATE_KEY="私钥内容"
 export MINIPROGRAM_PRIVATE_KEY_PATH="/path/to/private.key"
 
 # 启用小程序插件
-export CLOUDBASE_MCP_PLUGINS_ENABLED="env,database,functions,hosting,storage,setup,interactive,rag,gateway,download,miniprogram"
+export CLOUDBASE_MCP_PLUGINS_ENABLED="env,database,functions,hosting,storage,setup,rag,gateway,download,miniprogram"
 ```
 
 ### MCP 配置
@@ -26,7 +26,7 @@ export CLOUDBASE_MCP_PLUGINS_ENABLED="env,database,functions,hosting,storage,set
       "args": ["npm-global-exec@latest", "@cloudbase/cloudbase-mcp@latest"],
       "env": {
         "MINIPROGRAM_PRIVATE_KEY": "你的小程序私钥",
-        "CLOUDBASE_MCP_PLUGINS_ENABLED": "env,database,functions,hosting,storage,setup,interactive,rag,gateway,download,miniprogram"
+        "CLOUDBASE_MCP_PLUGINS_ENABLED": "env,database,functions,hosting,storage,setup,rag,gateway,download,miniprogram"
       }
     }
   }

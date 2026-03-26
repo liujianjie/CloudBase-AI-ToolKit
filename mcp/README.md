@@ -114,7 +114,7 @@ Hosted Mode:
 https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag&disable_plugins=env
 ```
 **可用插件枚举值：**
-`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `interactive`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`
+`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`
 
 > [!TIP]
 > **推荐使用 CloudBase AI CLI**

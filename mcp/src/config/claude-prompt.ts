@@ -159,7 +159,7 @@ Before starting work, suggest confirming with user:
 6. **⚠️ UI Design Rules Mandatory Application**: When tasks involve generating pages, interfaces, components, styles, or any frontend visual elements, **MUST FIRST explicitly read the file \`rules/ui-design/rule.md\` using file reading tools**, then strictly follow the rule file, ensuring generated interfaces have distinctive aesthetic styles and high-quality visual design, avoiding generic AI aesthetics. **You MUST output the design specification before writing any UI code.**
 7. **Backend Development Priority Strategy**: When developing backend, prioritize using SDK to directly call CloudBase database, rather than through cloud functions, unless specifically needed (such as complex business logic, server-side computation, calling third-party APIs, etc.)
 8. **Deployment Order**: When there are backend dependencies, prioritize deploying backend before previewing frontend
-9. **Interactive Confirmation**: Use interactiveDialog to clarify when requirements are unclear, must confirm before executing high-risk operations
+9. **Interactive Confirmation**: Clarify requirements when needed, and confirm before executing high-risk operations
 10. **Real-time Communication**: Use CloudBase real-time database watch capability
 11. **⚠️ Authentication Rules**: When users develop projects, if user login authentication is needed, must use built-in authentication functions, must strictly distinguish authentication methods by platform
    - **Web Projects**: **MUST use CloudBase Web SDK built-in authentication** (e.g., \`auth.toDefaultLoginPage()\`), refer to \`rules/auth-web/rule.md\`

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerEnvTools } from "./env.js";
 import type { ExtendedMcpServer } from "../server.js";
 
@@ -16,6 +16,8 @@ const {
   mockGetCloudBaseManager,
   mockResetCloudBaseManagerCache,
   mockResolveAuthOptions,
+  mockCheckAndInitTcbService,
+  mockCheckAndCreateFreeEnv,
 } = vi.hoisted(() => ({
   mockBuildAuthConfigSummary: vi.fn((options: any) => ({
     auth_mode: options.authMode,
@@ -51,6 +53,8 @@ const {
   mockListAvailableEnvCandidates: vi.fn(),
   mockGetCloudBaseManager: vi.fn(),
   mockResetCloudBaseManagerCache: vi.fn(),
+  mockCheckAndInitTcbService: vi.fn(),
+  mockCheckAndCreateFreeEnv: vi.fn(),
   mockResolveAuthOptions: vi.fn((options: any = {}) => ({
     authMode: options.authMode ?? options.serverAuthOptions?.authMode ?? "device",
     clientId: options.clientId ?? options.serverAuthOptions?.clientId,
@@ -110,6 +114,11 @@ vi.mock("./rag.js", () => ({
   getClaudePrompt: vi.fn().mockResolvedValue(""),
 }));
 
+vi.mock("./env-setup.js", () => ({
+  checkAndInitTcbService: mockCheckAndInitTcbService,
+  checkAndCreateFreeEnv: mockCheckAndCreateFreeEnv,
+}));
+
 function createMockServer(ide = "TestIDE", authOptions?: any) {
   const tools: Record<
     string,
@@ -143,22 +152,59 @@ function createMockServer(ide = "TestIDE", authOptions?: any) {
 
 describe("env tools - auth", () => {
   let tools: ReturnType<typeof createMockServer>["tools"];
+  const originalCloudbaseEnvId = process.env.CLOUDBASE_ENV_ID;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.CLOUDBASE_ENV_ID;
     mockGetCachedEnvId.mockReturnValue(null);
     mockListAvailableEnvCandidates.mockResolvedValue([]);
     mockGetAuthProgressState.mockResolvedValue({
       status: "IDLE",
       updatedAt: Date.now(),
     });
+    mockCheckAndInitTcbService.mockImplementation(async (_manager: any, context: any) => ({
+      ...context,
+      checkTcbServiceAttempted: true,
+      tcbServiceChecked: true,
+      tcbServiceInitialized: true,
+    }));
+    mockCheckAndCreateFreeEnv.mockImplementation(async (_manager: any, context: any) => ({
+      success: false,
+      context: {
+        ...context,
+        promotionalActivitiesChecked: true,
+        createEnvError: {
+          code: "NoPromotionalActivity",
+          message: "当前账号不符合免费环境创建条件，请手动创建环境",
+          helpUrl: "https://buy.cloud.tencent.com/lowcode?buyType=tcb&channel=mcp",
+        },
+      },
+    }));
     mockPeekLoginState.mockResolvedValue(null);
     mockEnsureLogin.mockResolvedValue({
       secretId: "sid",
       secretKey: "skey",
       envId: "env-test",
     });
+    mockGetCloudBaseManager.mockResolvedValue({
+      commonService: vi.fn(() => ({
+        call: vi.fn(),
+      })),
+      env: {
+        listEnvs: vi.fn(),
+      },
+    });
     ({ tools } = createMockServer());
+  });
+
+  afterEach(() => {
+    if (originalCloudbaseEnvId === undefined) {
+      delete process.env.CLOUDBASE_ENV_ID;
+      return;
+    }
+
+    process.env.CLOUDBASE_ENV_ID = originalCloudbaseEnvId;
   });
 
   it("should expose auth tool and remove standalone logout tool", () => {
@@ -212,6 +258,186 @@ describe("env tools - auth", () => {
     expect(payload.next_step).toMatchObject({
       tool: "auth",
       action: "status",
+    });
+  });
+
+  it("auth(action=status) should report NOT_NEEDED when login already has envId", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      envId: "env-login",
+    });
+
+    const result = await tools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      auth_status: "READY",
+      env_status: "READY",
+      current_env_id: "env-login",
+      env_setup_status: "NOT_NEEDED",
+      env_setup_actions: [],
+    });
+  });
+
+  it("auth(action=status) should auto-bind a single available env", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
+    mockListAvailableEnvCandidates.mockResolvedValue([
+      {
+        envId: "env-single",
+        alias: "single",
+      },
+    ]);
+
+    const result = await tools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      auth_status: "READY",
+      env_status: "READY",
+      current_env_id: "env-single",
+      env_setup_status: "AUTO_BOUND",
+    });
+    expect(payload.env_setup_actions).toContain("list_envs");
+    expect(payload.next_step).toMatchObject({
+      tool: "auth",
+      action: "status",
+    });
+    expect(mockEnvManagerSetEnvId).toHaveBeenCalledWith("env-single");
+  });
+
+  it("auth(action=status) should return selection_required when multiple envs exist", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
+    mockListAvailableEnvCandidates.mockResolvedValue([
+      {
+        envId: "env-a",
+        alias: "a",
+      },
+      {
+        envId: "env-b",
+        alias: "b",
+      },
+    ]);
+
+    const result = await tools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      auth_status: "READY",
+      env_status: "MULTIPLE",
+      current_env_id: null,
+      env_setup_status: "SELECTION_REQUIRED",
+    });
+    expect(payload.env_candidates).toEqual([
+      expect.objectContaining({ envId: "env-a" }),
+      expect.objectContaining({ envId: "env-b" }),
+    ]);
+    expect(payload.next_step).toMatchObject({
+      tool: "auth",
+      action: "set_env",
+    });
+  });
+
+  it("auth(action=status) should auto-create and bind env when possible", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
+    mockListAvailableEnvCandidates.mockResolvedValue([]);
+    mockCheckAndCreateFreeEnv.mockImplementation(async (_manager: any, context: any) => ({
+      success: true,
+      envId: "env-created",
+      context: {
+        ...context,
+        promotionalActivitiesChecked: true,
+        createFreeEnvAttempted: true,
+      },
+    }));
+
+    const result = await tools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      auth_status: "READY",
+      env_status: "READY",
+      current_env_id: "env-created",
+      env_setup_status: "AUTO_CREATED",
+    });
+    expect(payload.env_setup_actions).toEqual(
+      expect.arrayContaining([
+        "list_envs",
+        "check_tcb_service",
+        "check_promotional_activity",
+        "create_free_env",
+      ]),
+    );
+    expect(mockEnvManagerSetEnvId).toHaveBeenCalledWith("env-created");
+  });
+
+  it("auth(action=status) should expose real-name action_required state", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
+    mockListAvailableEnvCandidates.mockResolvedValue([]);
+    mockCheckAndInitTcbService.mockImplementation(async (_manager: any, context: any) => ({
+      ...context,
+      checkTcbServiceAttempted: true,
+      initTcbAttempted: true,
+      tcbServiceChecked: true,
+      tcbServiceInitialized: false,
+      initTcbError: {
+        code: "RealNameAuthRequired",
+        message: "当前账号需要先完成实名认证",
+        helpUrl: "https://buy.cloud.tencent.com/lowcode?buyType=tcb&channel=mcp",
+        needRealNameAuth: true,
+      },
+    }));
+
+    const result = await tools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      auth_status: "READY",
+      env_status: "NONE",
+      env_setup_status: "ACTION_REQUIRED",
+      env_setup_failure: {
+        reason: "tcb_init_failed",
+        error_code: "RealNameAuthRequired",
+        need_real_name_auth: true,
+        help_url: "https://buy.cloud.tencent.com/lowcode?buyType=tcb&channel=mcp",
+      },
+    });
+    expect(payload.env_setup_actions).toEqual(
+      expect.arrayContaining(["list_envs", "check_tcb_service", "init_tcb"]),
+    );
+  });
+
+  it("auth(action=status) should expose manual creation guidance when free env is unavailable", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
+    mockListAvailableEnvCandidates.mockResolvedValue([]);
+
+    const result = await tools.auth.handler({ action: "status" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      auth_status: "READY",
+      env_status: "NONE",
+      env_setup_status: "ACTION_REQUIRED",
+      env_setup_failure: {
+        reason: "env_creation_failed",
+        error_code: "NoPromotionalActivity",
+        help_url: "https://buy.cloud.tencent.com/lowcode?buyType=tcb&channel=mcp",
+      },
     });
   });
 
@@ -304,6 +530,37 @@ describe("env tools - auth", () => {
     expect(payload.message).toContain("oauthEndpoint");
   });
 
+  it("auth(action=start_auth, authMode=web) should continue environment preparation after login", async () => {
+    mockPeekLoginState.mockResolvedValue(null);
+    mockEnsureLogin.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
+    mockListAvailableEnvCandidates.mockResolvedValue([]);
+    mockCheckAndCreateFreeEnv.mockImplementation(async (_manager: any, context: any) => ({
+      success: true,
+      envId: "env-web-created",
+      context: {
+        ...context,
+        promotionalActivitiesChecked: true,
+        createFreeEnvAttempted: true,
+      },
+    }));
+
+    const result = await tools.auth.handler({
+      action: "start_auth",
+      authMode: "web",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      code: "AUTH_READY",
+      current_env_id: "env-web-created",
+      env_setup_status: "AUTO_CREATED",
+    });
+    expect(mockEnvManagerSetEnvId).toHaveBeenCalledWith("env-web-created");
+  });
+
   it("auth(action=set_env, envId) should accept direct env binding", async () => {
     mockPeekLoginState.mockResolvedValue({
       secretId: "sid",
@@ -384,6 +641,10 @@ describe("env tools - auth", () => {
   });
 
   it("auth(action=status) should truncate env candidates and expose summary", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+    });
     mockListAvailableEnvCandidates.mockResolvedValue(
       Array.from({ length: 25 }, (_, index) => ({
         envId: `env-${index + 1}`,
