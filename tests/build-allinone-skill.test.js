@@ -69,7 +69,8 @@ test.skipIf(!hasNode24ViaNvm())(
     expect(mainSkill).toContain('name: cloudbase');
     expect(mainSkill).toContain('description_zh:');
     expect(mainSkill).toContain('description_en:');
-    expect(mainSkill).toContain('version: v');
+    expect(mainSkill).toMatch(/^version:\s+\d+\.\d+\.\d+(?:-[^\s]+)?$/m);
+    expect(mainSkill).not.toContain('version: v');
     expect(mainSkill).toContain('references/auth-web/SKILL.md');
     expect(mainSkill).toContain('## Activation Contract');
     expect(mainSkill).toContain('Provider status and publishable key');
