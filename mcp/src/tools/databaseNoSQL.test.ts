@@ -154,6 +154,76 @@ describe("NoSQL database tools", () => {
     expect(payload).not.toHaveProperty("nextActions");
   });
 
+  it("readNoSqlDatabaseContent should reject object sort to match backend contract", async () => {
+    const { tools } = createMockServer();
+
+    await expect(
+      tools.readNoSqlDatabaseContent.handler({
+        collectionName: "t_nosql_orders",
+        sort: { createdAt: -1, openid: 1 },
+      }),
+    ).rejects.toThrow("sort 仅支持数组");
+
+    expect(mockCommonServiceCall).not.toHaveBeenCalled();
+  });
+
+  it("readNoSqlDatabaseContent should reject stringified object sort to match backend contract", async () => {
+    const { tools } = createMockServer();
+
+    await expect(
+      tools.readNoSqlDatabaseContent.handler({
+        collectionName: "t_nosql_orders",
+        sort: "{\"createdAt\":-1}",
+      }),
+    ).rejects.toThrow("sort 仅支持数组");
+
+    expect(mockCommonServiceCall).not.toHaveBeenCalled();
+  });
+
+  it("readNoSqlDatabaseContent should keep stringified array sort in backend format", async () => {
+    const { tools } = createMockServer();
+
+    await tools.readNoSqlDatabaseContent.handler({
+      collectionName: "t_nosql_orders",
+      sort: JSON.stringify([{ key: "createdAt", direction: -1 }]),
+    });
+
+    expect(mockCommonServiceCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Action: "QueryRecords",
+        Param: expect.objectContaining({
+          MgoSort: JSON.stringify([{ key: "createdAt", direction: -1 }]),
+        }),
+      }),
+    );
+  });
+
+  it("readNoSqlDatabaseContent should reject invalid sort directions early", async () => {
+    const { tools } = createMockServer();
+
+    await expect(
+      tools.readNoSqlDatabaseContent.handler({
+        collectionName: "t_nosql_orders",
+        sort: [{ key: "createdAt", direction: 0 }],
+      }),
+    ).rejects.toThrow("非法 sort direction");
+
+    expect(mockCommonServiceCall).not.toHaveBeenCalled();
+  });
+
+  it("readNoSqlDatabaseContent should reject non-numeric directions in stringified sort arrays", async () => {
+    const { tools } = createMockServer();
+
+    await expect(
+      tools.readNoSqlDatabaseContent.handler({
+        collectionName: "t_nosql_orders",
+        sort: JSON.stringify([{ key: "createdAt", direction: "desc" }]),
+      }),
+    ).rejects.toThrow("非法 sort direction");
+
+    expect(mockCommonServiceCall).not.toHaveBeenCalled();
+  });
+
   it("writeNoSqlDatabaseContent should describe partial updates using MongoDB operators", () => {
     const { tools } = createMockServer();
     const meta = tools.writeNoSqlDatabaseContent.meta;

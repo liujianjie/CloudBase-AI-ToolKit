@@ -46,6 +46,72 @@ function normalizeNoSqlDocuments(data: unknown) {
   return data.map((item) => parseNoSqlDocument(item));
 }
 
+function normalizeSortDirection(value: unknown): 1 | -1 {
+  if (value === 1) {
+    return 1;
+  }
+
+  if (value === -1) {
+    return -1;
+  }
+
+  throw new Error(
+    `非法 sort direction: ${String(value)}，仅支持 1 / -1`,
+  );
+}
+
+function normalizeSortItem(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("sort 数组项必须是 { key, direction } 对象");
+  }
+
+  const { key, direction } = value as {
+    key?: unknown;
+    direction?: unknown;
+  };
+
+  if (typeof key !== "string" || key.trim() === "") {
+    throw new Error("sort.key 必须是非空字符串");
+  }
+
+  return {
+    key,
+    direction: normalizeSortDirection(direction),
+  };
+}
+
+function normalizeSortInput(sort: unknown) {
+  if (sort === undefined || sort === null) {
+    return undefined;
+  }
+
+  let parsed = sort;
+  if (typeof parsed === "string") {
+    const trimmed = parsed.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      throw new Error("sort 必须是 sort 数组的 JSON 字符串");
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      'sort 仅支持数组 [{"key":"createdAt","direction":-1}] 或对应 JSON 字符串',
+    );
+  }
+
+  if (parsed.length === 0) {
+    return undefined;
+  }
+
+  return JSON.stringify(parsed.map((item) => normalizeSortItem(item)));
+}
+
 function withCollectionName<T extends Record<string, unknown>>(
   collectionName: string,
   payload: T,
@@ -491,7 +557,7 @@ deleteCollection: 删除集合`),
           ])
           .optional()
           .describe(
-            "排序条件，使用对象或字符串。",
+            '排序条件，仅支持数组 [{"key":"createdAt","direction":-1}] 或对应 JSON 字符串。',
           ),
         limit: z.number().optional().describe("返回数量限制"),
         offset: z.number().optional().describe("跳过的记录数"),
@@ -507,13 +573,14 @@ deleteCollection: 删除集合`),
       const instanceId = await getDatabaseInstanceId(getManager);
       const toJSONString = (v: any) =>
         typeof v === "object" && v !== null ? JSON.stringify(v) : v;
+      const normalizedSort = normalizeSortInput(sort);
       const result = await cloudbase.commonService("tcb", "2018-06-08").call({
         Action: "QueryRecords",
         Param: {
           TableName: collectionName,
           MgoQuery: toJSONString(query),
           MgoProjection: toJSONString(projection),
-          MgoSort: toJSONString(sort),
+          MgoSort: normalizedSort,
           MgoLimit: limit ?? 100,
           MgoOffset: offset,
           Tag: instanceId,
