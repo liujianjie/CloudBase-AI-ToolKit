@@ -1,6 +1,6 @@
 ---
 name: git-workflows
-description: Reusable git delivery workflows derived from local slash commands (commit, push, PR, release notes).
+description: Reusable git delivery workflows derived from local slash commands (commit, push, PR, release notes, and GitHub Actions failure triage with worktree-based fixes).
 ---
 
 # Git Workflows (from local commands)
@@ -14,6 +14,7 @@ Use this skill when the user asks to:
 - run a commit workflow (conventional-changelog style)
 - push changes with safe branching and open a PR
 - generate release notes from git history / GitHub context
+- analyze the latest failed GitHub Actions workflow, attempt a fix in an isolated worktree, and submit a PR
 
 ## Source of truth
 
@@ -36,4 +37,3 @@ This skill describes how to apply them consistently across agents/editors withou
 ## Command mapping
 
 See `references/command-catalog.md`.
-

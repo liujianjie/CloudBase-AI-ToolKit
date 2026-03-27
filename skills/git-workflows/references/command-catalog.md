@@ -26,3 +26,8 @@ These workflows are derived from former local command templates.
 - **Source**: `references/source-commands.md`
 - **Intent**: build on main -> bump version -> generate/publish release notes
 
+### GitHub workflow fix
+
+- **Command**: `/github_workflow_fix`
+- **Source**: `references/source-commands.md`
+- **Intent**: inspect the latest failed GitHub Actions run -> diagnose with logs -> fix in an isolated worktree -> push and open a PR

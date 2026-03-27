@@ -284,3 +284,95 @@ Run `/releasenote` and follow the interactive confirmation before publishing.
 - If the repository does NOT commit build artifacts, skip Step 1.2 and only ensure the build passes.
 ```
 
+### github_workflow_fix.md
+
+```md
+---
+name: github_workflow_fix
+description: Analyze the latest failed GitHub Actions run, attempt a worktree-based fix, and submit a PR
+---
+
+# GitHub Workflow Failure Triage + Fix
+
+## Function
+Inspect the latest failed GitHub Actions run for the current repository, explain the root cause with evidence, and if the failure is actionable in code or repo config, attempt a minimal fix in an isolated git worktree and submit a PR.
+
+## Trigger Condition
+When user inputs requests like:
+- "分析当前项目 GitHub 最新的流水线失败原因"
+- "看下最近失败的 workflow"
+- "修一下最新 CI 挂掉的问题并提 PR"
+
+## Behavior
+
+### Step 0: Preconditions
+1. Confirm `gh` is available and authenticated:
+   - `gh auth status`
+2. Confirm the local repo has no blocking dirty changes before creating a worktree:
+   - `git status --short`
+3. Fetch the latest remote state:
+   - `git fetch origin --prune`
+
+### Step 1: Locate the latest failed run
+1. Query recent runs:
+   - `gh run list --limit 20 --json databaseId,workflowName,displayTitle,headBranch,headSha,event,status,conclusion,createdAt,url`
+2. Pick the most recent run whose `conclusion` is `failure`, `timed_out`, or `startup_failure`
+3. If there is no failed run, report that explicitly and stop
+
+### Step 2: Gather failure evidence
+1. Inspect run summary and jobs:
+   - `gh run view <run-id> --json jobs,url,workflowName,displayTitle,headBranch,headSha,event,status,conclusion`
+2. Pull failed job logs:
+   - `gh run view <run-id> --log-failed`
+3. Identify:
+   - the first failing job / step
+   - the concrete error message
+   - whether the issue looks deterministic, flaky, infra-related, or permission-related
+4. Summarize the root cause in plain language with the workflow name, run URL, failing job, and the key log evidence
+
+### Step 3: Decide whether to attempt a fix
+1. Only continue automatically when the failure appears actionable in repository code, scripts, tests, or workflow config
+2. Do NOT attempt a speculative fix for:
+   - transient GitHub outage
+   - third-party service outage
+   - permission / secret / environment values unavailable to the repo
+   - flaky failure without a plausible repo-side mitigation
+3. If non-actionable, explain why and stop after the diagnosis
+
+### Step 4: Create an isolated worktree
+1. Create a branch name based on the failure, e.g. `feature/fix-<workflow-slug>`
+2. Create a sibling worktree from the latest `origin/main`:
+   - `git worktree add ../<repo>-workflow-fix-<slug> -b feature/<slug> origin/main`
+3. Perform all reproduction and edits inside the new worktree, not in the original checkout
+
+### Step 5: Reproduce and fix
+1. Reproduce the failure locally when possible using the closest matching command from the logs
+2. Make the smallest reasonable change that addresses the identified root cause
+3. Re-run the relevant validation locally
+4. If local reproduction is impossible, explain the gap and use the strongest available evidence before deciding whether to proceed
+
+### Step 6: Commit, push, and open a PR
+1. Review the final diff for accidental changes
+2. Commit with an English conventional-changelog message
+3. Push the worktree branch to remote
+4. Open a PR that includes:
+   - failure summary
+   - root cause
+   - fix summary
+   - local verification performed
+   - link to the failed run
+5. Return to the original checkout after the PR is created
+
+## Output Expectations
+- Always report the failed run URL and workflow name
+- Always provide a concise root-cause summary before making code changes
+- If a fix was attempted, include the worktree path, branch name, commit SHA, and PR URL
+- If no fix was attempted, explain the blocker clearly
+
+## Quality Checklist
+- [ ] The latest failed run was identified from GitHub, not guessed
+- [ ] The diagnosis references actual failing job/log evidence
+- [ ] Non-actionable failures are not "fixed" speculatively
+- [ ] Any code change is isolated in a dedicated worktree
+- [ ] The PR contains both diagnosis and verification details
+```
