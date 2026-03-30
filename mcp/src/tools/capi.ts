@@ -181,7 +181,15 @@ export function registerCapiTools(server: ExtendedMcpServer) {
         {
             title: "调用云API",
             description:
-                `通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。如果你的目标是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请不要优先使用 callCloudApi，而应优先查看对应 OpenAPI / Swagger。现有 OpenAPI / Swagger 能力不是通用的管控面 Action 集合；管控面 API 请优先参考 CloudBase API 概览 ${CLOUDBASE_CONTROL_PLANE_DOC_URL} 与云开发依赖资源接口指引 ${CLOUDBASE_DEPENDENCY_API_DOC_URL}。对于 tcb，可参考类似 \`CreateEnv\`、\`ModifyEnv\`、\`DestroyEnv\` 这类真实 Action 组织请求；销毁环境时，常见做法是至少带上 \`EnvId\` 和 \`BypassCheck: true\`，如果环境已经处于隔离期再按文档补 \`IsForce: true\`。`,
+                `通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。如果你的目标是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请不要优先使用 callCloudApi，而应优先查看对应 OpenAPI / Swagger。现有 OpenAPI / Swagger 能力不是通用的管控面 Action 集合；管控面 API 请优先参考 CloudBase API 概览 ${CLOUDBASE_CONTROL_PLANE_DOC_URL} 与云开发依赖资源接口指引 ${CLOUDBASE_DEPENDENCY_API_DOC_URL}。对于 tcb service，常用 Action 分类如下：
+
+**环境管理**: \`CreateEnv\`、\`ModifyEnv\`、\`DescribeEnvs\`、\`DestroyEnv\`
+**用户管理**: \`CreateUser\`、\`ModifyUser\`、\`DescribeUserList\`、\`DeleteUsers\`
+**认证配置**: \`EditAuthConfig\`、\`DescribeAuthDomains\`
+**云函数**: \`DescribeFunctions\`、\`CreateFunction\`、\`UpdateFunctionCode\`、\`DeleteFunction\`
+**数据库**: \`CreateMySQLInstance\`、\`DescribeMySQLInstances\`、\`DestroyMySQLInstance\`
+
+销毁环境时，常见做法是至少带上 \`EnvId\` 和 \`BypassCheck: true\`，如果环境已经处于隔离期再按文档补 \`IsForce: true\`。`,
             inputSchema: {
                 service: z
                     .enum(ALLOWED_SERVICES)
@@ -191,7 +199,7 @@ export function registerCapiTools(server: ExtendedMcpServer) {
                 action: z
                     .string()
                     .min(1)
-                    .describe("具体 Action 名称，需符合对应服务的官方 API 定义。若不确定正确 Action，请先查官方文档；不要用近义词或历史命名进行猜测。对于 tcb，可优先参考 `CreateEnv`、`ModifyEnv`、`DestroyEnv`、`DescribeBillingInfo` 等真实 Action。"),
+                    .describe("具体 Action 名称，需符合对应服务的官方 API 定义。若不确定正确 Action，请先查官方文档；不要用近义词或历史命名进行猜测。tcb 常用 Action：环境管理 CreateEnv/ModifyEnv/DescribeEnvs/DestroyEnv、用户管理 CreateUser/ModifyUser/DescribeUserList/DeleteUsers、认证配置 EditAuthConfig、云函数 DescribeFunctions/CreateFunction、数据库 CreateMySQLInstance 等。"),
                 params: z
                     .record(z.any())
                     .optional()

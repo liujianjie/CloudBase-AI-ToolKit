@@ -1208,7 +1208,7 @@ export function registerSQLDatabaseTools(server: ExtendedMcpServer) {
     {
       title: "Manage SQL database lifecycle or execute write SQL",
       description:
-        "Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, write SQL/DDL execution, and schema initialization after the instance becomes ready.",
+        "Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, write SQL/DDL execution, and schema initialization. IMPORTANT: MySQL must be provisioned first (action=provisionMySQL with confirm=true) before any runStatement or initializeSchema call. If MySQL is not yet provisioned, the tool will return MYSQL_NOT_CREATED with a nextAction to provision first.",
       inputSchema: {
         action: z
           .enum(MANAGE_ACTIONS)
