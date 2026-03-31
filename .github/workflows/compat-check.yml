@@ -36,5 +36,5 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Verify compatibility surface
+      - name: Verify compatibility contract and advisory text surface drift
         run: npm run check:compat-diff

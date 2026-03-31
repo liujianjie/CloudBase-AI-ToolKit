@@ -141,7 +141,7 @@ node scripts/sync-config.mjs
 
 - `sync-claude-skills-mirror.mjs`：将 `config/source/skills/` 同步到仓库内保留的 `config/.claude/skills/` 兼容镜像
 - `build-compat-config.mjs`：从最小源生成 `.generated/compat-config/`
-- `diff-compat-config.mjs`：检查生成结果是否与兼容基线一致
+- `diff-compat-config.mjs`：校验兼容契约（机器配置与结构为阻断项，文本类 rules / skills 内容漂移仅报告）
 - `sync-config.mjs`：将兼容产物同步到外部 `awsome-cloudbase-examples` 仓库
 
 ### 如何新增模块 Skill
@@ -176,6 +176,8 @@ node scripts/sync-config.mjs
    node scripts/build-compat-config.mjs
    node scripts/diff-compat-config.mjs
    ```
+   - 机器可消费配置或目录结构异常会阻断校验
+   - rules / skills / guideline 等文本镜像的内容变化会输出 advisory 报告，但不再单独阻断 CI
 5. 更新相关文档
 
 ### 重要提示
@@ -231,6 +233,9 @@ CloudBase AI ToolKit 的对外 Skill（例如对外发布的 Skill 仓库、IDE 
    - 生成产物会输出到：
      - `.generated/compat-config/`：IDE / 外部模板使用的兼容配置
      - `.skills-repo-output/`：对外 Skill 仓库发布产物
+   - `diff-compat-config.mjs` 现在采用分层校验：
+     - machine configs：缺失 / 多出 / 内容变化都会阻断
+     - text surfaces：缺失 / 多出会阻断，内容变化仅报告；如需清理后续报告，可再执行 `npm run update:compat-baseline`
 2. 如需将配置同步到外部模板 / 示例仓库，可使用：
    ```bash
    node scripts/sync-config.mjs

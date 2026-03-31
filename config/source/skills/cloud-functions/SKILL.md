@@ -1,6 +1,6 @@
 ---
 name: cloud-functions
-description: Complete guide for CloudBase cloud functions development - supports both Event Functions (Node.js) and HTTP Functions (multi-language Web services). Covers runtime selection, deployment, logging, invocation, scf_bootstrap, SSE, WebSocket, and HTTP access configuration.
+description: CloudBase function runtime guide for building, deploying, and debugging your own Event Functions or HTTP Functions. This skill should be used when users need application runtime code on CloudBase, not when they are merely calling CloudBase official platform APIs.
 alwaysApply: false
 ---
 
@@ -10,7 +10,7 @@ alwaysApply: false
 
 ### Use this first when
 
-- The task is to create, update, deploy, inspect, or debug a CloudBase Event Function or HTTP Function.
+- The task is to create, update, deploy, inspect, or debug a CloudBase Event Function or HTTP Function that serves application runtime logic.
 - The request mentions function runtime, function logs, `scf_bootstrap`, function triggers, or function gateway exposure.
 
 ### Read before writing code if
@@ -25,18 +25,21 @@ alwaysApply: false
 - Auth setup or provider-related backend work -> `../auth-tool/SKILL.md`
 - AI in functions -> `../ai-model-nodejs/SKILL.md`
 - Long-lived container services or Agent runtimes -> `../cloudrun-development/SKILL.md`
+- Calling CloudBase official platform APIs from a client or script -> `../http-api/SKILL.md`
 
 ### Do NOT use for
 
 - CloudRun container services.
 - Web authentication UI implementation.
 - Database-schema design or general data-model work.
+- CloudBase official platform API clients or raw HTTP integrations that only consume platform endpoints.
 
 ### Common mistakes / gotchas
 
 - Picking the wrong function type and trying to compensate later.
-- Mixing Event Function code shape with HTTP Function code shape.
-- Treating HTTP Access as the implementation model for HTTP Functions.
+- Confusing official CloudBase API client work with building your own HTTP function.
+- Mixing Event Function code shape (`exports.main(event, context)`) with HTTP Function code shape (`req` / `res` on port `9000`).
+- Treating HTTP Access as the implementation model for HTTP Functions. HTTP Access is a gateway configuration for Event Functions, not the HTTP Function runtime model.
 - Forgetting that runtime cannot be changed after creation.
 - Using cloud functions as the first answer for Web login.
 - Forgetting that HTTP Functions must ship `scf_bootstrap`, listen on port `9000`, and include dependencies.
