@@ -294,7 +294,7 @@ export async function peekLoginState(options?: {
 }
 
 export async function ensureLogin(options?: EnsureLoginOptions) {
-  debug("TENCENTCLOUD_SECRETID", { secretId: process.env.TENCENTCLOUD_SECRETID });
+  debug("TENCENTCLOUD_SECRETID", { hasSecretId: !!process.env.TENCENTCLOUD_SECRETID });
 
   const loginState = await peekLoginState({
     ignoreEnvVars: options?.ignoreEnvVars,

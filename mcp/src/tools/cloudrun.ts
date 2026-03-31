@@ -154,9 +154,9 @@ function checkIfAgentProject(projectPath: string): boolean {
 function validateAndNormalizePath(inputPath: string): string {
   let normalizedPath = path.resolve(inputPath);
 
-  // Basic security check - ensure path is within current working directory or explicit absolute path
+  // Security check - ensure path is within current working directory
   const cwd = process.cwd();
-  if (!normalizedPath.startsWith(cwd) && !path.isAbsolute(inputPath)) {
+  if (!normalizedPath.startsWith(cwd + path.sep) && normalizedPath !== cwd) {
     throw new Error(`Path must be within current working directory: ${cwd}`);
   }
 
@@ -735,41 +735,35 @@ for await (let x of res.textStream) {
 
             // Choose execution method based on run mode
             let child;
-            let command;
 
             if (runMode === 'agent') {
-              // For Agent mode, use a different approach since functions-framework doesn't support Agent mode
-              // We'll use a custom script that sets up the Agent environment
-              command = `node -e "
-                const { runCLI } = require('@cloudbase/functions-framework');
-                process.env.PORT = '${runPort}';
-                process.env.ENABLE_CORS = 'true';
-                process.env.ALLOWED_ORIGINS = '*';
-                process.env.RUN_MODE = 'agent';
-                ${Object.entries(extraEnv).map(([key, value]) => `process.env.${key} = '${value}';`).join('\n')}
-                runCLI();
-              "`;
-
-              child = spawn(process.execPath, ['-e', command], {
+              const childEnv = {
+                ...env,
+                PORT: String(runPort),
+                ENABLE_CORS: 'true',
+                ALLOWED_ORIGINS: '*',
+                RUN_MODE: 'agent',
+                ...extraEnv,
+              };
+              const script = `const { runCLI } = require('@cloudbase/functions-framework'); runCLI();`;
+              child = spawn(process.execPath, ['-e', script], {
                 cwd: targetPath,
-                env,
+                env: childEnv,
                 stdio: ['ignore', 'pipe', 'pipe'],
                 detached: true
               });
             } else {
-              // Normal function mode
-              command = `node -e "
-                const { runCLI } = require('@cloudbase/functions-framework');
-                process.env.PORT = '${runPort}';
-                process.env.ENABLE_CORS = 'true';
-                process.env.ALLOWED_ORIGINS = '*';
-                ${Object.entries(extraEnv).map(([key, value]) => `process.env.${key} = '${value}';`).join('\n')}
-                runCLI();
-              "`;
-
-              child = spawn(process.execPath, ['-e', command], {
+              const childEnv = {
+                ...env,
+                PORT: String(runPort),
+                ENABLE_CORS: 'true',
+                ALLOWED_ORIGINS: '*',
+                ...extraEnv,
+              };
+              const script = `const { runCLI } = require('@cloudbase/functions-framework'); runCLI();`;
+              child = spawn(process.execPath, ['-e', script], {
                 cwd: targetPath,
-                env,
+                env: childEnv,
                 stdio: ['ignore', 'pipe', 'pipe'],
                 detached: true
               });
