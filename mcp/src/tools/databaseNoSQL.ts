@@ -796,8 +796,6 @@ async function updateDocuments({
 }) {
   const cloudbase = await getManager();
   const instanceId = await getDatabaseInstanceId(getManager);
-  const toJSONString = (v: any) =>
-    typeof v === "object" && v !== null ? JSON.stringify(v) : v;
   const result = await cloudbase.commonService("tcb", "2018-06-08").call({
     Action: "UpdateItem",
     Param: {

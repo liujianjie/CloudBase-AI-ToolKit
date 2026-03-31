@@ -605,7 +605,7 @@ for await (let x of res.textStream) {
             try {
               fs.writeFileSync(cloudbasercPath, JSON.stringify(cloudbasercContent, null, 2));
             } catch (error) {
-              debug('cloudbaserc.json creation skipped:', error instanceof Error ? error.message : String(error));
+              debug('cloudbaserc.json creation skipped:', error instanceof Error ? error : new Error(String(error)));
             }
 
             // Send deployment notification to CodeBuddy IDE
@@ -837,7 +837,7 @@ for await (let x of res.textStream) {
             try {
               fs.writeFileSync(cloudbasercPath, JSON.stringify(cloudbasercContent, null, 2));
             } catch (error) {
-              debug('cloudbaserc.json creation skipped:', error instanceof Error ? error.message : String(error));
+              debug('cloudbaserc.json creation skipped:', error instanceof Error ? error : new Error(String(error)));
             }
 
             return {
@@ -920,7 +920,7 @@ for await (let x of res.textStream) {
             try {
               fs.writeFileSync(cloudbasercPath, JSON.stringify(cloudbasercContent, null, 2));
             } catch (error) {
-              debug('cloudbaserc.json creation skipped:', error instanceof Error ? error.message : String(error));
+              debug('cloudbaserc.json creation skipped:', error instanceof Error ? error : new Error(String(error)));
             }
 
             return {
