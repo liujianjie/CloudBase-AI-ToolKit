@@ -91,7 +91,7 @@ function isPrivateIP(ip: string): boolean {
   // 转换 IP 地址为长整数进行范围检查
   const ipv4Parts = ip.split('.').map(part => parseInt(part, 10));
   if (ipv4Parts.length === 4) {
-    const ipNum = (ipv4Parts[0] << 24) + (ipv4Parts[1] << 16) + (ipv4Parts[2] << 8) + ipv4Parts[3];
+    const ipNum = ((ipv4Parts[0] << 24) >>> 0) + (ipv4Parts[1] << 16) + (ipv4Parts[2] << 8) + ipv4Parts[3];
     
     // 检查私有 IP 范围
     // 10.0.0.0 - 10.255.255.255

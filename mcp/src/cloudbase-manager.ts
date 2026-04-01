@@ -445,7 +445,13 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
  * @returns CloudBase manager instance
  */
 export function createCloudBaseManagerWithOptions(cloudBaseOptions: CloudBaseOptions): CloudBase {
-    debug('Create manager with provided CloudBase options:', cloudBaseOptions);
+    debug('Create manager with provided CloudBase options:', {
+        envId: cloudBaseOptions.envId,
+        region: cloudBaseOptions.region,
+        hasSecretId: !!cloudBaseOptions.secretId,
+        hasSecretKey: !!cloudBaseOptions.secretKey,
+        hasToken: !!cloudBaseOptions.token,
+    });
 
     // Region priority: cloudBaseOptions.region > process.env.TCB_REGION > undefined (use SDK default)
     const region = cloudBaseOptions.region ?? process.env.TCB_REGION ?? undefined;
