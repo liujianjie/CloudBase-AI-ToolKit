@@ -34,8 +34,16 @@ if (existsSync(envPath)) {
   console.log('✅ Loaded .env file from:', envPath);
 }
 
-// Helper function to delay
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+async function waitForToolList(client, timeoutMs = 5000) {
+  return Promise.race([
+    client.listTools(),
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`MCP server did not become ready within ${timeoutMs}ms`));
+      }, timeoutMs);
+    }),
+  ]);
+}
 
 // Detect if real CloudBase credentials are available
 function hasCloudBaseCredentials() {
@@ -48,8 +56,8 @@ function hasCloudBaseCredentials() {
 describe('Runtime Validation - Event Function Multi-Language Support', () => {
   let testClient = null;
   let testTransport = null;
-  const testFunctionsDir = join(__dirname, '../temp-runtime-test');
   const timestamp = Date.now();
+  const testFunctionsDir = join(__dirname, `../temp-runtime-test-${timestamp}`);
 
   beforeAll(async () => {
     if (!hasCloudBaseCredentials()) {
@@ -57,7 +65,10 @@ describe('Runtime Validation - Event Function Multi-Language Support', () => {
       return;
     }
 
-    // Create test client
+    if (!existsSync(testFunctionsDir)) {
+      mkdirSync(testFunctionsDir, { recursive: true });
+    }
+
     const client = new Client({
       name: 'runtime-validation-client',
       version: '1.0.0',
@@ -67,35 +78,33 @@ describe('Runtime Validation - Event Function Multi-Language Support', () => {
 
     const serverPath = join(__dirname, '../mcp/dist/cli.cjs');
     const transport = new StdioClientTransport({
-      command: 'node',
+      command: process.execPath,
       args: [serverPath],
       env: {
         ...process.env,
       }
     });
 
-    await client.connect(transport);
-    await delay(2000);
-
-    testClient = client;
-    testTransport = transport;
-
-    // Create test functions directory
-    if (!existsSync(testFunctionsDir)) {
-      mkdirSync(testFunctionsDir, { recursive: true });
+    try {
+      await client.connect(transport);
+      await waitForToolList(client, 5000);
+      testClient = client;
+      testTransport = transport;
+    } catch (error) {
+      await transport.close().catch(() => {});
+      throw error;
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (testTransport) {
       await testTransport.close();
     }
 
-    // Clean up test directory
     if (existsSync(testFunctionsDir)) {
       rmSync(testFunctionsDir, { recursive: true, force: true });
     }
-  });
+  }, 10000);
 
   // Helper function to create a simple Python Event function
   function createPythonFunction(functionName) {
