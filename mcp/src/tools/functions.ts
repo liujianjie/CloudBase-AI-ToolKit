@@ -308,6 +308,21 @@ export function shouldInstallDependencyForFunction(
   return true;
 }
 
+export function resolveEventFunctionRuntime(runtime: unknown): string {
+  if (typeof runtime !== "string" || !runtime.trim()) {
+    return DEFAULT_RUNTIME;
+  }
+
+  const normalizedRuntime = runtime.replace(/\s+/g, "");
+  if ((ALL_SUPPORTED_RUNTIMES as readonly string[]).includes(normalizedRuntime)) {
+    return normalizedRuntime;
+  }
+
+  throw new Error(
+    `不支持的运行时环境: "${String(runtime)}"\n\n支持的运行时:\n${formatRuntimeList()}`,
+  );
+}
+
 export function buildFunctionOperationErrorMessage(
   operation: "createFunction" | "updateFunctionCode",
   functionName: string,
@@ -820,26 +835,16 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       );
 
       if (func.type !== "HTTP") {
-        if (!func.runtime || typeof func.runtime !== "string") {
-          func.runtime = DEFAULT_RUNTIME;
-        } else {
-          const normalizedRuntime = func.runtime.replace(/\s+/g, "");
-          if ((ALL_SUPPORTED_RUNTIMES as readonly string[]).includes(normalizedRuntime)) {
-            func.runtime = normalizedRuntime;
-          } else if (func.runtime.includes(" ")) {
-            console.warn(
-              `检测到 runtime 参数包含空格: "${func.runtime}"，已自动移除空格`,
-            );
-            func.runtime = normalizedRuntime;
-          }
-        }
+        const originalRuntime = typeof func.runtime === "string" ? func.runtime : undefined;
+        func.runtime = resolveEventFunctionRuntime(func.runtime);
 
         if (
-          typeof func.runtime !== "string" ||
-          !(ALL_SUPPORTED_RUNTIMES as readonly string[]).includes(func.runtime)
+          typeof originalRuntime === "string" &&
+          originalRuntime.includes(" ") &&
+          originalRuntime.replace(/\s+/g, "") === func.runtime
         ) {
-          throw new Error(
-            `不支持的运行时环境: "${String(func.runtime)}"\n\n支持的运行时:\n${formatRuntimeList()}`,
+          console.warn(
+            `检测到 runtime 参数包含空格: "${originalRuntime}"，已自动移除空格`,
           );
         }
       }

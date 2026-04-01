@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildFunctionOperationErrorMessage,
+  DEFAULT_RUNTIME,
   registerFunctionTools,
+  resolveEventFunctionRuntime,
   shouldInstallDependencyForFunction,
 } from "./functions.js";
 import type { ExtendedMcpServer } from "../server.js";
@@ -109,6 +111,20 @@ describe("functions tool helpers", () => {
 
     expect(message).toContain("原生 Node.js API");
     expect(message).toContain("package.json");
+  });
+
+  it("normalizes supported Event runtimes with whitespace", () => {
+    expect(resolveEventFunctionRuntime("Python 3.9")).toBe("Python3.9");
+    expect(resolveEventFunctionRuntime("Php 7.4")).toBe("Php7.4");
+  });
+
+  it("falls back to the default runtime when Event runtime is omitted", () => {
+    expect(resolveEventFunctionRuntime(undefined)).toBe(DEFAULT_RUNTIME);
+  });
+
+  it("rejects unsupported Event runtimes with a helpful message", () => {
+    expect(() => resolveEventFunctionRuntime("Ruby3.2")).toThrow(/不支持的运行时环境/);
+    expect(() => resolveEventFunctionRuntime("Ruby3.2")).toThrow(/Python3.9/);
   });
 
   it("guides HTTP functions through anonymous-access follow-up without auto-creating gateway access", async () => {
