@@ -295,11 +295,23 @@ CloudBase AI ToolKit 的对外 Skill（例如对外发布的 Skill 仓库、IDE 
 **输出**：
 - 如果 `build_zips` 为 true，会在 Actions 页面生成 artifact `cloudbase-examples-zips`，保留 30 天
 
+### Sync Main to Examples
+
+**Workflow**: `.github/workflows/sync-main-to-examples.yml`
+
+当本仓库 `main` 分支发生 push，且变更命中 examples 相关路径时自动触发。
+
+**行为**：
+- 先执行 `node scripts/diff-compat-config.mjs` 作为兼容面守门
+- 再执行 `node scripts/sync-config.mjs --skip-git`
+- 自动同步到 `TencentCloudBase/awsome-cloudbase-examples` 的 `master` 分支
+- 如果同步结果没有产生 diff，则跳过 commit / push
+
 ### Sync Branch to Examples
 
 **Workflow**: `.github/workflows/sync-branch.yml`
 
-仅用于将本仓库的指定分支同步到 cloudbase-examples 的指定分支，不构建 zip 文件。
+仅用于手动将本仓库的指定分支同步到 cloudbase-examples 的指定分支，不构建 zip 文件，也不替代 `main` 主线的自动同步 workflow。
 
 **使用场景**：
 - 需要将某个分支的配置同步到 cloudbase-examples 的对应分支
