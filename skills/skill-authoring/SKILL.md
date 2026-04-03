@@ -19,6 +19,18 @@ Use this skill when you need to:
 - Split a large skill into `SKILL.md` plus `references/`, `assets/`, or `scripts/`
 - Design evaluation prompts and review whether a skill triggers and behaves correctly
 
+## Repo-managed CloudBase skill review
+
+When the task targets `config/source/skills`, apply these guardrails in addition to the normal skill-authoring workflow:
+
+This section is the repo-managed CloudBase skill review baseline for this repository.
+
+- Keep frontmatter complete and normalized, including `version`
+- Keep examples inside the skill's declared platform and scope
+- Keep shared operational rules in one canonical source instead of copying large blocks across neighboring skills
+- If the skill claims a rule is mandatory, show that rule in at least one example
+- When giving a recommended default, also explain the tradeoff behind it
+
 **Do NOT use for:**
 - General documentation writing that is not about skills
 - README polish or marketing copy
@@ -58,6 +70,7 @@ Use this skill when you need to:
 | Design skill anatomy and progressive disclosure | `references/structure-patterns.md` |
 | Draft a new skill or review an existing one | `references/templates.md` |
 | Audit `config/source/skills` for quality, redundancy, and overlap | `references/repo-skill-review.md` |
+| Review repo-managed CloudBase source skills | `references/cloudbase-skill-review.md` |
 | Build evaluation prompts and review outcomes | `references/evaluation.md` |
 | Compare good examples, weak examples, and rewrites | `references/examples.md` |
 
@@ -65,7 +78,7 @@ Use this skill when you need to:
 
 1. Identify the skill's job, boundary, and closest neighboring skills.
 2. Draft `name` and `description` with realistic trigger language.
-3. If the task targets `config/source/skills`, read `references/repo-skill-review.md` and review neighboring skills before proposing rewrites.
+3. If the task targets `config/source/skills`, read `references/repo-skill-review.md`, then load `references/cloudbase-skill-review.md` for CloudBase-specific standards before proposing rewrites.
 4. Write the main `SKILL.md` so it changes agent behavior after trigger.
 5. Move deep detail into `references/`, `assets/`, or `scripts/` as needed.
 6. Run evaluation prompts and revise until trigger quality and behavior are stable.

@@ -50,40 +50,22 @@ git commit -m "fix: 修复部署失败的问题"
 git commit -m "docs: 更新 README 文档"
 ```
 
-## 版本管理
+## 版本发布
 
-项目使用 standard-version 进行版本管理，支持以下版本类型：
+仓库不再使用旧版脚本化版本发布链路维护发布流程。
 
-- 正式版本：`npm run release`
-- Alpha 版本：`npm run release:alpha`
-- Beta 版本：`npm run release:beta`
-- RC 版本：`npm run release:rc`
+当前发布流程以仓库内的 git workflow 说明为准，维护者应参考：
 
-版本号规则：
-- 主版本号：不兼容的 API 修改
-- 次版本号：向下兼容的功能性新增
-- 修订号：向下兼容的问题修正
+- `skills/git-workflows/references/source-commands.md` 中的 `version_publish_main`
+- `mcp/package.json` 中由 `bumpp` 驱动的版本号更新
 
-预发布版本号规则：
-- alpha: 内部测试版本
-- beta: 公测版本
-- rc: 候选发布版本
+发布时需要额外执行：
 
-## Changelog 生成
-
-项目使用 conventional-changelog 自动生成 changelog：
-
-1. 首次生成（包含所有历史记录）：
 ```bash
-npm run changelog:first
+node scripts/sync-skill-versions.mjs --version X.Y.Z
 ```
 
-2. 生成新的变更记录：
-```bash
-npm run changelog
-```
-
-生成的 changelog 将保存在 `CHANGELOG.md` 文件中。
+这个脚本会把 `config/source/skills/*/SKILL.md` 与 `config/source/guideline/cloudbase/SKILL.md` 中的 `version` 同步到当前发布版本。
 
 ## Rules 管理流程
 

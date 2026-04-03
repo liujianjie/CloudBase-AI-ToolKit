@@ -25,6 +25,35 @@ const TERMINAL_ORDER = ['小程序', 'Web', '小游戏', '原生应用'];
 const tutorials: Tutorial[] = [
   // 文章
   {
+    id: 'article-qiyi-ai-app-community',
+    title: '不会代码，她靠AI开发了APP，要把10万用户的社区运营起来',
+    description: '云开发团队',
+    category: '文章',
+    url: 'https://mp.weixin.qq.com/s/DXQGXX81Q4W8-ZwL3PxAAQ',
+    type: 'article',
+    terminalTags: ['小程序', '原生应用'],
+    appTypeTags: ['社交/社区'],
+  },
+  {
+    id: 'article-openclaw-cloudbase-auto-deploy',
+    title: '一个人就是一支团队：OpenClaw+CloudBase实现全自动开发上线',
+    description: '腾讯云开发CloudBase',
+    category: '文章',
+    url: 'https://mp.weixin.qq.com/s/vKcnro2GrbjI_QyQohpNRw',
+    type: 'article',
+    appTypeTags: ['工具/效率'],
+    devToolTags: ['OpenClaw'],
+  },
+  {
+    id: 'article-agent-skills-last-mile',
+    title: 'Agent Skills实战分享：AI编程最后一公里，别让代码死在localhost里',
+    description: '腾讯云开发CloudBase',
+    category: '文章',
+    url: 'https://mp.weixin.qq.com/s/soIEU5DG01xfrKMaCetGAA',
+    type: 'article',
+    appTypeTags: ['工具/效率'],
+  },
+  {
     id: 'article-wechat-miniprogram-ai-growth-plan-tutorial',
     title: '微信小程序AI成长计划：免费云开发资源与混元Token，手把手教你开发一个 AI 小程序',
     description: '鹅厂技术派',
@@ -359,6 +388,17 @@ const tutorials: Tutorial[] = [
     devToolTags: ['Cursor', 'Figma'],
   },
   // 视频
+  {
+    id: 'video-vibecoding-compare-coze-cloudbase',
+    title: 'vibecoding托管平台对比 扣子 vs cloudbase',
+    description: '君黎的折腾日常',
+    category: '视频教程',
+    url: 'https://www.bilibili.com/video/BV1vGXEBrERj/',
+    type: 'video',
+    thumbnail: 'https://7463-tcb-advanced-a656fc-1257967285.tcb.qcloud.la/video-thumbnails/BV1vGXEBrERj.jpg',
+    terminalTags: ['Web'],
+    appTypeTags: ['工具/效率'],
+  },
   {
     id: 'video-figma-codebuddy-miniprogram',
     title: 'Figma + CodeBuddy + CloudBase 实战：完整开发一个微信小程序',
@@ -1090,4 +1130,3 @@ export default function TutorialsGrid() {
     </div>
   );
 }
-

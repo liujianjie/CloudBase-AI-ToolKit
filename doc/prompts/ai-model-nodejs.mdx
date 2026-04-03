@@ -129,6 +129,25 @@ console.log(result.rawResponses);   // Raw model responses
 
 ---
 
+## Error Handling Pattern
+
+```js
+const model = ai.createModel("deepseek");
+
+try {
+  const result = await model.generateText({
+    model: "deepseek-v3.2",
+    messages: [{ role: "user", content: "Summarize today's deployment logs" }],
+  });
+
+  console.log(result.text);
+} catch (error) {
+  console.error("AI request failed", error);
+}
+```
+
+---
+
 ## streamText() - Streaming
 
 ```js

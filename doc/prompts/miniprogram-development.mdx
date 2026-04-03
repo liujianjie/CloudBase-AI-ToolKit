@@ -119,6 +119,55 @@ Use this skill for **WeChat Mini Program development** when you need to:
 - If WeChat Developer Tools is not available, use `miniprogram-ci` as the fallback path for preview, upload, and npm build-related automation
 - For detailed workflows, read [debug and preview reference](references/devtools-debug-preview.md)
 
+## Minimal project skeleton
+
+`app.js`
+
+```js
+App({
+  onLaunch() {
+    console.log("Mini Program launched");
+  },
+});
+```
+
+`pages/index/index.js`
+
+```js
+Page({
+  data: {
+    message: "Hello CloudBase Mini Program",
+  },
+});
+```
+
+`pages/index/index.wxml`
+
+```xml
+&lt;view class="page"&gt;
+  &lt;text&gt;{{message}}&lt;/text&gt;
+&lt;/view&gt;
+```
+
+`pages/index/index.json`
+
+```json
+{
+  "navigationBarTitleText": "Home"
+}
+```
+
+`project.config.json`
+
+```json
+{
+  "appid": "your-mini-program-appid",
+  "projectname": "cloudbase-mini-program",
+  "miniprogramRoot": "./",
+  "compileType": "miniprogram"
+}
+```
+
 ## References
 
 - [CloudBase Mini Program Integration](references/cloudbase-integration.md) — use this when the mini program project explicitly integrates CloudBase

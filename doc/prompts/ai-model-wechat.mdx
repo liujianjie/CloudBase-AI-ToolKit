@@ -130,6 +130,25 @@ for await (let event of res.eventStream) {
 
 ---
 
+## Error Handling Pattern
+
+```js
+const model = wx.cloud.extend.AI.createModel("deepseek");
+
+try {
+  const res = await model.generateText({
+    model: "deepseek-v3.2",
+    messages: [{ role: "user", content: "生成一段欢迎文案" }],
+  });
+
+  console.log(res.choices[0].message.content);
+} catch (error) {
+  console.error("Mini Program AI request failed", error);
+}
+```
+
+---
+
 ## API Comparison: JS/Node SDK vs WeChat Mini Program
 
 | Feature | JS/Node SDK | WeChat Mini Program |
