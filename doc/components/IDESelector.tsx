@@ -546,7 +546,7 @@ const translations: Record<string, Record<string, string>> = {
     showMore: '显示配置选项',
     showLess: '收起',
     verifyDescription: '在 AI 对话中依次输入以下内容:',
-    installSkillsPrompt: '安装 CloudBase Skills：命令 npx skills add tencentcloudbase/cloudbase-skills',
+    installSkillsPrompt: '安装 CloudBase Skills：命令 npx skills add tencentcloudbase/cloudbase-skills -y',
     useSkillsPrefix: '使用 CloudBase Skills：',
     cliCommand: 'CLI 命令',
     alternativeConfig: '替代配置',
@@ -577,7 +577,7 @@ const translations: Record<string, Record<string, string>> = {
     showMore: 'Show configuration options',
     showLess: 'Show less',
     verifyDescription: 'Enter the following in your AI chat in order:',
-    installSkillsPrompt: 'Install CloudBase Skills: run npx skills add tencentcloudbase/cloudbase-skills',
+    installSkillsPrompt: 'Install CloudBase Skills: run npx skills add tencentcloudbase/cloudbase-skills -y',
     useSkillsPrefix: 'Use CloudBase Skills:',
     cliCommand: 'CLI command',
     alternativeConfig: 'Alternative configuration',
@@ -755,7 +755,7 @@ export default function IDESelector({
   const [randomPrompt, setRandomPrompt] = useState<string>(() => getRandomPrompt());
   const [copiedSecondPrompt, setCopiedSecondPrompt] = useState(false);
   const secondPrompt = customPrompt || randomPrompt;
-  const installPrompt = t.installSkillsPrompt || '安装 CloudBase Skills：命令 npx skills add tencentcloudbase/cloudbase-skills';
+  const installPrompt = t.installSkillsPrompt || '安装 CloudBase Skills：命令 npx skills add tencentcloudbase/cloudbase-skills -y';
   const secondPromptWithSkills = `${t.useSkillsPrefix || '使用 CloudBase Skills：'} ${secondPrompt}`.trim();
 
   const handleRefreshPrompt = () => {
