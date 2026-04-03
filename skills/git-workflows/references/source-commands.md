@@ -78,12 +78,15 @@ When user inputs `/git_push`
 - Include detailed description of changes
 - Reference related issues if applicable
 - Add appropriate labels and reviewers
+- After opening the PR, wait a few minutes and then inspect automated review comments and CI results before declaring the work done
+- If review feedback or CI failures are actionable, continue fixing them on the same branch and update the PR
 
 ## Quality Checklist
 - [ ] Working on appropriate feature branch
 - [ ] Commit message follows conventional-changelog format
 - [ ] All changes are committed and pushed
 - [ ] PR is created with proper title and description
+- [ ] Waited a few minutes, checked review comments and CI, and handled any actionable follow-up
 - [ ] Switched back to main branch
 ```
 

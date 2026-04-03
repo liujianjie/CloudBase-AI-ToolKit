@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, "..");
 const VERSION_LINE_RE = /^version:\s*.+$/m;
+const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---(?=\r?\n|$)/;
 
 function collectSkillFiles(rootDir) {
   const files = [];
@@ -38,22 +39,22 @@ function collectSkillFiles(rootDir) {
   return files;
 }
 
-function updateVersionInSkill(raw, version) {
+export function updateVersionInSkill(raw, version) {
   const nextLine = `version: ${version}`;
   if (VERSION_LINE_RE.test(raw)) {
     return raw.replace(VERSION_LINE_RE, nextLine);
   }
 
-  if (!raw.startsWith("---\n")) {
+  const frontmatterMatch = raw.match(FRONTMATTER_RE);
+  if (!frontmatterMatch) {
     throw new Error("SKILL.md is missing YAML frontmatter");
   }
 
-  const frontmatterEnd = raw.indexOf("\n---", 4);
-  if (frontmatterEnd === -1) {
-    throw new Error("SKILL.md has malformed YAML frontmatter");
-  }
+  const lineEnding = raw.includes("\r\n") ? "\r\n" : "\n";
+  const frontmatter = frontmatterMatch[0];
+  const frontmatterBody = frontmatter.replace(/\r?\n---(?=\r?\n|$)$/, "");
 
-  return `${raw.slice(0, frontmatterEnd)}\n${nextLine}${raw.slice(frontmatterEnd)}`;
+  return `${frontmatterBody}${lineEnding}${nextLine}${frontmatter.slice(frontmatterBody.length)}${raw.slice(frontmatter.length)}`;
 }
 
 export function syncSkillVersions({ rootDir = ROOT_DIR, version } = {}) {
@@ -77,7 +78,18 @@ export function syncSkillVersions({ rootDir = ROOT_DIR, version } = {}) {
   return { version: resolvedVersion, updatedFiles };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isDirectCliInvocation({
+  argv = process.argv,
+  moduleUrl = import.meta.url,
+} = {}) {
+  if (!argv[1] || !moduleUrl.startsWith("file:")) {
+    return false;
+  }
+
+  return path.resolve(fileURLToPath(moduleUrl)) === path.resolve(argv[1]);
+}
+
+if (isDirectCliInvocation()) {
   const argVersionIndex = process.argv.indexOf("--version");
   const cliVersion =
     argVersionIndex >= 0 && process.argv[argVersionIndex + 1]
