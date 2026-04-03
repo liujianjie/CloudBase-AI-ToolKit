@@ -126,6 +126,25 @@ const usage = await res.usage;        // Token usage
 
 ---
 
+## Error Handling Pattern
+
+```js
+const model = ai.createModel("deepseek");
+
+try {
+  const result = await model.generateText({
+    model: "deepseek-v3.2",
+    messages: [{ role: "user", content: "Generate a concise onboarding checklist" }],
+  });
+
+  console.log(result.text);
+} catch (error) {
+  console.error("Failed to call CloudBase AI from Web", error);
+}
+```
+
+---
+
 ## Type Definitions
 
 ```ts

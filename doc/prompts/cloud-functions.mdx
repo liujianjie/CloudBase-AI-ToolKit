@@ -136,6 +136,62 @@ Use this skill when developing, deploying, and operating CloudBase cloud functio
 | Dependencies | Auto-installed from `package.json` | Must be packaged with function code |
 | Best for | serverless handlers, scheduled jobs | APIs, SSE, WebSocket, browser-facing services |
 
+## Minimal code skeletons
+
+### Event Function hello world
+
+`cloudfunctions/hello-event/index.js`
+
+```js
+exports.main = async (event, context) =&gt; {
+  return {
+    ok: true,
+    message: "hello from event function",
+    event,
+  };
+};
+```
+
+`cloudfunctions/hello-event/package.json`
+
+```json
+{
+  "name": "hello-event",
+  "version": "1.0.0"
+}
+```
+
+### HTTP Function hello world
+
+`cloudfunctions/hello-http/index.js`
+
+```js
+const http = require("http");
+
+const server = http.createServer((req, res) =&gt; {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ ok: true, message: "hello from http function" }));
+});
+
+server.listen(9000);
+```
+
+`cloudfunctions/hello-http/scf_bootstrap`
+
+```bash
+#!/bin/bash
+/var/lang/node18/bin/node index.js
+```
+
+`cloudfunctions/hello-http/package.json`
+
+```json
+{
+  "name": "hello-http",
+  "version": "1.0.0"
+}
+```
+
 ## Preferred tool map
 
 ### Function management
