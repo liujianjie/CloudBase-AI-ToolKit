@@ -25,5 +25,16 @@ test('generate-prompts builds prompt docs from skills source', () => {
 
   expect(authWebPrompt).toContain('# 身份认证：Web SDK');
   expect(authWebPrompt).toContain('AIDevelopmentPrompt');
-  expect(authWebPrompt).toContain('title="rule.md"');
+  expect(authWebPrompt).toContain('npx skills add tencentcloudbase/cloudbase-skills');
+  expect(authWebPrompt).toContain('npx skills add https://github.com/tencentcloudbase/skills --skill auth-web');
+  expect(authWebPrompt).toContain('https://skills.sh/tencentcloudbase/skills/auth-web');
+  expect(authWebPrompt).not.toContain('title="rule.md"');
+
+  const authHttpApiPrompt = fs.readFileSync(
+    path.join(ROOT_DIR, 'doc', 'prompts', 'auth-http-api.mdx'),
+    'utf8',
+  );
+
+  expect(authHttpApiPrompt).toContain('npx skills add https://github.com/tencentcloudbase/skills --skill http-api');
+  expect(authHttpApiPrompt).toContain('https://skills.sh/tencentcloudbase/skills/http-api');
 });

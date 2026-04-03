@@ -62,6 +62,16 @@ rules:
     prompts:
       - "在 Android 应用中使用 CloudBase HTTP API 实现用户登录功能"
       - "在 iOS 应用中使用 CloudBase HTTP API 实现用户注册和登录"
+
+  - id: auth-nodejs
+    title: 身份认证：Node.js 服务端
+    description: 使用 CloudBase Node SDK 进行服务端身份认证
+    shortDescription: Node.js 服务端身份认证
+    category: auth
+    order: 5
+    prompts:
+      - "帮我实现一个云函数，验证用户身份并获取用户信息"
+      - "创建一个 Node.js 后端服务，使用 CloudBase Auth 进行用户认证"
   
   - id: no-sql-web-sdk
     title: 文档数据库：Web SDK
@@ -102,6 +112,16 @@ rules:
     prompts:
       - "帮我创建一个使用 CloudBase 关系型数据库的 Web 应用"
       - "在 Web 应用中使用 CloudBase 关系型数据库 SDK 实现数据查询和操作"
+
+  - id: data-model-creation
+    title: 数据库：数据模型创建
+    description: 使用 AI 创建复杂数据模型
+    shortDescription: 复杂数据模型设计
+    category: database
+    order: 5
+    prompts:
+      - "帮我创建一个用户和订单的数据模型"
+      - "设计一个博客系统的数据模型"
   
   - id: database-http-api
     title: 数据库：App 集成
