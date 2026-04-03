@@ -35,6 +35,25 @@ const tutorials: Tutorial[] = [
     appTypeTags: ['社交/社区'],
   },
   {
+    id: 'article-openclaw-cloudbase-auto-deploy',
+    title: '一个人就是一支团队：OpenClaw+CloudBase实现全自动开发上线',
+    description: '腾讯云开发CloudBase',
+    category: '文章',
+    url: 'https://mp.weixin.qq.com/s/vKcnro2GrbjI_QyQohpNRw',
+    type: 'article',
+    appTypeTags: ['工具/效率'],
+    devToolTags: ['OpenClaw'],
+  },
+  {
+    id: 'article-agent-skills-last-mile',
+    title: 'Agent Skills实战分享：AI编程最后一公里，别让代码死在localhost里',
+    description: '腾讯云开发CloudBase',
+    category: '文章',
+    url: 'https://mp.weixin.qq.com/s/soIEU5DG01xfrKMaCetGAA',
+    type: 'article',
+    appTypeTags: ['工具/效率'],
+  },
+  {
     id: 'article-wechat-miniprogram-ai-growth-plan-tutorial',
     title: '微信小程序AI成长计划：免费云开发资源与混元Token，手把手教你开发一个 AI 小程序',
     description: '鹅厂技术派',
@@ -1111,4 +1130,3 @@ export default function TutorialsGrid() {
     </div>
   );
 }
-

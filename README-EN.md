@@ -362,6 +362,8 @@ When an app has issues, AI automatically views logs, analyzes errors, and genera
 
 #### Articles
 - [Develop a Neighborhood Item Recycling Mini-Program with CloudBase AI CLI](https://docs.cloudbase.net/practices/ai-cli-mini-program)
+- [Build and auto-deploy with OpenClaw + CloudBase](https://mp.weixin.qq.com/s/vKcnro2GrbjI_QyQohpNRw)
+- [Agent Skills in practice: don't let AI-built code die on localhost](https://mp.weixin.qq.com/s/soIEU5DG01xfrKMaCetGAA)
 - [One-stop development of card flip game with CodeBuddy IDE + CloudBase](https://mp.weixin.qq.com/s/2EM3RBzdQUCdfld2CglWgg)
 - [Develop a WeChat mini-game in 1 hour](https://cloud.tencent.com/developer/article/2532595)
 - [More tutorials...](https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/tutorials)
