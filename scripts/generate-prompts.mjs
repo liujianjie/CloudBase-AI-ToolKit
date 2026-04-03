@@ -70,11 +70,18 @@ async function readSkillFiles(skillDir) {
   return fileContents;
 }
 
+const FULL_INSTALL_COMMAND = 'npx skills add tencentcloudbase/cloudbase-skills';
+const SINGLE_INSTALL_REPO = 'https://github.com/tencentcloudbase/skills';
+const SKILL_VIEW_BASE_URL = 'https://skills.sh/tencentcloudbase/skills';
+
 /**
  * Generate MDX content for a single rule
  */
-function generateMDX(ruleConfig, files) {
-  const { id, title, description, prompts = [] } = ruleConfig;
+function generateMDX(ruleConfig) {
+  const { id, title, description, prompts = [], ruleDir } = ruleConfig;
+  const skillId = ruleDir || id;
+  const singleInstallCommand = `npx skills add ${SINGLE_INSTALL_REPO} --skill ${skillId}`;
+  const skillViewUrl = `${SKILL_VIEW_BASE_URL}/${skillId}`;
   
   let mdx = `# ${title}\n\n${description}\n\n`;
   
@@ -96,48 +103,12 @@ function generateMDX(ruleConfig, files) {
   mdx += `import AIDevelopmentPrompt from '../components/AIDevelopmentPrompt';\n\n`;
   mdx += `<AIDevelopmentPrompt ruleId="${id}" />\n\n`;
   
-  // Prompt section
-  mdx += `## Skill \n\n`;
-  
-  if (files.length === 1) {
-    // Single file - show content in code block with filename as title
-    const content = files[0].content;
-    const filename = files[0].filename === 'SKILL.md' ? 'rule.md' : files[0].filename;
-    // In markdown code blocks, content should be protected from JSX parsing
-    // But MDX might still try to parse JSX-like syntax, so we escape < and >
-    // Use 4 backticks instead of 3 to wrap content that contains code blocks (```)
-    // Escape & first to avoid double-escaping
-    const escapedContent = content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    mdx += `\`\`\`\`markdown title="${filename}"\n${escapedContent}\n\`\`\`\`\n`;
-  } else {
-    // Multiple files - use Tabs component
-    mdx += `import Tabs from '@theme/Tabs';\n`;
-    mdx += `import TabItem from '@theme/TabItem';\n\n`;
-    mdx += `<Tabs>\n`;
-    
-    for (const file of files) {
-      const value = file.filename.replace('.md', '').replace(/[^a-z0-9-]/gi, '-');
-      const label = file.filename.replace('.md', '');
-      const filename = file.filename === 'SKILL.md' ? 'rule.md' : file.filename;
-      // In markdown code blocks, content should be protected from JSX parsing
-      // But MDX might still try to parse JSX-like syntax, so we escape < and >
-      // Use 4 backticks instead of 3 to wrap content that contains code blocks (```)
-      // Escape & first to avoid double-escaping
-      const escapedContent = file.content
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-      mdx += `<TabItem value="${value}" label="${label}">\n\n`;
-      // Show content in code block with filename as title
-      mdx += `\`\`\`\`markdown title="${filename}"\n${escapedContent}\n\`\`\`\`\n\n`;
-      mdx += `</TabItem>\n\n`;
-    }
-    
-    mdx += `</Tabs>\n`;
-  }
+  mdx += `## 安装与查看\n\n`;
+  mdx += `如果需要安装全部 CloudBase Skills，可执行：\n\n`;
+  mdx += `\`\`\`bash\n${FULL_INSTALL_COMMAND}\n\`\`\`\n\n`;
+  mdx += `如果只安装当前 Skill，可执行：\n\n`;
+  mdx += `\`\`\`bash\n${singleInstallCommand}\n\`\`\`\n\n`;
+  mdx += `当前 Skill 在线查看： [${skillId}](${skillViewUrl})\n`;
   
   return mdx;
 }
@@ -308,7 +279,7 @@ async function main() {
     }
     
     // Generate MDX content
-    const mdxContent = generateMDX(ruleConfig, files);
+    const mdxContent = generateMDX(ruleConfig);
     
     // Write to file
     const outputFile = path.join(PROMPTS_DIR, `${id}.mdx`);
