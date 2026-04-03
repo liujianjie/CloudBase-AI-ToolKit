@@ -138,13 +138,14 @@ rules:
   
   - id: web-development
     title: 应用集成：Web 应用
-    description: Web 前端项目开发规则和静态托管部署
-    shortDescription: React、Vue、Next.js
+    description: 通用 Web 应用开发、构建调试、浏览器验证与 CloudBase 集成
+    shortDescription: React、Vue、Vite、浏览器验证
     category: frontend
     order: 1
     prompts:
-      - "帮我创建一个 React Web 应用并集成 CloudBase"
-      - "部署前端应用到 CloudBase 静态托管"
+      - "帮我搭一个 React + Vite Web 应用，并规划本地开发和构建流程"
+      - "帮我排查一个 Vue 页面交互问题，并给出浏览器验证步骤"
+      - "把这个 Web 前端接入 CloudBase 并部署到静态托管"
   
   - id: miniprogram-development
     title: 应用集成：微信小程序
@@ -158,7 +159,7 @@ rules:
   
   - id: ui-design
     title: 应用集成：UI 设计
-    description: 专业的 UI 设计和前端界面指南
+    description: 界面视觉方向、设计规格与前端原型指导
     shortDescription: 专业界面设计指南
     category: frontend
     order: 3
@@ -179,13 +180,13 @@ rules:
   
   - id: spec-workflow
     title: 开发工具：Spec 工作流
-    description: 标准软件工程工作流（需求分析、技术设计、任务规划）
-    shortDescription: 需求分析、技术设计、任务规划
+    description: 按需求分析、技术设计、任务拆分推进的工程规划工作流
+    shortDescription: 需求分析、技术设计、任务拆分
     category: tools
     order: 1
     prompts:
       - "帮我按照 Spec 工作流开发一个 CloudBase 新功能"
-      - "为 CloudBase 项目创建一个完整的需求文档和技术方案"
+      - "为 CloudBase 项目创建一个完整的需求文档、技术方案和任务拆分"
   
   - id: cloudbase-platform
     title: 开发工具：CloudBase 平台
@@ -231,4 +232,3 @@ rules:
       - "在微信小程序中集成 CloudBase AI 模型，实现智能对话功能"
       - "创建一个使用 CloudBase AI 模型的小程序应用，支持流式响应"
       - "在小程序中使用混元模型生成内容并展示给用户"
-
