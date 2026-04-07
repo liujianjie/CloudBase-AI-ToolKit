@@ -7,11 +7,12 @@ import {
 } from "../cloudbase-manager.js";
 import { ExtendedMcpServer } from "../server.js";
 import { buildJsonToolResult, ToolNextStep } from "../utils/tool-result.js";
-import { READ_SECURITY_RULE, WRITE_SECURITY_RULE } from "./security-rule.js";
 
 const CATEGORY = "SQL database";
 const QUERY_SQL_DATABASE = "querySqlDatabase";
 const MANAGE_SQL_DATABASE = "manageSqlDatabase";
+const QUERY_PERMISSIONS = "queryPermissions";
+const MANAGE_PERMISSIONS = "managePermissions";
 
 const QUERY_ACTIONS = [
   "runQuery",
@@ -976,7 +977,7 @@ async function handleRunStatement(
     },
     message:
       statementType === "CREATE"
-        ? `SQL statement executed successfully. If you created a table, include the required _openid column and verify its security rule with \`${WRITE_SECURITY_RULE}\` and \`${READ_SECURITY_RULE}\`.`
+        ? `SQL statement executed successfully. If you created a table, include the required _openid column and verify its permission configuration with \`${QUERY_PERMISSIONS}(action="getResourcePermission")\` and \`${MANAGE_PERMISSIONS}(action="updateResourcePermission")\`.`
         : "SQL statement executed successfully.",
   });
 }
@@ -1139,7 +1140,7 @@ async function handleInitializeSchema(
       requestIdList,
     },
     message: success
-      ? `Schema initialization completed successfully. Remember to verify table security rules with \`${WRITE_SECURITY_RULE}\` and \`${READ_SECURITY_RULE}\`, and include the required _openid column in newly created tables.`
+      ? `Schema initialization completed successfully. Remember to verify table permissions with \`${QUERY_PERMISSIONS}(action="getResourcePermission")\` and \`${MANAGE_PERMISSIONS}(action="updateResourcePermission")\`, and include the required _openid column in newly created tables.`
       : "Schema initialization stopped because one statement failed.",
   });
 }

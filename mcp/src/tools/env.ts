@@ -186,7 +186,12 @@ async function fetchAvailableEnvCandidates(
   }
 }
 
-type AuthAction = "status" | "start_auth" | "set_env" | "logout";
+type AuthAction =
+  | "status"
+  | "start_auth"
+  | "set_env"
+  | "logout"
+  | "get_temp_credentials";
 
 const CODEBUDDY_AUTH_ACTIONS = ["status", "set_env"] as const;
 const DEFAULT_AUTH_ACTIONS = [
@@ -194,7 +199,26 @@ const DEFAULT_AUTH_ACTIONS = [
   "start_auth",
   "set_env",
   "logout",
+  "get_temp_credentials",
 ] as const;
+
+function maskSensitiveValue(value: string): string {
+  if (value.length <= 4) {
+    return "*".repeat(value.length);
+  }
+
+  return `${value.slice(0, 2)}******${value.slice(-2)}`;
+}
+
+function isTemporaryCredentialLoginState(loginState: Record<string, unknown>): boolean {
+  const refreshToken = normalizeOptionalToolString(loginState.refreshToken);
+  const token = normalizeOptionalToolString(loginState.token);
+  const accessTokenExpired =
+    typeof loginState.accessTokenExpired === "number" ||
+    typeof loginState.accessTokenExpired === "string";
+
+  return Boolean(token && (refreshToken || accessTokenExpired));
+}
 
 function getCurrentIde(server: ExtendedMcpServer): string {
   return server.ide || process.env.INTEGRATION_IDE || "";
@@ -667,6 +691,14 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                 .describe("action=logout 时确认操作，传 yes"),
             }
           : {}),
+        ...(supportedAuthActions.includes("get_temp_credentials")
+          ? {
+              reveal: z
+                .boolean()
+                .optional()
+                .describe("action=get_temp_credentials 时可选。true=返回明文临时密钥；默认 false 仅返回脱敏结果"),
+            }
+          : {}),
       },
       annotations: {
         readOnlyHint: false,
@@ -684,6 +716,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
       oauthCustom?: unknown;
       envId?: string;
       confirm?: unknown;
+      reveal?: unknown;
     }) => {
       const action = rawArgs.action ?? "status";
       const authMode =
@@ -695,6 +728,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
       const oauthCustom = normalizeOptionalToolBoolean(rawArgs.oauthCustom);
       const envId = rawArgs.envId;
       const confirm = rawArgs.confirm === "yes" ? "yes" : undefined;
+      const reveal = normalizeOptionalToolBoolean(rawArgs.reveal) === true;
       const resolvedAuthOptions = resolveToolAuthOptions(server, {
         authMode,
         oauthEndpoint,
@@ -1033,6 +1067,65 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             ok: true,
             code: "LOGGED_OUT",
             message: "✅ 已退出登录",
+          });
+        }
+
+        if (action === "get_temp_credentials") {
+          const loginState = (await peekLoginState()) as Record<string, unknown> | null;
+          if (!loginState) {
+            return buildJsonToolResult({
+              ok: false,
+              code: "AUTH_REQUIRED",
+              message: "当前未登录，请先完成管理端认证后再获取临时密钥。",
+              next_step: buildAuthRequiredNextStep(server),
+            });
+          }
+
+          if (confirm !== "yes") {
+            return buildJsonToolResult({
+              ok: false,
+              code: "INVALID_ARGS",
+              message:
+                "action=get_temp_credentials 时必须显式传 confirm=\"yes\"，以确认你要导出当前管理端临时密钥。",
+              next_step: buildAuthNextStep("get_temp_credentials", {
+                suggestedArgs: { action: "get_temp_credentials", confirm: "yes" },
+              }),
+            });
+          }
+
+          if (!isTemporaryCredentialLoginState(loginState)) {
+            return buildJsonToolResult({
+              ok: false,
+              code: "UNSUPPORTED_CREDENTIAL_TYPE",
+              message:
+                "当前登录态不是可导出的临时密钥。仅支持通过 Web / device 登录得到的临时密钥，永久密钥登录不允许导出。",
+            });
+          }
+
+          const secretId = normalizeOptionalToolString(loginState.secretId);
+          const secretKey = normalizeOptionalToolString(loginState.secretKey);
+          const token = normalizeOptionalToolString(loginState.token);
+          if (!secretId || !secretKey || !token) {
+            return buildJsonToolResult({
+              ok: false,
+              code: "INTERNAL_ERROR",
+              message: "当前登录态缺少完整的临时密钥字段，请重新登录后再试。",
+            });
+          }
+
+          return buildJsonToolResult({
+            ok: true,
+            code: "TEMP_CREDENTIALS_READY",
+            message: reveal
+              ? "当前管理端临时密钥已准备好，请注意避免泄露。"
+              : "当前管理端临时密钥已准备好，默认仅返回脱敏结果。",
+            env_id: normalizeOptionalToolString(loginState.envId) ?? null,
+            credentials: {
+              secretId: reveal ? secretId : maskSensitiveValue(secretId),
+              secretKey: reveal ? secretKey : maskSensitiveValue(secretKey),
+              token: reveal ? token : maskSensitiveValue(token),
+              masked: !reveal,
+            },
           });
         }
 

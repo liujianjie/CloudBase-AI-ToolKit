@@ -6,10 +6,20 @@ import { jsonContent } from "../utils/json-content.js";
 const QUERY_GATEWAY_ACTIONS = [
   "getAccess",
   "listDomains",
+  "listRoutes",
+  "getRoute",
+  "listCustomDomains",
 ] as const;
 
 const MANAGE_GATEWAY_ACTIONS = [
   "createAccess",
+  "createRoute",
+  "updateRoute",
+  "deleteRoute",
+  "bindCustomDomain",
+  "deleteCustomDomain",
+  "deleteAccess",
+  "updatePathAuth",
 ] as const;
 
 type QueryGatewayAction = (typeof QUERY_GATEWAY_ACTIONS)[number];
@@ -31,15 +41,26 @@ type QueryGatewayInput = {
   action: QueryGatewayAction;
   targetType?: GatewayTargetType;
   targetName?: string;
+  routeId?: string;
 };
 
 type ManageGatewayInput = {
   action: ManageGatewayAction;
-  targetType: GatewayTargetType;
-  targetName: string;
+  targetType?: GatewayTargetType;
+  targetName?: string;
   path?: string;
   type?: "Event" | "HTTP";
   auth?: boolean;
+  route?: {
+    routeId?: string;
+    path?: string;
+    serviceType?: string;
+    serviceName?: string;
+    auth?: boolean;
+  };
+  domain?: string;
+  certificateId?: string;
+  accessName?: string;
 };
 
 function normalizeAccessPath(path: string | undefined): string {
@@ -50,9 +71,18 @@ function normalizeAccessPath(path: string | undefined): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function ensureGatewayEnvId(cloudBaseOptions?: { envId?: string }) {
+  const envId = cloudBaseOptions?.envId;
+  if (!envId) {
+    throw new Error("当前网关操作需要已绑定 envId");
+  }
+  return envId;
+}
+
 export function registerGatewayTools(server: ExtendedMcpServer) {
   const cloudBaseOptions = server.cloudBaseOptions;
   const getManager = () => getCloudBaseManager({ cloudBaseOptions });
+  const getGatewayEnvId = () => ensureGatewayEnvId(cloudBaseOptions);
 
   const buildEnvelope = (
     data: Record<string, unknown>,
@@ -96,6 +126,77 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
     };
   };
 
+  const listHttpServiceRoutes = async (domain?: string) => {
+    const cloudbase = await getManager();
+    const result = await cloudbase.env.describeHttpServiceRoute({
+      EnvId: getGatewayEnvId(),
+      ...(domain
+        ? {
+            Filters: [
+              {
+                Name: "Domain",
+                Values: [domain],
+              },
+            ],
+          }
+        : {}),
+    });
+    logCloudBaseResult(server.logger, result);
+    return result;
+  };
+
+  const flattenRoutes = (result: any) =>
+    (result.Domains ?? []).flatMap((domainItem: any) =>
+      (domainItem.Routes ?? []).map((route: any) => ({
+        Domain: domainItem.Domain,
+        DomainType: domainItem.DomainType,
+        AccessType: domainItem.AccessType,
+        ...route,
+      })),
+    );
+
+  const resolveRouteDomain = async (preferredDomain?: string) => {
+    if (preferredDomain) {
+      return preferredDomain;
+    }
+    const routeInfo = await listHttpServiceRoutes();
+    return routeInfo.OriginDomain;
+  };
+
+  const normalizeRoutePayload = async (
+    route: ManageGatewayInput["route"],
+    fallback: Pick<ManageGatewayInput, "path" | "targetName" | "targetType" | "auth">,
+    domain?: string,
+  ) => {
+    const path = normalizeAccessPath(route?.path ?? fallback.path);
+    const serviceType = route?.serviceType ?? fallback.targetType;
+    const serviceName = route?.serviceName ?? fallback.targetName;
+
+    if (!serviceType || !serviceName) {
+      throw new Error("route.serviceType 和 route.serviceName 为必填项");
+    }
+
+    return {
+      EnvId: getGatewayEnvId(),
+      Domain: {
+        Domain: await resolveRouteDomain(domain),
+        Routes: [
+          {
+            Path: path,
+            UpstreamResourceType: serviceType === "function" ? "SCF" : "CBR",
+            UpstreamResourceName: serviceName,
+            EnableAuth:
+              route?.auth !== undefined
+                ? route.auth
+                : fallback.auth !== undefined
+                  ? fallback.auth
+                  : undefined,
+          },
+        ],
+      },
+    };
+  };
+
   const handleQueryGateway = async (
     input: QueryGatewayInput,
   ): Promise<GatewayToolEnvelope> => {
@@ -117,6 +218,51 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
             reason: "查看某个目标当前的访问入口",
           },
         ],
+      );
+    }
+    case "listCustomDomains": {
+      const result = await listGatewayDomains();
+      return buildEnvelope(
+        {
+          action: input.action,
+          domains: result.raw.ServiceSet ?? [],
+          total: (result.raw.ServiceSet ?? []).length,
+          raw: result.raw,
+        },
+        `已获取 ${(result.raw.ServiceSet ?? []).length} 个自定义域名`,
+      );
+    }
+    case "listRoutes": {
+      const result = await listHttpServiceRoutes();
+      const routes = flattenRoutes(result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          routes,
+          total: result.TotalCount ?? routes.length,
+          raw: result,
+        },
+        `已获取 ${result.TotalCount ?? routes.length} 条 HTTP 路由`,
+      );
+    }
+    case "getRoute": {
+      const result = await listHttpServiceRoutes();
+      const route =
+        flattenRoutes(result).find(
+          (item: any) =>
+            (input.routeId && item.RouteId === input.routeId) ||
+            (input.targetName && item.UpstreamResourceName === input.targetName),
+        ) ?? null;
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          routeId: input.routeId ?? null,
+          route,
+          raw: result,
+        },
+        route ? "已获取路由详情" : "未找到对应路由",
       );
     }
     case "getAccess": {
@@ -179,6 +325,9 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
   ): Promise<GatewayToolEnvelope> => {
     switch (input.action) {
     case "createAccess": {
+      if (!input.targetName || !input.targetType) {
+        throw new Error("action=createAccess 时必须提供 targetType 和 targetName");
+      }
       const cloudbase = await getManager();
       const accessPath = normalizeAccessPath(input.path || `/${input.targetName}`);
       const result = await cloudbase.access.createAccess({
@@ -207,6 +356,162 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
         ],
       );
     }
+    case "createRoute": {
+      const cloudbase = await getManager();
+      const result = await cloudbase.env.createHttpServiceRoute(
+        (await normalizeRoutePayload(input.route, input, input.domain)) as any,
+      );
+      logCloudBaseResult(server.logger, result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          route: input.route ?? null,
+          raw: result,
+        },
+        "HTTP 路由创建成功",
+      );
+    }
+    case "updateRoute": {
+      const cloudbase = await getManager();
+      const result = await cloudbase.env.modifyHttpServiceRoute(
+        (await normalizeRoutePayload(input.route, input, input.domain)) as any,
+      );
+      logCloudBaseResult(server.logger, result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          route: input.route ?? null,
+          raw: result,
+        },
+        "HTTP 路由更新成功",
+      );
+    }
+    case "deleteRoute": {
+      const routePath = input.route?.path ?? input.path;
+      if (!routePath) {
+        throw new Error("action=deleteRoute 时必须提供 route.path 或 path");
+      }
+      const cloudbase = await getManager();
+      const domain = await resolveRouteDomain(input.domain);
+      const result = await cloudbase.env.deleteHttpServiceRoute({
+        EnvId: getGatewayEnvId(),
+        Domain: domain,
+        Paths: [normalizeAccessPath(routePath)],
+      } as any);
+      logCloudBaseResult(server.logger, result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          domain,
+          path: normalizeAccessPath(routePath),
+          raw: result,
+        },
+        "HTTP 路由删除成功",
+      );
+    }
+    case "bindCustomDomain": {
+      if (!input.domain || !input.certificateId) {
+        throw new Error("action=bindCustomDomain 时必须提供 domain 和 certificateId");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.env.bindCustomDomain({
+        EnvId: getGatewayEnvId(),
+        Domain: {
+          Domain: input.domain,
+          CertId: input.certificateId,
+        },
+      } as any);
+      logCloudBaseResult(server.logger, result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          domain: input.domain,
+          certificateId: input.certificateId,
+          raw: result,
+        },
+        "自定义域名绑定成功",
+      );
+    }
+    case "deleteCustomDomain": {
+      if (!input.domain) {
+        throw new Error("action=deleteCustomDomain 时必须提供 domain");
+      }
+      const cloudbase = await getManager();
+      const result = await cloudbase.env.deleteCustomDomain({
+        EnvId: getGatewayEnvId(),
+        Domain: input.domain,
+      });
+      logCloudBaseResult(server.logger, result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          domain: input.domain,
+          raw: result,
+        },
+        "自定义域名删除成功",
+      );
+    }
+    case "deleteAccess": {
+      const cloudbase = await getManager();
+      const accessPath = input.path ? normalizeAccessPath(input.path) : undefined;
+      const result = await cloudbase.access.deleteAccess({
+        ...(input.targetName ? { name: input.targetName } : {}),
+        ...(accessPath ? { path: accessPath } : {}),
+      });
+      logCloudBaseResult(server.logger, result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          targetName: input.targetName ?? null,
+          path: accessPath ?? null,
+          raw: result,
+        },
+        "网关访问入口删除成功",
+      );
+    }
+    case "updatePathAuth": {
+      if (!input.targetName && !input.path) {
+        throw new Error("action=updatePathAuth 时至少需要提供 targetName 或 path");
+      }
+      if (input.auth === undefined) {
+        throw new Error("action=updatePathAuth 时必须提供 auth");
+      }
+
+      const cloudbase = await getManager();
+      const accessPath = input.path ? normalizeAccessPath(input.path) : undefined;
+      const accessList = await cloudbase.access.getAccessList({
+        ...(input.targetName ? { name: input.targetName } : {}),
+        ...(accessPath ? { path: accessPath } : {}),
+      });
+      const apiIds = (accessList.APISet ?? []).map((item) => item.APIId).filter(Boolean);
+      if (apiIds.length === 0) {
+        throw new Error("未找到可更新鉴权状态的访问入口");
+      }
+
+      const result = await cloudbase.access.switchPathAuth({
+        apiIds,
+        auth: input.auth,
+      });
+      logCloudBaseResult(server.logger, result);
+
+      return buildEnvelope(
+        {
+          action: input.action,
+          targetName: input.targetName ?? null,
+          path: accessPath ?? null,
+          auth: input.auth,
+          apiIds,
+          raw: result,
+        },
+        "网关路径鉴权更新成功",
+      );
+    }
     default:
       throw new Error(`不支持的操作类型: ${input.action}`);
     }
@@ -230,6 +535,7 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
           .string()
           .optional()
           .describe("目标资源名称。getAccess 时必填"),
+        routeId: z.string().optional().describe("路由 ID。getRoute 时可选"),
       },
       annotations: {
         readOnlyHint: true,
@@ -250,11 +556,25 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
         action: z.enum(MANAGE_GATEWAY_ACTIONS).describe("写操作类型，例如 createAccess"),
         targetType: z
           .enum(["function"])
+          .optional()
           .describe("目标资源类型。当前支持 function，后续可扩展"),
-        targetName: z.string().describe("目标资源名称"),
+        targetName: z.string().optional().describe("目标资源名称"),
         path: z.string().optional().describe("访问路径，默认 /{targetName}"),
         type: z.enum(["Event", "HTTP"]).optional().describe("函数接入类型"),
         auth: z.boolean().optional().describe("是否开启鉴权"),
+        route: z
+          .object({
+            routeId: z.string().optional(),
+            path: z.string().optional(),
+            serviceType: z.string().optional(),
+            serviceName: z.string().optional(),
+            auth: z.boolean().optional(),
+          })
+          .optional()
+          .describe("HTTP 路由配置对象"),
+        domain: z.string().optional().describe("自定义域名"),
+        certificateId: z.string().optional().describe("证书 ID"),
+        accessName: z.string().optional().describe("访问入口名称，保留字段"),
       },
       annotations: {
         readOnlyHint: false,

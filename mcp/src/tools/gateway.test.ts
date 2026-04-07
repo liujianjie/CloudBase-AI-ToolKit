@@ -6,12 +6,24 @@ const {
   mockGetAccessList,
   mockGetDomainList,
   mockCreateAccess,
+  mockDescribeHttpServiceRoute,
+  mockCreateHttpServiceRoute,
+  mockModifyHttpServiceRoute,
+  mockDeleteHttpServiceRoute,
+  mockBindCustomDomain,
+  mockDeleteCustomDomain,
   mockGetCloudBaseManager,
   mockLogCloudBaseResult,
 } = vi.hoisted(() => ({
   mockGetAccessList: vi.fn(),
   mockGetDomainList: vi.fn(),
   mockCreateAccess: vi.fn(),
+  mockDescribeHttpServiceRoute: vi.fn(),
+  mockCreateHttpServiceRoute: vi.fn(),
+  mockModifyHttpServiceRoute: vi.fn(),
+  mockDeleteHttpServiceRoute: vi.fn(),
+  mockBindCustomDomain: vi.fn(),
+  mockDeleteCustomDomain: vi.fn(),
   mockGetCloudBaseManager: vi.fn(),
   mockLogCloudBaseResult: vi.fn(),
 }));
@@ -76,11 +88,53 @@ describe("gateway tools", () => {
       RequestId: "req-create-access",
       APIId: "api-123",
     });
+    mockDescribeHttpServiceRoute.mockResolvedValue({
+      OriginDomain: "env-test.service.tcloudbase.com",
+      TotalCount: 1,
+      Domains: [
+        {
+          Domain: "env-test.service.tcloudbase.com",
+          Routes: [
+            {
+              RouteId: "route-1",
+              Path: "/api/hello",
+              UpstreamResourceType: "SCF",
+              UpstreamResourceName: "helloFn",
+            },
+          ],
+        },
+      ],
+      RequestId: "req-route-list",
+    });
+    mockCreateHttpServiceRoute.mockResolvedValue({
+      RouteId: "route-2",
+      RequestId: "req-route-create",
+    });
+    mockModifyHttpServiceRoute.mockResolvedValue({
+      RequestId: "req-route-update",
+    });
+    mockDeleteHttpServiceRoute.mockResolvedValue({
+      RequestId: "req-route-delete",
+    });
+    mockBindCustomDomain.mockResolvedValue({
+      RequestId: "req-domain-bind",
+    });
+    mockDeleteCustomDomain.mockResolvedValue({
+      RequestId: "req-domain-delete",
+    });
     mockGetCloudBaseManager.mockResolvedValue({
       access: {
         getAccessList: mockGetAccessList,
         getDomainList: mockGetDomainList,
         createAccess: mockCreateAccess,
+      },
+      env: {
+        describeHttpServiceRoute: mockDescribeHttpServiceRoute,
+        createHttpServiceRoute: mockCreateHttpServiceRoute,
+        modifyHttpServiceRoute: mockModifyHttpServiceRoute,
+        deleteHttpServiceRoute: mockDeleteHttpServiceRoute,
+        bindCustomDomain: mockBindCustomDomain,
+        deleteCustomDomain: mockDeleteCustomDomain,
       },
     });
 
@@ -182,6 +236,86 @@ describe("gateway tools", () => {
           action: "createAccess",
         }),
       ],
+    });
+  });
+
+  it("queryGateway(action=listRoutes) should list gateway routes", async () => {
+    const result = await tools.queryGateway.handler({
+      action: "listRoutes",
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockDescribeHttpServiceRoute).toHaveBeenCalledWith({
+      EnvId: "env-test",
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        action: "listRoutes",
+        routes: [expect.objectContaining({ RouteId: "route-1" })],
+        total: 1,
+      },
+    });
+  });
+
+  it("manageGateway(action=createRoute) should create http route", async () => {
+    const result = await tools.manageGateway.handler({
+      action: "createRoute",
+      domain: "env-test.service.tcloudbase.com",
+      route: {
+        path: "/api/hello",
+        serviceType: "function",
+        serviceName: "helloFn",
+      },
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockCreateHttpServiceRoute).toHaveBeenCalledWith({
+      EnvId: "env-test",
+      Domain: {
+        Domain: "env-test.service.tcloudbase.com",
+        Routes: [
+          {
+            Path: "/api/hello",
+            UpstreamResourceType: "SCF",
+            UpstreamResourceName: "helloFn",
+            EnableAuth: undefined,
+          },
+        ],
+      },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        action: "createRoute",
+      },
+    });
+  });
+
+  it("manageGateway(action=bindCustomDomain) should bind custom domain", async () => {
+    const result = await tools.manageGateway.handler({
+      action: "bindCustomDomain",
+      domain: "api.example.com",
+      certificateId: "cert-1",
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockBindCustomDomain).toHaveBeenCalledWith({
+      EnvId: "env-test",
+      Domain: {
+        Domain: "api.example.com",
+        CertId: "cert-1",
+      },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        action: "bindCustomDomain",
+        domain: "api.example.com",
+      },
     });
   });
 });

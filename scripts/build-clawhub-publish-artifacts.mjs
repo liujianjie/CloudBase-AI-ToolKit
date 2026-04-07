@@ -122,8 +122,8 @@ function buildAllInOneTarget(target, destinationDir) {
 
   try {
     execFileSync(
-      "node",
-      ["scripts/build-allinone-skill.ts", "--dir", tempRoot],
+      process.execPath,
+      ["--experimental-strip-types", "scripts/build-allinone-skill.ts", "--dir", tempRoot],
       {
         cwd: projectRoot,
         stdio: "pipe",

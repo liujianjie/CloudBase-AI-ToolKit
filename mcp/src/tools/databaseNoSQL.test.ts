@@ -238,6 +238,27 @@ describe("NoSQL database tools", () => {
     );
   });
 
+  it("NoSQL structure tools should describe index management entry points explicitly", () => {
+    const { tools } = createMockServer();
+    const readMeta = tools.readNoSqlDatabaseStructure.meta;
+    const writeMeta = tools.writeNoSqlDatabaseStructure.meta;
+
+    expect(readMeta.description).toContain("集合与索引");
+    expect(readMeta.inputSchema.action.description).toContain("listIndexes");
+    expect(readMeta.inputSchema.action.description).toContain("checkIndex");
+
+    expect(writeMeta.description).toContain("添加索引");
+    expect(writeMeta.description).toContain("删除索引");
+    expect(writeMeta.inputSchema.action.description).toContain("CreateIndexes");
+    expect(writeMeta.inputSchema.action.description).toContain("DropIndexes");
+    expect(writeMeta.inputSchema.updateOptions.description).toContain(
+      "CreateIndexes",
+    );
+    expect(writeMeta.inputSchema.updateOptions.description).toContain(
+      "DropIndexes",
+    );
+  });
+
   it("collection-scoped responses should echo the requested collection name", async () => {
     const { tools } = createMockServer();
 

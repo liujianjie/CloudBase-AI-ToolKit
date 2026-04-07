@@ -65,6 +65,27 @@ test('buildClawhubPublishArtifacts builds all-in-one artifact', () => {
   ).toBe(true);
 });
 
+test.each([
+  'ui-design',
+  'web-development',
+  'spec-workflow',
+])('buildClawhubPublishArtifacts builds %s local skill artifact', (targetKey) => {
+  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), `clawhub-${targetKey}-`));
+  tempDirs.push(outputDir);
+
+  const manifest = buildClawhubPublishArtifacts({
+    targets: targetKey,
+    outputDir,
+  });
+
+  expect(manifest.targets).toHaveLength(1);
+  expect(manifest.targets[0].targetKey).toBe(targetKey);
+  expect(manifest.targets[0].registrySlug).toBe(targetKey);
+  expect(
+    fs.existsSync(path.join(outputDir, targetKey, 'skills', targetKey, 'SKILL.md')),
+  ).toBe(true);
+});
+
 test('buildClawhubPublishArtifacts rejects invalid targets', () => {
   const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawhub-invalid-'));
   tempDirs.push(outputDir);
