@@ -330,12 +330,24 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
       }
       const cloudbase = await getManager();
       const accessPath = normalizeAccessPath(input.path || `/${input.targetName}`);
-      const result = await cloudbase.access.createAccess({
-        name: input.targetName,
-        path: accessPath,
-        type: ((input.type || "Event") === "HTTP" ? 6 : 1) as 1 | 2,
-        auth: input.auth,
-      });
+      let result;
+      try {
+        result = await cloudbase.access.createAccess({
+          name: input.targetName,
+          path: accessPath,
+          type: ((input.type || "Event") === "HTTP" ? 6 : 1) as 1 | 2,
+          auth: input.auth,
+        });
+      } catch (err: any) {
+        if (err.message && err.message.includes("An error has occurred")) {
+          let hint = "为目标资源配置访问路由失败（后端内部错误）。请确保：1) 目标云函数已成功创建并处于 Active 状态；2) 环境默认 HTTP 域名已完成初始化；3) 该访问路径未被占用。";
+          if (input.type === "HTTP") {
+            hint += "此外注意：如果目标函数最初是作为 Event 函数创建的，这里 type 必须依然传 Event（或省略），传 HTTP 会导致此错误。";
+          }
+          throw new Error(`${hint} 原始错误：${err.message}`);
+        }
+        throw err;
+      }
       logCloudBaseResult(server.logger, result);
 
       return buildEnvelope(
@@ -560,7 +572,7 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
           .describe("目标资源类型。当前支持 function，后续可扩展"),
         targetName: z.string().optional().describe("目标资源名称"),
         path: z.string().optional().describe("访问路径，默认 /{targetName}"),
-        type: z.enum(["Event", "HTTP"]).optional().describe("函数接入类型"),
+        type: z.enum(["Event", "HTTP"]).optional().describe("目标函数的本身类型（非接入形式）。如果被访问的函数是 Event 型（默认），此处必须传 Event；只有当被访问函数在创建时就是 HTTP 函数时才传 HTTP。"),
         auth: z.boolean().optional().describe("是否开启鉴权"),
         route: z
           .object({
