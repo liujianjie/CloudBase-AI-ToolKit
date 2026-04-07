@@ -607,17 +607,38 @@ async function handleRunQuery(
     context.cloudBaseOptions,
     args.dbInstance,
   );
-  const result = await callSqlControlPlane(cloudbase, "RunSql", {
-    EnvId: dbContext.envId,
-    Sql: args.sql,
-    ReadOnly: true,
-    DbInstance: {
+  let result;
+  try {
+    result = await callSqlControlPlane(cloudbase, "RunSql", {
       EnvId: dbContext.envId,
-      InstanceId: dbContext.instanceId,
-      Schema: dbContext.schema,
-    },
-  });
-  logCloudBaseResult(context.server.logger, result);
+      Sql: args.sql,
+      ReadOnly: true,
+      DbInstance: {
+        EnvId: dbContext.envId,
+        InstanceId: dbContext.instanceId,
+        Schema: dbContext.schema,
+      },
+    });
+    logCloudBaseResult(context.server.logger, result);
+  } catch (error: any) {
+    const errorCode = typeof error === "object" && error && "code" in error ? (error as any).code : "";
+    if (errorCode === "FailedOperation.DataSourceNotExist" || error.message?.includes("Database instance not found")) {
+      return buildSqlToolResult({
+        success: false,
+        errorCode: "MYSQL_NOT_CREATED",
+        message: "MySQL is not provisioned yet or not found. Please provision MySQL before running queries.",
+        nextActions: [
+          buildNextAction(
+            MANAGE_SQL_DATABASE,
+            "provisionMySQL",
+            "Provision MySQL before querying data.",
+            { action: "provisionMySQL", confirm: true },
+          ),
+        ],
+      });
+    }
+    throw error;
+  }
 
   const normalized = normalizeRunSqlResult(result);
   return buildSqlToolResult({
@@ -956,16 +977,37 @@ async function handleRunStatement(
     context.cloudBaseOptions,
     args.dbInstance,
   );
-  const result = await callSqlControlPlane(cloudbase, "RunSql", {
-    EnvId: dbContext.envId,
-    Sql: args.sql,
-    DbInstance: {
+  let result;
+  try {
+    result = await callSqlControlPlane(cloudbase, "RunSql", {
       EnvId: dbContext.envId,
-      InstanceId: dbContext.instanceId,
-      Schema: dbContext.schema,
-    },
-  });
-  logCloudBaseResult(context.server.logger, result);
+      Sql: args.sql,
+      DbInstance: {
+        EnvId: dbContext.envId,
+        InstanceId: dbContext.instanceId,
+        Schema: dbContext.schema,
+      },
+    });
+    logCloudBaseResult(context.server.logger, result);
+  } catch (error: any) {
+    const errorCode = typeof error === "object" && error && "code" in error ? (error as any).code : "";
+    if (errorCode === "FailedOperation.DataSourceNotExist" || error.message?.includes("Database instance not found")) {
+      return buildSqlToolResult({
+        success: false,
+        errorCode: "MYSQL_NOT_CREATED",
+        message: "MySQL is not provisioned yet or not found. Please provision MySQL before running statements.",
+        nextActions: [
+          buildNextAction(
+            MANAGE_SQL_DATABASE,
+            "provisionMySQL",
+            "Provision MySQL before executing statements.",
+            { action: "provisionMySQL", confirm: true },
+          ),
+        ],
+      });
+    }
+    throw error;
+  }
 
   const statementType = getSqlVerb(args.sql) || "UNKNOWN";
   const normalized = normalizeRunSqlResult(result);
@@ -1100,16 +1142,37 @@ async function handleInitializeSchema(
 
   for (const statement of args.statements) {
     try {
-      const result = await callSqlControlPlane(cloudbase, "RunSql", {
-        EnvId: dbContext.envId,
-        Sql: statement,
-        DbInstance: {
+      let result;
+      try {
+        result = await callSqlControlPlane(cloudbase, "RunSql", {
           EnvId: dbContext.envId,
-          InstanceId: dbContext.instanceId,
-          Schema: dbContext.schema,
-        },
-      });
-      logCloudBaseResult(context.server.logger, result);
+          Sql: statement,
+          DbInstance: {
+            EnvId: dbContext.envId,
+            InstanceId: dbContext.instanceId,
+            Schema: dbContext.schema,
+          },
+        });
+        logCloudBaseResult(context.server.logger, result);
+      } catch (error: any) {
+        const errorCode = typeof error === "object" && error && "code" in error ? (error as any).code : "";
+        if (errorCode === "FailedOperation.DataSourceNotExist" || error.message?.includes("Database instance not found")) {
+          return buildSqlToolResult({
+            success: false,
+            errorCode: "MYSQL_NOT_CREATED",
+            message: "MySQL is not provisioned yet or not found. Please provision MySQL before initializing schema.",
+            nextActions: [
+              buildNextAction(
+                MANAGE_SQL_DATABASE,
+                "provisionMySQL",
+                "Provision MySQL before executing statements.",
+                { action: "provisionMySQL", confirm: true },
+              ),
+            ],
+          });
+        }
+        throw error;
+      }
       const normalized = normalizeRunSqlResult(result);
       if (typeof normalized.requestId === "string") {
         requestIdList.push(normalized.requestId);
