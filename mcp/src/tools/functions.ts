@@ -924,14 +924,14 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
           reason: "交付前确认 HTTP 访问路径是否已存在并已生效",
         });
         nextActions.push({
-          tool: "readSecurityRule",
-          action: "读取安全规则",
+          tool: "queryPermissions",
+          action: "getResourcePermission",
           reason:
             "评测、浏览器或其他外部调用方可能以匿名身份访问；若直接报 EXCEED_AUTHORITY，应先读取当前函数安全规则",
         });
         nextActions.push({
-          tool: "writeSecurityRule",
-          action: "写入安全规则",
+          tool: "managePermissions",
+          action: "updateResourcePermission",
           reason:
             "只有在确认需要匿名访问时，才按实际安全要求调整函数安全规则，例如处理 EXCEED_AUTHORITY",
         });
@@ -939,7 +939,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
 
       const message =
         func.type === "HTTP"
-          ? `已创建 HTTP 函数 ${functionName}。如果后续需要通过 URL 访问，请显式调用 manageGateway(action="createAccess") 按实际路径和鉴权需求创建访问入口。评测或其他外部调用方可能会以匿名身份访问，而且失败后不一定会把 EXCEED_AUTHORITY 再反馈给 AI；交付前请主动确认访问路径和函数安全规则，若已出现 EXCEED_AUTHORITY，请先调用 readSecurityRule(resourceType="function") 查看当前规则，再按需要使用 writeSecurityRule 调整权限。`
+          ? `已创建 HTTP 函数 ${functionName}。如果后续需要通过 URL 访问，请显式调用 manageGateway(action="createAccess") 按实际路径和鉴权需求创建访问入口。评测或其他外部调用方可能会以匿名身份访问，而且失败后不一定会把 EXCEED_AUTHORITY 再反馈给 AI；交付前请主动确认访问路径和函数安全规则，若已出现 EXCEED_AUTHORITY，请先调用 queryPermissions(action="getResourcePermission", resourceType="function", resourceId="${functionName}") 查看当前规则，再按需要使用 managePermissions(action="updateResourcePermission") 调整权限。`
           : `已创建函数 ${functionName}`;
 
       return buildEnvelope(
