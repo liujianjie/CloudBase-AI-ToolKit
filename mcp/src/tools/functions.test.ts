@@ -160,12 +160,12 @@ describe("functions tool helpers", () => {
           action: "createAccess",
         }),
         expect.objectContaining({
-          tool: "readSecurityRule",
-          action: "读取安全规则",
+          tool: "queryPermissions",
+          action: "getResourcePermission",
         }),
         expect.objectContaining({
-          tool: "writeSecurityRule",
-          action: "写入安全规则",
+          tool: "managePermissions",
+          action: "updateResourcePermission",
         }),
       ]),
     );

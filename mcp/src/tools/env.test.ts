@@ -234,6 +234,74 @@ describe("env tools - auth", () => {
     });
   });
 
+  it("auth(action=get_temp_credentials) should require explicit confirmation", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+      refreshToken: "refresh-token",
+      accessTokenExpired: Date.now() + 60_000,
+      envId: "env-login",
+    });
+
+    const result = await tools.auth.handler({ action: "get_temp_credentials" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      ok: false,
+      code: "INVALID_ARGS",
+    });
+    expect(payload.message).toContain("confirm");
+  });
+
+  it("auth(action=get_temp_credentials) should reject permanent credentials", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      envId: "env-login",
+    });
+
+    const result = await tools.auth.handler({
+      action: "get_temp_credentials",
+      confirm: "yes",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      ok: false,
+      code: "UNSUPPORTED_CREDENTIAL_TYPE",
+    });
+  });
+
+  it("auth(action=get_temp_credentials) should return masked credentials by default", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid-123456",
+      secretKey: "skey-abcdef",
+      token: "token-xyz",
+      refreshToken: "refresh-token",
+      accessTokenExpired: Date.now() + 60_000,
+      envId: "env-login",
+    });
+
+    const result = await tools.auth.handler({
+      action: "get_temp_credentials",
+      confirm: "yes",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      ok: true,
+      code: "TEMP_CREDENTIALS_READY",
+      env_id: "env-login",
+      credentials: {
+        secretId: "si******56",
+        secretKey: "sk******ef",
+        token: "to******yz",
+        masked: true,
+      },
+    });
+  });
+
   it("auth(action=status) should surface pending auth challenge", async () => {
     mockGetAuthProgressState.mockResolvedValue({
       status: "PENDING",
