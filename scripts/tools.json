@@ -15,7 +15,8 @@
               "status",
               "start_auth",
               "set_env",
-              "logout"
+              "logout",
+              "get_temp_credentials"
             ],
             "description": "动作：status=查询状态，start_auth=发起登录，set_env=绑定环境(传envId)，logout=退出登录"
           },
@@ -47,6 +48,10 @@
             "type": "string",
             "const": "yes",
             "description": "action=logout 时确认操作，传 yes"
+          },
+          "reveal": {
+            "type": "boolean",
+            "description": "action=get_temp_credentials 时可选。true=返回明文临时密钥；默认 false 仅返回脱敏结果"
           }
         },
         "additionalProperties": false,
@@ -377,7 +382,7 @@
     },
     {
       "name": "writeNoSqlDatabaseContent",
-      "description": "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 $set/$inc/$push 等更新操作符；如果直接传 { field: value } 这类普通对象，底层会把它当作替换内容，存在覆盖整条文档的风险。",
+      "description": "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 $set/$inc/$push 等更新操作符；如果直接传 { field: value } 这类普通对象，底层会把它当作替换内容，存在覆盖整条文档的风险。更新嵌套对象中的某个字段时必须使用点号路径（如 { \"$set\": { \"address.city\": \"shenzhen\" } }），若写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } } 则整个 address 对象会被替换，同级其他字段将丢失。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -427,7 +432,7 @@
                 "type": "string"
               }
             ],
-            "description": "更新内容(对象或字符串,推荐对象)(update 操作必填)。按 MongoDB 更新语义传入 MgoUpdate：部分更新请使用 $set/$inc/$unset/$push 等操作符，例如 { \"$set\": { \"status\": \"pending\" } }；不要直接传 { \"status\": \"pending\" }，否则可能替换整条文档。"
+            "description": "更新内容(对象或字符串,推荐对象)(update 操作必填)。按 MongoDB 更新语义传入 MgoUpdate：部分更新请使用 $set/$inc/$unset/$push 等操作符，例如 { \"$set\": { \"status\": \"pending\" } }；不要直接传 { \"status\": \"pending\" }，否则可能替换整条文档。更新嵌套字段时必须用点号路径，如 { \"$set\": { \"address.city\": \"shenzhen\" } }，不要写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } }（会替换整个 address 对象）。"
           },
           "isMulti": {
             "type": "boolean",
@@ -494,7 +499,7 @@
     },
     {
       "name": "manageSqlDatabase",
-      "description": "Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, write SQL/DDL execution, and schema initialization after the instance becomes ready.",
+      "description": "Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, write SQL/DDL execution, and schema initialization. IMPORTANT: MySQL must be provisioned first (action=provisionMySQL with confirm=true) before any runStatement or initializeSchema call. If MySQL is not yet provisioned, the tool will return MYSQL_NOT_CREATED with a nextAction to provision first.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1351,7 +1356,7 @@
     },
     {
       "name": "downloadTemplate",
-      "description": "自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️\n\n**CRITICAL**: This tool MUST be called FIRST when starting a new project.\n\n支持的模板:\n- react: React + CloudBase 全栈应用模板\n- vue: Vue + CloudBase 全栈应用模板\n- miniprogram: 微信小程序 + 云开发模板  \n- uniapp: UniApp + CloudBase 跨端应用模板\n- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置\n\n支持的IDE类型:\n- all: 下载所有IDE配置\n- cursor: Cursor AI编辑器\n- 其他IDE类型见下方列表\n\n注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数\n- windsurf: WindSurf AI编辑器\n- codebuddy: CodeBuddy AI编辑器\n- claude-code: Claude Code AI编辑器\n- cline: Cline AI编辑器\n- gemini-cli: Gemini CLI\n- opencode: OpenCode AI编辑器\n- qwen-code: 通义灵码\n- baidu-comate: 百度Comate\n- openai-codex-cli: OpenAI Codex CLI\n- augment-code: Augment Code\n- github-copilot: GitHub Copilot\n- roocode: RooCode AI编辑器\n- tongyi-lingma: 通义灵码\n- trae: Trae AI编辑器\n- qoder: Qoder AI编辑器\n- antigravity: Google Antigravity AI编辑器\n- vscode: Visual Studio Code\n- kiro: Kiro AI编辑器\n- aider: Aider AI编辑器\n\n特别说明：\n- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.15.4），便于后续维护和版本追踪\n- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）",
+      "description": "自动下载并部署CloudBase项目模板。⚠️ **MANDATORY FOR NEW PROJECTS** ⚠️\n\n**CRITICAL**: This tool MUST be called FIRST when starting a new project.\n\n支持的模板:\n- react: React + CloudBase 全栈应用模板\n- vue: Vue + CloudBase 全栈应用模板\n- miniprogram: 微信小程序 + 云开发模板  \n- uniapp: UniApp + CloudBase 跨端应用模板\n- rules: 只包含AI编辑器配置文件（包含Cursor、WindSurf、CodeBuddy等所有主流编辑器配置），适合在已有项目中补充AI编辑器配置\n\n支持的IDE类型:\n- all: 下载所有IDE配置\n- cursor: Cursor AI编辑器\n- 其他IDE类型见下方列表\n\n注意：如果未传入 ide 参数且无法从环境变量检测到 IDE，将提示错误并要求传入 ide 参数\n- windsurf: WindSurf AI编辑器\n- codebuddy: CodeBuddy AI编辑器\n- claude-code: Claude Code AI编辑器\n- cline: Cline AI编辑器\n- gemini-cli: Gemini CLI\n- opencode: OpenCode AI编辑器\n- qwen-code: 通义灵码\n- baidu-comate: 百度Comate\n- openai-codex-cli: OpenAI Codex CLI\n- augment-code: Augment Code\n- github-copilot: GitHub Copilot\n- roocode: RooCode AI编辑器\n- tongyi-lingma: 通义灵码\n- trae: Trae AI编辑器\n- qoder: Qoder AI编辑器\n- antigravity: Google Antigravity AI编辑器\n- vscode: Visual Studio Code\n- kiro: Kiro AI编辑器\n- aider: Aider AI编辑器\n\n特别说明：\n- rules 模板会自动包含当前 mcp 版本号信息（版本号：2.16.1-beta.1），便于后续维护和版本追踪\n- 下载 rules 模板时，如果项目中已存在 README.md 文件，系统会自动保护该文件不被覆盖（除非设置 overwrite=true）",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1427,7 +1432,7 @@
     },
     {
       "name": "searchKnowledgeBase",
-      "description": "云开发知识库智能检索工具，支持向量查询 (vector)、固定技能文档 (skill) 和 OpenAPI 文档 (openapi) 查询。\n\n      强烈推荐始终优先使用固定技能文档 (skill) 或 OpenAPI 文档 (openapi) 模式进行检索，仅当固定技能文档无法覆盖你的问题时，再使用向量查询 (vector) 模式。\n\n      固定技能文档 (skill) 查询当前支持 22 个固定文档，分别是：\n      文档名：ai-model-nodejs 文档介绍：Use this skill when developing Node.js backend services or CloudBase cloud functions (Express/Koa/NestJS, serverless, backend APIs) that need AI capabilities. Features text generation (generateText), streaming (streamText), AND image generation (generateImage) via @cloudbase/node-sdk ≥3.16.0. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended), DeepSeek (deepseek-v3.2 recommended), and hunyuan-image for images. This is the ONLY SDK that supports image generation. NOT for browser/Web apps (use ai-model-web) or WeChat Mini Program (use ai-model-wechat).\n文档名：ai-model-web 文档介绍：Use this skill when developing browser/Web applications (React/Vue/Angular, static websites, SPAs) that need AI capabilities. Features text generation (generateText) and streaming (streamText) via @cloudbase/js-sdk. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). NOT for Node.js backend (use ai-model-nodejs), WeChat Mini Program (use ai-model-wechat), or image generation (Node SDK only).\n文档名：ai-model-wechat 文档介绍：Use this skill when developing WeChat Mini Programs (小程序, 企业微信小程序, wx.cloud-based apps) that need AI capabilities. Features text generation (generateText) and streaming (streamText) with callback support (onText, onEvent, onFinish) via wx.cloud.extend.AI. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). API differs from JS/Node SDK - streamText requires data wrapper, generateText returns raw response. NOT for browser/Web apps (use ai-model-web), Node.js backend (use ai-model-nodejs), or image generation (not supported).\n文档名：auth-http-api 文档介绍：Use when you need to implement CloudBase Auth v2 over raw HTTP endpoints (login/signup, tokens, user operations) from backends or scripts that are not using the Web or Node SDKs.\n文档名：auth-nodejs 文档介绍：Complete guide for CloudBase Auth using the CloudBase Node SDK – caller identity, user lookup, custom login tickets, and server-side best practices.\n文档名：auth-tool 文档介绍：Use CloudBase Auth tool to configure and manage authentication providers for web applications - enable/disable login methods (SMS, Email, WeChat Open Platform, Google, Anonymous, Username/password, OAuth, SAML, CAS, Dingding, etc.) and configure provider settings via MCP tools `callCloudApi`.\n文档名：auth-web 文档介绍：CloudBase Web Authentication Quick Guide - Provides concise and practical Web frontend authentication solutions with multiple login methods and complete user management.\n文档名：auth-wechat 文档介绍：Complete guide for WeChat Mini Program authentication with CloudBase - native login, user identity, and cloud function integration.\n文档名：cloud-functions 文档介绍：Complete guide for CloudBase cloud functions development - runtime selection, deployment, logging, invocation, and HTTP access configuration.\n文档名：cloud-storage-web 文档介绍：Complete guide for CloudBase cloud storage using Web SDK (@cloudbase/js-sdk) - upload, download, temporary URLs, file management, and best practices.\n文档名：cloudbase-platform 文档介绍：CloudBase platform knowledge and best practices. Use this skill for general CloudBase platform understanding, including storage, hosting, authentication, cloud functions, database permissions, and data models.\n文档名：cloudrun-development 文档介绍：CloudBase Run backend development rules (Function mode/Container mode). Use this skill when deploying backend services that require long connections, multi-language support, custom environments, or AI agent development.\n文档名：data-model-creation 文档介绍：Optional advanced tool for complex data modeling. For simple table creation, use relational-database-tool directly with SQL statements.\n文档名：http-api 文档介绍：Use CloudBase HTTP API to access CloudBase platform features (database, authentication, cloud functions, cloud hosting, cloud storage, AI) via HTTP protocol from backends or scripts that are not using SDKs.\n文档名：miniprogram-development 文档介绍：WeChat Mini Program development rules. Use this skill when developing WeChat mini programs, integrating CloudBase capabilities, and deploying mini program projects.\n文档名：no-sql-web-sdk 文档介绍：Use CloudBase document database Web SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.\n文档名：no-sql-wx-mp-sdk 文档介绍：Use CloudBase document database WeChat MiniProgram SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.\n文档名：relational-database-tool 文档介绍：This is the required documentation for agents operating on the CloudBase Relational Database. It lists the only four supported tools for running SQL and managing security rules. Read the full content to understand why you must NOT use standard Application SDKs and how to safely execute INSERT, UPDATE, or DELETE operations without corrupting production data.\n文档名：relational-database-web 文档介绍：Use when building frontend Web apps that talk to CloudBase Relational Database via @cloudbase/js-sdk – provides the canonical init pattern so you can then use Supabase-style queries from the browser.\n文档名：spec-workflow 文档介绍：Standard software engineering workflow for requirement analysis, technical design, and task planning. Use this skill when developing new features, complex architecture designs, multi-module integrations, or projects involving database/UI design.\n文档名：ui-design 文档介绍：Professional UI design and frontend interface guidelines. Use this skill when creating web pages, mini-program interfaces, prototypes, or any frontend UI components that require distinctive, production-grade design with exceptional aesthetic quality.\n文档名：web-development 文档介绍：Web frontend project development rules. Use this skill when developing web frontend pages, deploying static hosting, and integrating CloudBase Web SDK.\n\n      OpenAPI 文档 (openapi) 查询当前支持 5 个 API 文档，分别是：\n      API名：mysqldb API介绍：MySQL RESTful API - 云开发 MySQL 数据库 HTTP API\nAPI名：functions API介绍：Cloud Functions API - 云函数 HTTP API\nAPI名：auth API介绍：Authentication API - 身份认证 HTTP API\nAPI名：cloudrun API介绍：CloudRun API - 云托管服务 HTTP API\nAPI名：storage API介绍：Storage API - 云存储 HTTP API",
+      "description": "云开发知识库智能检索工具，支持向量查询 (vector)、固定技能文档 (skill) 和 OpenAPI 文档 (openapi) 查询。\n\n      强烈推荐始终优先使用固定技能文档 (skill) 或 OpenAPI 文档 (openapi) 模式进行检索，仅当固定技能文档无法覆盖你的问题时，再使用向量查询 (vector) 模式。\n\n      固定技能文档 (skill) 查询当前支持 23 个固定文档，分别是：\n      文档名：ai-model-nodejs 文档介绍：Use this skill when developing Node.js backend services or CloudBase cloud functions (Express/Koa/NestJS, serverless, backend APIs) that need AI capabilities. Features text generation (generateText), streaming (streamText), AND image generation (generateImage) via @cloudbase/node-sdk ≥3.16.0. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended), DeepSeek (deepseek-v3.2 recommended), and hunyuan-image for images. This is the ONLY SDK that supports image generation. NOT for browser/Web apps (use ai-model-web) or WeChat Mini Program (use ai-model-wechat).\n文档名：ai-model-web 文档介绍：Use this skill when developing browser/Web applications (React/Vue/Angular, static websites, SPAs) that need AI capabilities. Features text generation (generateText) and streaming (streamText) via @cloudbase/js-sdk. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). NOT for Node.js backend (use ai-model-nodejs), WeChat Mini Program (use ai-model-wechat), or image generation (Node SDK only).\n文档名：ai-model-wechat 文档介绍：Use this skill when developing WeChat Mini Programs (小程序, 企业微信小程序, wx.cloud-based apps) that need AI capabilities. Features text generation (generateText) and streaming (streamText) with callback support (onText, onEvent, onFinish) via wx.cloud.extend.AI. Built-in models include Hunyuan (hunyuan-2.0-instruct-20251111 recommended) and DeepSeek (deepseek-v3.2 recommended). API differs from JS/Node SDK - streamText requires data wrapper, generateText returns raw response. NOT for browser/Web apps (use ai-model-web), Node.js backend (use ai-model-nodejs), or image generation (not supported).\n文档名：auth-http-api 文档介绍：Use when you need to implement CloudBase Auth v2 over raw HTTP endpoints (login/signup, tokens, user operations) from backends or scripts that are not using the Web or Node SDKs.\n文档名：auth-nodejs 文档介绍：Complete guide for CloudBase Auth using the CloudBase Node SDK – caller identity, user lookup, custom login tickets, and server-side best practices.\n文档名：auth-tool 文档介绍：Use CloudBase Auth tool to configure and manage authentication providers for web applications - enable/disable login methods (SMS, Email, WeChat Open Platform, Google, Anonymous, Username/password, OAuth, SAML, CAS, Dingding, etc.) and configure provider settings via MCP tools `callCloudApi`.\n文档名：auth-web 文档介绍：CloudBase Web Authentication Quick Guide - Provides concise and practical Web frontend authentication solutions with multiple login methods and complete user management.\n文档名：auth-wechat 文档介绍：Complete guide for WeChat Mini Program authentication with CloudBase - native login, user identity, and cloud function integration.\n文档名：cloud-functions 文档介绍：Complete guide for CloudBase cloud functions development - runtime selection, deployment, logging, invocation, and HTTP access configuration.\n文档名：cloud-storage-web 文档介绍：Complete guide for CloudBase cloud storage using Web SDK (@cloudbase/js-sdk) - upload, download, temporary URLs, file management, and best practices.\n文档名：cloudbase-agent-ts 文档介绍：\"Build and deploy AI agents with Cloudbase Agent (TypeScript), a TypeScript SDK implementing the AG-UI protocol. Use when: (1) deploying agent servers with @cloudbase/agent-server, (2) using LangGraph adapter with ClientStateAnnotation, (3) using LangChain adapter with clientTools(), (4) building custom adapters that implement AbstractAgent, (5) understanding AG-UI protocol events, (6) building web UI clients with @ag-ui/client, (7) building WeChat Mini Program UIs with @cloudbase/agent-ui-miniprogram.\"\n文档名：cloudbase-platform 文档介绍：CloudBase platform knowledge and best practices. Use this skill for general CloudBase platform understanding, including storage, hosting, authentication, cloud functions, database permissions, and data models.\n文档名：cloudrun-development 文档介绍：CloudBase Run backend development rules (Function mode/Container mode). Use this skill when deploying backend services that require long connections, multi-language support, custom environments, or AI agent development.\n文档名：data-model-creation 文档介绍：Optional advanced tool for complex data modeling. For simple table creation, use relational-database-tool directly with SQL statements.\n文档名：http-api 文档介绍：Use CloudBase HTTP API to access CloudBase platform features (database, authentication, cloud functions, cloud hosting, cloud storage, AI) via HTTP protocol from backends or scripts that are not using SDKs.\n文档名：miniprogram-development 文档介绍：WeChat Mini Program development rules. Use this skill when developing WeChat mini programs, integrating CloudBase capabilities, and deploying mini program projects.\n文档名：no-sql-web-sdk 文档介绍：Use CloudBase document database Web SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.\n文档名：no-sql-wx-mp-sdk 文档介绍：Use CloudBase document database WeChat MiniProgram SDK to query, create, update, and delete data. Supports complex queries, pagination, aggregation, and geolocation queries.\n文档名：relational-database-tool 文档介绍：This is the required documentation for agents operating on the CloudBase Relational Database. It lists the only four supported tools for running SQL and managing security rules. Read the full content to understand why you must NOT use standard Application SDKs and how to safely execute INSERT, UPDATE, or DELETE operations without corrupting production data.\n文档名：relational-database-web 文档介绍：Use when building frontend Web apps that talk to CloudBase Relational Database via @cloudbase/js-sdk – provides the canonical init pattern so you can then use Supabase-style queries from the browser.\n文档名：spec-workflow 文档介绍：Standard software engineering workflow for requirement analysis, technical design, and task planning. Use this skill when developing new features, complex architecture designs, multi-module integrations, or projects involving database/UI design.\n文档名：ui-design 文档介绍：Professional UI design and frontend interface guidelines. Use this skill when creating web pages, mini-program interfaces, prototypes, or any frontend UI components that require distinctive, production-grade design with exceptional aesthetic quality.\n文档名：web-development 文档介绍：Web frontend project development rules. Use this skill when developing web frontend pages, deploying static hosting, and integrating CloudBase Web SDK.\n\n      OpenAPI 文档 (openapi) 查询当前支持 5 个 API 文档，分别是：\n      API名：mysqldb API介绍：MySQL RESTful API - 云开发 MySQL 数据库 HTTP API\nAPI名：functions API介绍：Cloud Functions API - 云函数 HTTP API\nAPI名：auth API介绍：Authentication API - 身份认证 HTTP API\nAPI名：cloudrun API介绍：CloudRun API - 云托管服务 HTTP API\nAPI名：storage API介绍：Storage API - 云存储 HTTP API",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1452,6 +1457,7 @@
               "auth-wechat",
               "cloud-functions",
               "cloud-storage-web",
+              "cloudbase-agent-ts",
               "cloudbase-platform",
               "cloudrun-development",
               "data-model-creation",
@@ -1819,7 +1825,10 @@
             "type": "string",
             "enum": [
               "getAccess",
-              "listDomains"
+              "listDomains",
+              "listRoutes",
+              "getRoute",
+              "listCustomDomains"
             ],
             "description": "只读操作类型，例如 getAccess、listDomains"
           },
@@ -1833,6 +1842,10 @@
           "targetName": {
             "type": "string",
             "description": "目标资源名称。getAccess 时必填"
+          },
+          "routeId": {
+            "type": "string",
+            "description": "路由 ID。getRoute 时可选"
           }
         },
         "required": [
@@ -1851,7 +1864,14 @@
           "action": {
             "type": "string",
             "enum": [
-              "createAccess"
+              "createAccess",
+              "createRoute",
+              "updateRoute",
+              "deleteRoute",
+              "bindCustomDomain",
+              "deleteCustomDomain",
+              "deleteAccess",
+              "updatePathAuth"
             ],
             "description": "写操作类型，例如 createAccess"
           },
@@ -1876,17 +1896,402 @@
               "Event",
               "HTTP"
             ],
-            "description": "函数接入类型"
+            "description": "目标函数的本身类型（非接入形式）。如果被访问的函数是 Event 型（默认），此处必须传 Event；只有当被访问函数在创建时就是 HTTP 函数时才传 HTTP。"
           },
           "auth": {
             "type": "boolean",
             "description": "是否开启鉴权"
+          },
+          "route": {
+            "type": "object",
+            "properties": {
+              "routeId": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "serviceType": {
+                "type": "string"
+              },
+              "serviceName": {
+                "type": "string"
+              },
+              "auth": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "description": "HTTP 路由配置对象"
+          },
+          "domain": {
+            "type": "string",
+            "description": "自定义域名"
+          },
+          "certificateId": {
+            "type": "string",
+            "description": "证书 ID"
+          },
+          "accessName": {
+            "type": "string",
+            "description": "访问入口名称，保留字段"
           }
         },
         "required": [
-          "action",
-          "targetType",
-          "targetName"
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "queryAppAuth",
+      "description": "应用侧认证配置只读入口。用于查询登录方式、provider、publishable key、client 配置和静态域名等认证准备状态。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "getLoginConfig",
+              "listProviders",
+              "getProvider",
+              "getClientConfig",
+              "listApiKeyTokens",
+              "getStaticDomain"
+            ]
+          },
+          "providerId": {
+            "type": "string",
+            "description": "provider 标识，如 email、google"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "manageAppAuth",
+      "description": "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，创建 publishable key 和自定义登录密钥。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "updateLoginConfig",
+              "updateProvider",
+              "updateClientConfig",
+              "createApiKeyToken",
+              "createCustomLoginKeys"
+            ]
+          },
+          "loginConfig": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "updateLoginConfig 使用的登录配置对象"
+          },
+          "providerId": {
+            "type": "string",
+            "description": "provider 标识，如 email、google"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "provider / client / api key 的配置对象"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "queryPermissions",
+      "description": "权限域统一只读入口。支持查询资源权限、角色列表/详情、应用用户列表/详情。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "getResourcePermission",
+              "listResourcePermissions",
+              "listRoles",
+              "getRole",
+              "listUsers",
+              "getUser"
+            ]
+          },
+          "resourceType": {
+            "type": "string",
+            "enum": [
+              "noSqlDatabase",
+              "sqlDatabase",
+              "function",
+              "storage"
+            ]
+          },
+          "resourceId": {
+            "type": "string"
+          },
+          "resourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roleId": {
+            "type": "string"
+          },
+          "roleIdentity": {
+            "type": "string"
+          },
+          "roleName": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "pageNo": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "managePermissions",
+      "description": "权限域统一写入口。支持修改资源权限、角色管理、成员与策略增删、应用用户 CRUD。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "updateResourcePermission",
+              "createRole",
+              "updateRole",
+              "deleteRoles",
+              "addRoleMembers",
+              "removeRoleMembers",
+              "addRolePolicies",
+              "removeRolePolicies",
+              "createUser",
+              "updateUser",
+              "deleteUsers"
+            ]
+          },
+          "resourceType": {
+            "type": "string",
+            "enum": [
+              "noSqlDatabase",
+              "sqlDatabase",
+              "function",
+              "storage"
+            ]
+          },
+          "resourceId": {
+            "type": "string"
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "READONLY",
+              "PRIVATE",
+              "ADMINWRITE",
+              "ADMINONLY",
+              "CUSTOM"
+            ]
+          },
+          "securityRule": {
+            "type": "string"
+          },
+          "roleId": {
+            "type": "string"
+          },
+          "roleIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roleName": {
+            "type": "string"
+          },
+          "roleIdentity": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "memberUids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "uid": {
+            "type": "string"
+          },
+          "uids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "userStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "BLOCKED"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "queryLogs",
+      "description": "日志域统一只读入口。支持检查日志服务状态并搜索 CLS 日志。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "checkLogService",
+              "searchLogs"
+            ]
+          },
+          "queryString": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "tcb",
+              "tcbr"
+            ]
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "context": {
+            "type": "string"
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "queryAgents",
+      "description": "Agent 域统一只读入口。支持列表、详情与日志查询。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "listAgents",
+              "getAgent",
+              "getAgentLogs"
+            ]
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "pageNumber": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "manageAgents",
+      "description": "Agent 域统一写入口。支持创建、更新和删除远端 Agent。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "createAgent",
+              "updateAgent",
+              "deleteAgent"
+            ]
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "action"
         ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -1916,88 +2321,6 @@
       }
     },
     {
-      "name": "readSecurityRule",
-      "description": "读取指定资源（noSQL 数据库、SQL 数据库、云函数、存储桶）的安全规则和权限类别。\n\n安全规则文档：\n- 云函数安全规则：https://docs.cloudbase.net/cloud-function/security-rules\n- 存储安全规则：https://docs.cloudbase.net/storage/security-rules\n- 文档型数据库安全规则：https://docs.cloudbase.net/database/security-rules",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "resourceType": {
-            "type": "string",
-            "enum": [
-              "noSqlDatabase",
-              "sqlDatabase",
-              "function",
-              "storage"
-            ],
-            "description": "资源类型：noSqlDatabase=noSQL 数据库，sqlDatabase=SQL 数据库，function=云函数，storage=存储桶"
-          },
-          "resourceId": {
-            "type": "string",
-            "description": "资源唯一标识。noSQL 数据库为集合名，SQL 数据库为表名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。"
-          }
-        },
-        "required": [
-          "resourceType",
-          "resourceId"
-        ],
-        "additionalProperties": false,
-        "$schema": "http://json-schema.org/draft-07/schema#"
-      }
-    },
-    {
-      "name": "writeSecurityRule",
-      "description": "设置指定资源（数据库集合、云函数、存储桶）的安全规则。\n\n安全规则文档：\n- 云函数安全规则：https://docs.cloudbase.net/cloud-function/security-rules\n- 存储安全规则：https://docs.cloudbase.net/storage/security-rules\n- 数据库安全规则：https://docs.cloudbase.net/database/security-rules\n\n云函数安全规则仅支持 aclTag=\"CUSTOM\"，rule 字段为 JSON 字符串。例如放开所有访问可设置 rule=\"true\"。",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "resourceType": {
-            "type": "string",
-            "enum": [
-              "sqlDatabase",
-              "noSqlDatabase",
-              "function",
-              "storage"
-            ],
-            "description": "资源类型：sqlDatabase=SQL 数据库，noSqlDatabase=noSQL 数据库，function=云函数，storage=存储桶"
-          },
-          "resourceId": {
-            "type": "string",
-            "description": "资源唯一标识。sqlDatabase=表名，noSqlDatabase=集合名，云函数为函数名，存储为桶名（完整格式如 '6169-xxx-1257473911'，可通过 envQuery action=info 获取 EnvInfo.Storages[].Bucket）。"
-          },
-          "aclTag": {
-            "type": "string",
-            "enum": [
-              "READONLY",
-              "PRIVATE",
-              "ADMINWRITE",
-              "ADMINONLY",
-              "CUSTOM"
-            ],
-            "description": "权限类别"
-          },
-          "rule": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "object",
-                "additionalProperties": {}
-              }
-            ],
-            "description": "自定义安全规则内容，仅当 aclTag 为 CUSTOM 时必填。可以直接传 JSON 对象，或者传可解析为 JSON 对象的字符串。函数示例：{\n  \"*\": {\n    \"invoke\": true\n  }\n}"
-          }
-        },
-        "required": [
-          "resourceType",
-          "resourceId",
-          "aclTag"
-        ],
-        "additionalProperties": false,
-        "$schema": "http://json-schema.org/draft-07/schema#"
-      }
-    },
-    {
       "name": "activateInviteCode",
       "description": "云开发 AI编程激励计划，通过邀请码激活用户激励。",
       "inputSchema": {
@@ -2017,7 +2340,7 @@
     },
     {
       "name": "callCloudApi",
-      "description": "通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。如果你的目标是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请不要优先使用 callCloudApi，而应优先查看对应 OpenAPI / Swagger。现有 OpenAPI / Swagger 能力不是通用的管控面 Action 集合；管控面 API 请优先参考 CloudBase API 概览 https://cloud.tencent.com/document/product/876/34809 与云开发依赖资源接口指引 https://cloud.tencent.com/document/product/876/34808。对于 tcb，可参考类似 `CreateEnv`、`ModifyEnv`、`DestroyEnv` 这类真实 Action 组织请求；销毁环境时，常见做法是至少带上 `EnvId` 和 `BypassCheck: true`，如果环境已经处于隔离期再按文档补 `IsForce: true`。",
+      "description": "通用的云 API 调用工具，主要用于 CloudBase / 腾讯云管控面与依赖资源相关 API 调用。调用前请先确认 service、Action 与 Param，避免猜测 Action 名称。如果你的目标是通过 HTTP 协议直接集成 auth/functions/cloudrun/storage/mysqldb 等 CloudBase 业务 API，请不要优先使用 callCloudApi，而应优先查看对应 OpenAPI / Swagger。现有 OpenAPI / Swagger 能力不是通用的管控面 Action 集合；管控面 API 请优先参考 CloudBase API 概览 https://cloud.tencent.com/document/product/876/34809 与云开发依赖资源接口指引 https://cloud.tencent.com/document/product/876/34808。对于 tcb service，常用 Action 分类如下：\n\n**环境管理**: `CreateEnv`、`ModifyEnv`、`DescribeEnvs`、`DestroyEnv`\n**用户管理**: `CreateUser`、`ModifyUser`、`DescribeUserList`、`DeleteUsers`\n**认证配置**: `EditAuthConfig`、`DescribeAuthDomains`\n**云函数**: `DescribeFunctions`、`CreateFunction`、`UpdateFunctionCode`、`DeleteFunction`\n**数据库**: `CreateMySQLInstance`、`DescribeMySQLInstances`、`DestroyMySQLInstance`\n\n销毁环境时，常见做法是至少带上 `EnvId` 和 `BypassCheck: true`，如果环境已经处于隔离期再按文档补 `IsForce: true`。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2037,7 +2360,7 @@
           "action": {
             "type": "string",
             "minLength": 1,
-            "description": "具体 Action 名称，需符合对应服务的官方 API 定义。若不确定正确 Action，请先查官方文档；不要用近义词或历史命名进行猜测。对于 tcb，可优先参考 `CreateEnv`、`ModifyEnv`、`DestroyEnv`、`DescribeBillingInfo` 等真实 Action。"
+            "description": "具体 Action 名称，需符合对应服务的官方 API 定义。若不确定正确 Action，请先查官方文档；不要用近义词或历史命名进行猜测。tcb 常用 Action：环境管理 CreateEnv/ModifyEnv/DescribeEnvs/DestroyEnv、用户管理 CreateUser/ModifyUser/DescribeUserList/DeleteUsers、认证配置 EditAuthConfig、云函数 DescribeFunctions/CreateFunction、数据库 CreateMySQLInstance 等。"
           },
           "params": {
             "type": "object",
