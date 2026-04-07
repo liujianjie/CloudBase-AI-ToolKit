@@ -152,9 +152,14 @@ Use this skill for **CloudBase platform knowledge** when you need to:
    ```
    Create collection → Configure security rules → Write code → Test
    ```
-   - Use `writeSecurityRule` MCP tool to configure permissions
+   - Use `managePermissions(action="updateResourcePermission")` to configure resource permissions
    - Wait 2-5 minutes for cache to clear before testing
    - See `no-sql-web-sdk/security-rules.md` for detailed examples
+
+Compatibility note:
+- Canonical plugin name: `permissions`
+- Legacy plugin aliases `security-rule`, `security-rules`, `secret-rule`, `secret-rules`, and `access-control` still resolve to the `permissions` plugin
+- Legacy tools `readSecurityRule` / `writeSecurityRule` are removed; prefer `queryPermissions` / `managePermissions`
 
 4. **Common Scenarios**:
    - **E-commerce products**: `READONLY` (admin manages via cloud functions)
