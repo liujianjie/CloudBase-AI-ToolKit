@@ -208,7 +208,8 @@ export function registerDatabaseTools(server: ExtendedMcpServer) {
     "readNoSqlDatabaseStructure",
     {
       title: "读取 NoSQL 数据库结构",
-      description: "读取 NoSQL 数据库结构",
+      description:
+        "读取 NoSQL 数据库集合与索引结构，支持列出集合、查看集合详情、列出索引以及检查索引是否存在。",
       inputSchema: {
         action: z.enum([
           "listCollections",
@@ -217,10 +218,10 @@ export function registerDatabaseTools(server: ExtendedMcpServer) {
           "listIndexes",
           "checkIndex",
         ]).describe(`listCollections: 列出集合列表
-describeCollection: 描述集合
+describeCollection: 描述集合详情（会返回索引摘要）
 checkCollection: 检查集合是否存在
-listIndexes: 列出索引列表
-checkIndex: 检查索引是否存在`),
+listIndexes: 列出指定集合的索引列表
+checkIndex: 检查指定索引是否存在`),
         limit: z
           .number()
           .optional()
@@ -395,14 +396,15 @@ checkIndex: 检查索引是否存在`),
     "writeNoSqlDatabaseStructure",
     {
       title: "修改 NoSQL 数据库结构",
-      description: "修改 NoSQL 数据库结构",
+      description:
+        "修改 NoSQL 数据库结构，支持创建/删除集合，以及通过 updateCollection 的 updateOptions.CreateIndexes / updateOptions.DropIndexes 添加索引和删除索引。",
       inputSchema: {
         action: z.enum([
           "createCollection",
           "updateCollection",
           "deleteCollection",
         ]).describe(`createCollection: 创建集合
-updateCollection: 更新集合
+updateCollection: 更新集合配置；添加索引请传 updateOptions.CreateIndexes，删除索引请传 updateOptions.DropIndexes
 deleteCollection: 删除集合`),
         collectionName: z.string().describe("集合名称"),
         updateOptions: z
@@ -410,29 +412,35 @@ deleteCollection: 删除集合`),
             CreateIndexes: z
               .array(
                 z.object({
-                  IndexName: z.string(),
+                  IndexName: z.string().describe("要创建的索引名称"),
                   MgoKeySchema: z.object({
-                    MgoIsUnique: z.boolean(),
+                    MgoIsUnique: z.boolean().describe("是否唯一索引"),
                     MgoIndexKeys: z.array(
                       z.object({
-                        Name: z.string(),
-                        Direction: z.string(),
+                        Name: z.string().describe("索引字段名"),
+                        Direction: z
+                          .string()
+                          .describe("索引方向，通常 1 表示升序，-1 表示降序"),
                       }),
-                    ),
-                  }),
+                    ).describe("索引字段列表，支持单字段或复合索引"),
+                  }).describe("待创建索引的字段与约束配置"),
                 }),
               )
-              .optional(),
+              .optional()
+              .describe("要添加的索引列表"),
             DropIndexes: z
               .array(
                 z.object({
-                  IndexName: z.string(),
+                  IndexName: z.string().describe("要删除的索引名称"),
                 }),
               )
-              .optional(),
+              .optional()
+              .describe("要删除的索引列表"),
           })
           .optional()
-          .describe("更新选项(updateCollection 时使用)"),
+          .describe(
+            "更新选项(updateCollection 时使用)。CreateIndexes 用于添加索引，DropIndexes 用于删除索引。",
+          ),
       },
       annotations: {
         readOnlyHint: false,

@@ -148,7 +148,7 @@
     },
     {
       "name": "readNoSqlDatabaseStructure",
-      "description": "读取 NoSQL 数据库结构",
+      "description": "读取 NoSQL 数据库集合与索引结构，支持列出集合、查看集合详情、列出索引以及检查索引是否存在。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -161,7 +161,7 @@
               "listIndexes",
               "checkIndex"
             ],
-            "description": "listCollections: 列出集合列表\ndescribeCollection: 描述集合\ncheckCollection: 检查集合是否存在\nlistIndexes: 列出索引列表\ncheckIndex: 检查索引是否存在"
+            "description": "listCollections: 列出集合列表\ndescribeCollection: 描述集合详情（会返回索引摘要）\ncheckCollection: 检查集合是否存在\nlistIndexes: 列出指定集合的索引列表\ncheckIndex: 检查指定索引是否存在"
           },
           "limit": {
             "type": "number",
@@ -189,7 +189,7 @@
     },
     {
       "name": "writeNoSqlDatabaseStructure",
-      "description": "修改 NoSQL 数据库结构",
+      "description": "修改 NoSQL 数据库结构，支持创建/删除集合，以及通过 updateCollection 的 updateOptions.CreateIndexes / updateOptions.DropIndexes 添加索引和删除索引。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -200,7 +200,7 @@
               "updateCollection",
               "deleteCollection"
             ],
-            "description": "createCollection: 创建集合\nupdateCollection: 更新集合\ndeleteCollection: 删除集合"
+            "description": "createCollection: 创建集合\nupdateCollection: 更新集合配置；添加索引请传 updateOptions.CreateIndexes，删除索引请传 updateOptions.DropIndexes\ndeleteCollection: 删除集合"
           },
           "collectionName": {
             "type": "string",
@@ -215,13 +215,15 @@
                   "type": "object",
                   "properties": {
                     "IndexName": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "要创建的索引名称"
                     },
                     "MgoKeySchema": {
                       "type": "object",
                       "properties": {
                         "MgoIsUnique": {
-                          "type": "boolean"
+                          "type": "boolean",
+                          "description": "是否唯一索引"
                         },
                         "MgoIndexKeys": {
                           "type": "array",
@@ -229,10 +231,12 @@
                             "type": "object",
                             "properties": {
                               "Name": {
-                                "type": "string"
+                                "type": "string",
+                                "description": "索引字段名"
                               },
                               "Direction": {
-                                "type": "string"
+                                "type": "string",
+                                "description": "索引方向，通常 1 表示升序，-1 表示降序"
                               }
                             },
                             "required": [
@@ -240,14 +244,16 @@
                               "Direction"
                             ],
                             "additionalProperties": false
-                          }
+                          },
+                          "description": "索引字段列表，支持单字段或复合索引"
                         }
                       },
                       "required": [
                         "MgoIsUnique",
                         "MgoIndexKeys"
                       ],
-                      "additionalProperties": false
+                      "additionalProperties": false,
+                      "description": "待创建索引的字段与约束配置"
                     }
                   },
                   "required": [
@@ -255,7 +261,8 @@
                     "MgoKeySchema"
                   ],
                   "additionalProperties": false
-                }
+                },
+                "description": "要添加的索引列表"
               },
               "DropIndexes": {
                 "type": "array",
@@ -263,18 +270,20 @@
                   "type": "object",
                   "properties": {
                     "IndexName": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "要删除的索引名称"
                     }
                   },
                   "required": [
                     "IndexName"
                   ],
                   "additionalProperties": false
-                }
+                },
+                "description": "要删除的索引列表"
               }
             },
             "additionalProperties": false,
-            "description": "更新选项(updateCollection 时使用)"
+            "description": "更新选项(updateCollection 时使用)。CreateIndexes 用于添加索引，DropIndexes 用于删除索引。"
           }
         },
         "required": [
