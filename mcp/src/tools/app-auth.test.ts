@@ -69,7 +69,7 @@ describe("app auth tools", () => {
     });
     mockCreateCustomLoginKeys.mockResolvedValue({
       PrivateKey: "private-key",
-      PublicKey: "public-key",
+      KeyID: "custom-login-key-id",
       RequestId: "req-auth-keys",
     });
     mockGetCloudBaseManager.mockResolvedValue({
@@ -85,6 +85,28 @@ describe("app auth tools", () => {
     ({ tools } = createMockServer());
   });
 
+  it("appAuth should expose the compact action surface", () => {
+    const queryActions = tools.queryAppAuth.meta.inputSchema.action.options;
+    const manageActions = tools.manageAppAuth.meta.inputSchema.action.options;
+
+    expect(queryActions).toEqual([
+      "getLoginConfig",
+      "listProviders",
+      "getProvider",
+      "getClientConfig",
+      "getPublishableKey",
+      "getStaticDomain",
+    ]);
+    expect(manageActions).toEqual([
+      "patchLoginStrategy",
+      "updateProvider",
+      "updateClientConfig",
+      "ensurePublishableKey",
+      "createCustomLoginKeys",
+    ]);
+    expect(tools.manageAppAuth.meta.inputSchema.loginConfig).toBeUndefined();
+  });
+
   it("queryAppAuth(action=getLoginConfig) should use manager sdk helper", async () => {
     const result = await tools.queryAppAuth.handler({ action: "getLoginConfig" });
     const payload = JSON.parse(result.content[0].text);
@@ -96,29 +118,43 @@ describe("app auth tools", () => {
     });
     expect(payload).toMatchObject({
       success: true,
-      data: {
-        action: "getLoginConfig",
-        envId: "env-test",
-        loginConfig: {
-          AnonymousLogin: true,
-          UserNameLogin: true,
-          EmailLogin: true,
-        },
+      envId: "env-test",
+      loginMethods: {
+        usernamePassword: true,
+        email: true,
+        anonymous: true,
+        phone: false,
       },
     });
   });
 
-  it("manageAppAuth(action=updateLoginConfig) should use manager sdk helper", async () => {
-    const result = await tools.manageAppAuth.handler({
-      action: "updateLoginConfig",
-      loginConfig: {
+  it("manageAppAuth(action=patchLoginStrategy) should use manager sdk helper", async () => {
+    mockGetLoginConfigListV2
+      .mockResolvedValueOnce({
+        AnonymousLogin: true,
+        UserNameLogin: true,
+        PhoneNumberLogin: false,
+        EmailLogin: true,
+        SmsVerificationConfig: { Type: "default" },
+      })
+      .mockResolvedValueOnce({
         AnonymousLogin: false,
         UserNameLogin: true,
+        PhoneNumberLogin: false,
+        EmailLogin: true,
+        SmsVerificationConfig: { Type: "default" },
+      });
+
+    const result = await tools.manageAppAuth.handler({
+      action: "patchLoginStrategy",
+      patch: {
+        usernamePassword: true,
+        anonymous: false,
       },
     });
     const payload = JSON.parse(result.content[0].text);
 
-    expect(mockGetLoginConfigListV2).toHaveBeenCalled();
+    expect(mockGetLoginConfigListV2).toHaveBeenCalledTimes(2);
     expect(mockUpdateLoginConfigV2).toHaveBeenCalledWith({
       EnvId: "env-test",
       PhoneNumberLogin: false,
@@ -127,27 +163,30 @@ describe("app auth tools", () => {
       UserNameLogin: true,
       SmsVerificationConfig: { Type: "default" },
     });
-    expect(mockTcbCall).not.toHaveBeenCalledWith({
-      Action: "ModifyLoginConfig",
-      Param: {
-        EnvId: "env-test",
-        AnonymousLogin: false,
-        UserNameLogin: true,
-      },
-    });
     expect(payload).toMatchObject({
       success: true,
-      data: {
-        action: "updateLoginConfig",
-        envId: "env-test",
-        appliedLoginConfig: {
-          EnvId: "env-test",
-          PhoneNumberLogin: false,
-          EmailLogin: true,
-          AnonymousLogin: false,
-          UserNameLogin: true,
-        },
+      envId: "env-test",
+      loginMethods: {
+        usernamePassword: true,
+        email: true,
+        anonymous: false,
+        phone: false,
       },
+    });
+  });
+
+  it("queryAppAuth should return a short error when no active environment is selected", async () => {
+    mockGetEnvId.mockRejectedValueOnce({
+      name: "ToolPayloadError",
+      payload: { code: "ENV_REQUIRED", message: "请选择环境" },
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getLoginConfig" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toEqual({
+      success: false,
+      error: "no active environment selected",
     });
   });
 
@@ -175,11 +214,254 @@ describe("app auth tools", () => {
     });
     expect(payload).toMatchObject({
       success: true,
-      data: {
-        action: "updateProvider",
-        envId: "env-test",
-        providerId: "email",
+      envId: "env-test",
+      providerId: "email",
+    });
+  });
+
+  it("queryAppAuth(action=getClientConfig) should call DescribeClient with EnvId and default Id", async () => {
+    mockTcbCall.mockResolvedValue({
+      RequestId: "req-client",
+      Id: "env-test",
+      AccessTokenExpiresIn: 7200,
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getClientConfig" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenCalledWith({
+      Action: "DescribeClient",
+      Param: {
+        EnvId: "env-test",
+        Id: "env-test",
       },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      clientId: "env-test",
+      clientConfig: {
+        Id: "env-test",
+        AccessTokenExpiresIn: 7200,
+      },
+    });
+  });
+
+  it("queryAppAuth(action=getClientConfig) should pass clientId as DescribeClient Id", async () => {
+    mockTcbCall.mockResolvedValue({ RequestId: "req-client-2" });
+
+    await tools.queryAppAuth.handler({
+      action: "getClientConfig",
+      clientId: "custom-client-id",
+    });
+
+    expect(mockTcbCall).toHaveBeenCalledWith({
+      Action: "DescribeClient",
+      Param: {
+        EnvId: "env-test",
+        Id: "custom-client-id",
+      },
+    });
+  });
+
+  it("manageAppAuth(action=updateClientConfig) should default clientId to envId and return confirmed config", async () => {
+    mockTcbCall
+      .mockResolvedValueOnce({ RequestId: "req-update-client" })
+      .mockResolvedValueOnce({
+        RequestId: "req-describe-client",
+        Id: "env-test",
+        AccessTokenExpiresIn: 3600,
+        RefreshTokenExpiresIn: 2592000,
+        MaxDevice: 2,
+      });
+
+    const result = await tools.manageAppAuth.handler({
+      action: "updateClientConfig",
+      config: {
+        AccessTokenExpiresIn: 3600,
+        MaxDevice: 2,
+      },
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenNthCalledWith(1, {
+      Action: "ModifyClient",
+      Param: {
+        EnvId: "env-test",
+        Id: "env-test",
+        AccessTokenExpiresIn: 3600,
+        MaxDevice: 2,
+      },
+    });
+    expect(mockTcbCall).toHaveBeenNthCalledWith(2, {
+      Action: "DescribeClient",
+      Param: {
+        EnvId: "env-test",
+        Id: "env-test",
+      },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      clientId: "env-test",
+      clientConfig: {
+        AccessTokenExpiresIn: 3600,
+        RefreshTokenExpiresIn: 2592000,
+        MaxDevice: 2,
+      },
+    });
+  });
+
+  it("queryAppAuth(action=getStaticDomain) should call DescribeStaticStore", async () => {
+    mockTcbCall.mockResolvedValue({
+      RequestId: "req-static",
+      Data: [
+        {
+          EnvId: "env-test",
+          CdnDomain: "env-test.cdn.tcloudbaseapp.com",
+          Status: "online",
+        },
+      ],
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getStaticDomain" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenCalledWith({
+      Action: "DescribeStaticStore",
+      Param: { EnvId: "env-test" },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      cdnDomain: "env-test.cdn.tcloudbaseapp.com",
+      staticDomain: "env-test.cdn.tcloudbaseapp.com",
+      staticStores: [
+        expect.objectContaining({ CdnDomain: "env-test.cdn.tcloudbaseapp.com" }),
+      ],
+    });
+  });
+
+  it("queryAppAuth(action=getPublishableKey) should force publish_key lookup and return a short payload", async () => {
+    mockTcbCall.mockResolvedValue({
+      RequestId: "req-api-key-list",
+      ApiKeyList: [
+        {
+          Name: "publish_key",
+          KeyId: "publish-key-id",
+          ApiKey: "publish-key-token",
+          ExpireAt: "2099-03-16T15:48:48+08:00",
+          CreateAt: "2026-03-16T15:48:48+08:00",
+        },
+      ],
+      Total: 1,
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getPublishableKey" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenCalledWith({
+      Action: "DescribeApiKeyList",
+      Param: {
+        EnvId: "env-test",
+        KeyType: "publish_key",
+        PageNumber: 1,
+        PageSize: 10,
+      },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      publishableKey: "publish-key-token",
+      keyId: "publish-key-id",
+      keyName: "publish_key",
+      expireAt: "2099-03-16T15:48:48+08:00",
+      createdAt: "2026-03-16T15:48:48+08:00",
+    });
+  });
+
+  it("manageAppAuth(action=ensurePublishableKey) should reuse an existing publish_key", async () => {
+    mockTcbCall.mockResolvedValueOnce({
+      RequestId: "req-api-key-list",
+      ApiKeyList: [
+        {
+          Name: "publish_key",
+          KeyId: "publish-key-id",
+          ApiKey: "publish-key-token",
+        },
+      ],
+      Total: 1,
+    });
+
+    const result = await tools.manageAppAuth.handler({
+      action: "ensurePublishableKey",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenCalledTimes(1);
+    expect(mockTcbCall).toHaveBeenCalledWith({
+      Action: "DescribeApiKeyList",
+      Param: {
+        EnvId: "env-test",
+        KeyType: "publish_key",
+        PageNumber: 1,
+        PageSize: 10,
+      },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      publishableKey: "publish-key-token",
+      keyId: "publish-key-id",
+      keyName: "publish_key",
+      created: false,
+    });
+  });
+
+  it("manageAppAuth(action=ensurePublishableKey) should create publish_key when missing", async () => {
+    mockTcbCall
+      .mockResolvedValueOnce({
+        RequestId: "req-api-key-list",
+        ApiKeyList: [],
+        Total: 0,
+      })
+      .mockResolvedValueOnce({
+        RequestId: "req-create-api-key",
+        Name: "publish_key",
+        KeyId: "publish-key-id",
+        ApiKey: "publish-key-token",
+        ExpireAt: "2099-03-16T15:48:48+08:00",
+        CreateAt: "2026-03-16T15:48:48+08:00",
+      });
+
+    const result = await tools.manageAppAuth.handler({
+      action: "ensurePublishableKey",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenNthCalledWith(1, {
+      Action: "DescribeApiKeyList",
+      Param: {
+        EnvId: "env-test",
+        KeyType: "publish_key",
+        PageNumber: 1,
+        PageSize: 10,
+      },
+    });
+    expect(mockTcbCall).toHaveBeenNthCalledWith(2, {
+      Action: "CreateApiKey",
+      Param: {
+        EnvId: "env-test",
+        KeyType: "publish_key",
+      },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      publishableKey: "publish-key-token",
+      keyId: "publish-key-id",
+      keyName: "publish_key",
+      created: true,
     });
   });
 
@@ -192,10 +474,9 @@ describe("app auth tools", () => {
     expect(mockCreateCustomLoginKeys).toHaveBeenCalled();
     expect(payload).toMatchObject({
       success: true,
-      data: {
-        action: "createCustomLoginKeys",
-        envId: "env-test",
-      },
+      envId: "env-test",
+      privateKey: "private-key",
+      keyId: "custom-login-key-id",
     });
   });
 });
