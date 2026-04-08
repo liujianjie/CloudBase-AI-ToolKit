@@ -48,6 +48,14 @@ function buildShortError(error: string) {
   };
 }
 
+function buildShortErrorWithCode(error: string, code: string) {
+  return {
+    success: false,
+    error,
+    code,
+  };
+}
+
 function normalizePlainObject(
   value: unknown,
   label: string,
@@ -208,11 +216,32 @@ async function getActiveEnvId(cloudBaseOptions?: Record<string, unknown>) {
       isToolPayloadError(error)
         ? error.payload
         : normalizePlainObject((error as any)?.payload, "error.payload");
-    if (payload?.code === "ENV_REQUIRED" || payload?.code === "AUTH_REQUIRED") {
-      throw new Error("no active environment selected");
+    if (payload?.code === "ENV_REQUIRED") {
+      const nextError = new Error("no active environment selected");
+      (nextError as Error & { code?: string }).code = "ENV_REQUIRED";
+      throw nextError;
+    }
+    if (payload?.code === "AUTH_REQUIRED") {
+      const nextError = new Error("authentication required");
+      (nextError as Error & { code?: string }).code = "AUTH_REQUIRED";
+      throw nextError;
     }
     throw error;
   }
+}
+
+function isResourceInUseError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown; name?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const name = typeof candidate.name === "string" ? candidate.name : "";
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  const haystack = `${code} ${name} ${message}`;
+
+  return /ResourceInUse/i.test(haystack);
 }
 
 export function registerAppAuthTools(server: ExtendedMcpServer) {
@@ -223,7 +252,11 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     try {
       return jsonContent(await handler());
     } catch (error) {
-      if (error instanceof Error && error.message === "no active environment selected") {
+      if (error instanceof Error && (error.message === "no active environment selected" || error.message === "authentication required")) {
+        const code = (error as Error & { code?: string }).code;
+        if (code) {
+          return jsonContent(buildShortErrorWithCode(error.message, code));
+        }
         return jsonContent(buildShortError(error.message));
       }
       return jsonContent(buildErrorEnvelope(error));
@@ -482,10 +515,23 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               return buildPublishableKeyResponse(envId, existing.record, { created: false });
             }
 
-            const created = await callControlPlaneAction("CreateApiKey", {
-              EnvId: envId,
-              KeyType: "publish_key",
-            });
+            let created: unknown;
+            try {
+              created = await callControlPlaneAction("CreateApiKey", {
+                EnvId: envId,
+                KeyType: "publish_key",
+              });
+            } catch (error) {
+              if (!isResourceInUseError(error)) {
+                throw error;
+              }
+
+              const reread = await describePublishableKey(envId);
+              if (!reread.record) {
+                throw error;
+              }
+              return buildPublishableKeyResponse(envId, reread.record, { created: false });
+            }
 
             return buildPublishableKeyResponse(envId, normalizePlainObject(created, "createdApiKey") ?? null, {
               created: true,

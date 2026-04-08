@@ -200,6 +200,23 @@ describe("app auth tools", () => {
     expect(payload).toEqual({
       success: false,
       error: "no active environment selected",
+      code: "ENV_REQUIRED",
+    });
+  });
+
+  it("queryAppAuth should keep auth-required errors distinct from env-required errors", async () => {
+    mockGetEnvId.mockRejectedValueOnce({
+      name: "ToolPayloadError",
+      payload: { code: "AUTH_REQUIRED", message: "请先登录" },
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getLoginConfig" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toEqual({
+      success: false,
+      error: "authentication required",
+      code: "AUTH_REQUIRED",
     });
   });
 
@@ -481,6 +498,66 @@ describe("app auth tools", () => {
       keyId: "publish-key-id",
       keyName: "publish_key",
       created: true,
+    });
+  });
+
+  it("manageAppAuth(action=ensurePublishableKey) should re-read publish_key after ResourceInUse race", async () => {
+    mockTcbCall
+      .mockResolvedValueOnce({
+        RequestId: "req-api-key-list-empty",
+        ApiKeyList: [],
+        Total: 0,
+      })
+      .mockRejectedValueOnce(new Error("[CreateApiKey] ResourceInUse"))
+      .mockResolvedValueOnce({
+        RequestId: "req-api-key-list-after-race",
+        ApiKeyList: [
+          {
+            Name: "publish_key",
+            KeyId: "publish-key-id",
+            ApiKey: "publish-key-token",
+          },
+        ],
+        Total: 1,
+      });
+
+    const result = await tools.manageAppAuth.handler({
+      action: "ensurePublishableKey",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenNthCalledWith(1, {
+      Action: "DescribeApiKeyList",
+      Param: {
+        EnvId: "env-test",
+        KeyType: "publish_key",
+        PageNumber: 1,
+        PageSize: 10,
+      },
+    });
+    expect(mockTcbCall).toHaveBeenNthCalledWith(2, {
+      Action: "CreateApiKey",
+      Param: {
+        EnvId: "env-test",
+        KeyType: "publish_key",
+      },
+    });
+    expect(mockTcbCall).toHaveBeenNthCalledWith(3, {
+      Action: "DescribeApiKeyList",
+      Param: {
+        EnvId: "env-test",
+        KeyType: "publish_key",
+        PageNumber: 1,
+        PageSize: 10,
+      },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      publishableKey: "publish-key-token",
+      keyId: "publish-key-id",
+      keyName: "publish_key",
+      created: false,
     });
   });
 
