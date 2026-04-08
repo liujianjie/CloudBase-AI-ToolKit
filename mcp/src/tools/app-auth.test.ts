@@ -45,6 +45,15 @@ function createMockServer() {
 describe("app auth tools", () => {
   let tools: ReturnType<typeof createMockServer>["tools"];
 
+  const expectedSdkHints = {
+    phoneOtp: "auth.signInWithOtp({ phone })",
+    emailOtp: "auth.signInWithOtp({ email })",
+    password: "auth.signInWithPassword({ username|email|phone, password })",
+    signup: "auth.signUp({ phone|email, ... })",
+    verifyOtp: "verifyOtp({ token })",
+    anonymous: "auth.signInAnonymously()",
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetEnvId.mockResolvedValue("env-test");
@@ -119,6 +128,8 @@ describe("app auth tools", () => {
     expect(payload).toMatchObject({
       success: true,
       envId: "env-test",
+      sdkStyle: "supabase-like",
+      sdkHints: expectedSdkHints,
       loginMethods: {
         usernamePassword: true,
         email: true,
@@ -166,6 +177,8 @@ describe("app auth tools", () => {
     expect(payload).toMatchObject({
       success: true,
       envId: "env-test",
+      sdkStyle: "supabase-like",
+      sdkHints: expectedSdkHints,
       loginMethods: {
         usernamePassword: true,
         email: true,
@@ -372,6 +385,8 @@ describe("app auth tools", () => {
     expect(payload).toMatchObject({
       success: true,
       envId: "env-test",
+      sdkStyle: "supabase-like",
+      sdkHints: expectedSdkHints,
       publishableKey: "publish-key-token",
       keyId: "publish-key-id",
       keyName: "publish_key",
@@ -411,6 +426,8 @@ describe("app auth tools", () => {
     expect(payload).toMatchObject({
       success: true,
       envId: "env-test",
+      sdkStyle: "supabase-like",
+      sdkHints: expectedSdkHints,
       publishableKey: "publish-key-token",
       keyId: "publish-key-id",
       keyName: "publish_key",
@@ -458,6 +475,8 @@ describe("app auth tools", () => {
     expect(payload).toMatchObject({
       success: true,
       envId: "env-test",
+      sdkStyle: "supabase-like",
+      sdkHints: expectedSdkHints,
       publishableKey: "publish-key-token",
       keyId: "publish-key-id",
       keyName: "publish_key",

@@ -24,6 +24,15 @@ const MANAGE_APP_AUTH_ACTIONS = [
 type QueryAppAuthAction = (typeof QUERY_APP_AUTH_ACTIONS)[number];
 type ManageAppAuthAction = (typeof MANAGE_APP_AUTH_ACTIONS)[number];
 
+const SUPABASE_LIKE_SDK_HINTS = {
+  phoneOtp: "auth.signInWithOtp({ phone })",
+  emailOtp: "auth.signInWithOtp({ email })",
+  password: "auth.signInWithPassword({ username|email|phone, password })",
+  signup: "auth.signUp({ phone|email, ... })",
+  verifyOtp: "verifyOtp({ token })",
+  anonymous: "auth.signInAnonymously()",
+} as const;
+
 function buildErrorEnvelope(error: unknown) {
   return {
     success: false,
@@ -151,6 +160,8 @@ function buildPublishableKeyResponse(
   return {
     success: true,
     envId,
+    sdkStyle: "supabase-like",
+    sdkHints: SUPABASE_LIKE_SDK_HINTS,
     publishableKey:
       typeof record?.ApiKey === "string" ? record.ApiKey : null,
     keyId: typeof record?.KeyId === "string" ? record.KeyId : null,
@@ -165,6 +176,14 @@ function buildPublishableKeyResponse(
     expireAt: typeof record?.ExpireAt === "string" ? record.ExpireAt : null,
     createdAt: typeof record?.CreateAt === "string" ? record.CreateAt : null,
     ...(typeof options?.created === "boolean" ? { created: options.created } : {}),
+  };
+}
+
+function buildSupabaseLikeAuthResponse(payload: Record<string, unknown>) {
+  return {
+    ...payload,
+    sdkStyle: "supabase-like",
+    sdkHints: SUPABASE_LIKE_SDK_HINTS,
   };
 }
 
@@ -276,11 +295,11 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
           case "getLoginConfig": {
             const result = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, result);
-            return {
+            return buildSupabaseLikeAuthResponse({
               success: true,
               envId,
               loginMethods: buildLoginMethods(result),
-            };
+            });
           }
           case "listProviders": {
             const result = await callControlPlaneAction("GetProviders", {
@@ -411,11 +430,11 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             const confirmed = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, confirmed);
 
-            return {
+            return buildSupabaseLikeAuthResponse({
               success: true,
               envId,
               loginMethods: buildLoginMethods(confirmed),
-            };
+            });
           }
           case "updateProvider": {
             const normalized = omitKeys(normalizePlainObject(config, "config"), ["EnvId", "Id"]);

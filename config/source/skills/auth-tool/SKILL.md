@@ -116,9 +116,10 @@ The underlying login strategy contains fields such as:
 
 Parameter mapping for downstream Web auth code:
 
+- `queryAppAuth(action="getLoginConfig")` and `manageAppAuth(action="patchLoginStrategy")` return `sdkStyle: "supabase-like"` plus `sdkHints`; treat that as the preferred frontend-auth calling guide
 - `PhoneNumberLogin` controls phone OTP flows used by `auth-web` `auth.signInWithOtp({ phone })` and `auth.signUp({ phone })`
 - `EmailLogin` controls email OTP flows used by `auth-web` `auth.signInWithOtp({ email })` and `auth.signUp({ email })`
-- `UserNameLogin` controls password login flows used by `auth-web` `auth.signInWithPassword({ username, password })`
+- `UserNameLogin` controls password login flows used by `auth-web` `auth.signInWithPassword({ username|email|phone, password })`
 - `SmsVerificationConfig.Type = "apis"` requires both `Name` and `Method`
 - `EnvId` is always the CloudBase environment ID, not the publishable key
 
