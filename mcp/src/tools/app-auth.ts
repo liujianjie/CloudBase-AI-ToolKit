@@ -2,46 +2,57 @@ import { z } from "zod";
 import { getCloudBaseManager, getEnvId, logCloudBaseResult } from "../cloudbase-manager.js";
 import type { ExtendedMcpServer } from "../server.js";
 import { jsonContent } from "../utils/json-content.js";
+import { isToolPayloadError } from "../utils/tool-result.js";
 
 const QUERY_APP_AUTH_ACTIONS = [
   "getLoginConfig",
   "listProviders",
   "getProvider",
   "getClientConfig",
-  "listApiKeyTokens",
+  "getPublishableKey",
   "getStaticDomain",
 ] as const;
 
 const MANAGE_APP_AUTH_ACTIONS = [
-  "updateLoginConfig",
+  "patchLoginStrategy",
   "updateProvider",
   "updateClientConfig",
-  "createApiKeyToken",
+  "ensurePublishableKey",
   "createCustomLoginKeys",
 ] as const;
 
 type QueryAppAuthAction = (typeof QUERY_APP_AUTH_ACTIONS)[number];
 type ManageAppAuthAction = (typeof MANAGE_APP_AUTH_ACTIONS)[number];
 
-type ToolEnvelope = {
-  success: boolean;
-  data: Record<string, unknown>;
-  message: string;
-};
+const SUPABASE_LIKE_SDK_HINTS = {
+  phoneOtp: "auth.signInWithOtp({ phone })",
+  emailOtp: "auth.signInWithOtp({ email })",
+  password: "auth.signInWithPassword({ username|email|phone, password })",
+  signup: "auth.signUp({ phone|email, ... })",
+  verifyOtp: "verifyOtp({ token })",
+  anonymous: "auth.signInAnonymously()",
+} as const;
 
-function buildEnvelope(data: Record<string, unknown>, message: string): ToolEnvelope {
-  return {
-    success: true,
-    data,
-    message,
-  };
-}
-
-function buildErrorEnvelope(error: unknown): ToolEnvelope {
+function buildErrorEnvelope(error: unknown) {
   return {
     success: false,
     data: {},
     message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+function buildShortError(error: string) {
+  return {
+    success: false,
+    error,
+  };
+}
+
+function buildShortErrorWithCode(error: string, code: string) {
+  return {
+    success: false,
+    error,
+    code,
   };
 }
 
@@ -56,6 +67,19 @@ function normalizePlainObject(
     throw new Error(`${label} 必须是对象`);
   }
   return value as Record<string, unknown>;
+}
+
+function omitKeys(
+  value: Record<string, unknown> | undefined,
+  keys: string[],
+): Record<string, unknown> | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(([key]) => !keys.includes(key)),
+  );
 }
 
 function extractLoginStrategyState(value: unknown): Record<string, unknown> {
@@ -78,6 +102,10 @@ function normalizeLoginConfigPatch(value: Record<string, unknown>) {
   const {
     PhoneLogin,
     UsernameLogin,
+    usernamePassword,
+    email,
+    anonymous,
+    phone,
     ...rest
   } = value;
 
@@ -85,17 +113,152 @@ function normalizeLoginConfigPatch(value: Record<string, unknown>) {
     ...rest,
     ...(typeof PhoneLogin === "boolean" ? { PhoneNumberLogin: PhoneLogin } : {}),
     ...(typeof UsernameLogin === "boolean" ? { UserNameLogin: UsernameLogin } : {}),
+    ...(typeof usernamePassword === "boolean" ? { UserNameLogin: usernamePassword } : {}),
+    ...(typeof email === "boolean" ? { EmailLogin: email } : {}),
+    ...(typeof anonymous === "boolean" ? { AnonymousLogin: anonymous } : {}),
+    ...(typeof phone === "boolean" ? { PhoneNumberLogin: phone } : {}),
   };
+}
+
+function buildLoginMethods(value: unknown) {
+  const state = extractLoginStrategyState(value);
+  return {
+    usernamePassword: Boolean(state.UserNameLogin),
+    email: Boolean(state.EmailLogin),
+    anonymous: Boolean(state.AnonymousLogin),
+    phone: Boolean(state.PhoneNumberLogin),
+  };
+}
+
+function extractProviders(value: unknown): Array<Record<string, unknown>> {
+  const payload = normalizePlainObject(value, "providersResult");
+  const providers = payload?.Providers ?? payload?.ProviderList ?? payload?.Data ?? [];
+  return Array.isArray(providers) ? (providers as Array<Record<string, unknown>>) : [];
+}
+
+function extractStaticStores(value: unknown): Array<Record<string, unknown>> {
+  const payload = normalizePlainObject(value, "staticStoreResult");
+  const stores = payload?.Data ?? [];
+  return Array.isArray(stores) ? (stores as Array<Record<string, unknown>>) : [];
+}
+
+function extractApiKeyList(value: unknown): Array<Record<string, unknown>> {
+  const payload = normalizePlainObject(value, "apiKeyResult");
+  const items = payload?.ApiKeyList ?? payload?.Data ?? [];
+  return Array.isArray(items) ? (items as Array<Record<string, unknown>>) : [];
+}
+
+function findPublishableKey(value: unknown): Record<string, unknown> | null {
+  const apiKeys = extractApiKeyList(value);
+  return (
+    apiKeys.find(
+      (item) =>
+        item.Name === "publish_key" ||
+        item.KeyName === "publish_key" ||
+        item.KeyType === "publish_key",
+    ) ?? null
+  );
+}
+
+function buildPublishableKeyResponse(
+  envId: string,
+  record: Record<string, unknown> | null,
+  options?: { created?: boolean },
+) {
+  return {
+    success: true,
+    envId,
+    sdkStyle: "supabase-like",
+    sdkHints: SUPABASE_LIKE_SDK_HINTS,
+    publishableKey:
+      typeof record?.ApiKey === "string" ? record.ApiKey : null,
+    keyId: typeof record?.KeyId === "string" ? record.KeyId : null,
+    keyName:
+      typeof record?.Name === "string"
+        ? record.Name
+        : typeof record?.KeyName === "string"
+          ? record.KeyName
+          : record
+            ? "publish_key"
+            : null,
+    expireAt: typeof record?.ExpireAt === "string" ? record.ExpireAt : null,
+    createdAt: typeof record?.CreateAt === "string" ? record.CreateAt : null,
+    ...(typeof options?.created === "boolean" ? { created: options.created } : {}),
+  };
+}
+
+function buildSupabaseLikeAuthResponse(payload: Record<string, unknown>) {
+  return {
+    ...payload,
+    sdkStyle: "supabase-like",
+    sdkHints: SUPABASE_LIKE_SDK_HINTS,
+  };
+}
+
+function buildClientConfigResponse(
+  envId: string,
+  clientId: string,
+  clientConfig: unknown,
+) {
+  return {
+    success: true,
+    envId,
+    clientId,
+    clientConfig,
+  };
+}
+
+async function getActiveEnvId(cloudBaseOptions?: Record<string, unknown>) {
+  try {
+    return await getEnvId(cloudBaseOptions as any);
+  } catch (error) {
+    const payload =
+      isToolPayloadError(error)
+        ? error.payload
+        : normalizePlainObject((error as any)?.payload, "error.payload");
+    if (payload?.code === "ENV_REQUIRED") {
+      const nextError = new Error("no active environment selected");
+      (nextError as Error & { code?: string }).code = "ENV_REQUIRED";
+      throw nextError;
+    }
+    if (payload?.code === "AUTH_REQUIRED") {
+      const nextError = new Error("authentication required");
+      (nextError as Error & { code?: string }).code = "AUTH_REQUIRED";
+      throw nextError;
+    }
+    throw error;
+  }
+}
+
+function isResourceInUseError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; message?: unknown; name?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "";
+  const name = typeof candidate.name === "string" ? candidate.name : "";
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+  const haystack = `${code} ${name} ${message}`;
+
+  return /ResourceInUse/i.test(haystack);
 }
 
 export function registerAppAuthTools(server: ExtendedMcpServer) {
   const cloudBaseOptions = server.cloudBaseOptions;
   const getManager = () => getCloudBaseManager({ cloudBaseOptions });
 
-  const withEnvelope = async (handler: () => Promise<ToolEnvelope>) => {
+  const withEnvelope = async (handler: () => Promise<Record<string, unknown>>) => {
     try {
       return jsonContent(await handler());
     } catch (error) {
+      if (error instanceof Error && (error.message === "no active environment selected" || error.message === "authentication required")) {
+        const code = (error as Error & { code?: string }).code;
+        if (code) {
+          return jsonContent(buildShortErrorWithCode(error.message, code));
+        }
+        return jsonContent(buildShortError(error.message));
+      }
       return jsonContent(buildErrorEnvelope(error));
     }
   };
@@ -114,6 +277,20 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     return result;
   };
 
+  const describePublishableKey = async (envId: string) => {
+    const result = await callControlPlaneAction("DescribeApiKeyList", {
+      EnvId: envId,
+      KeyType: "publish_key",
+      PageNumber: 1,
+      PageSize: 10,
+    });
+
+    return {
+      result,
+      record: findPublishableKey(result),
+    };
+  };
+
   server.registerTool?.(
     "queryAppAuth",
     {
@@ -123,6 +300,10 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
       inputSchema: {
         action: z.enum(QUERY_APP_AUTH_ACTIONS),
         providerId: z.string().optional().describe("provider 标识，如 email、google"),
+        clientId: z
+          .string()
+          .optional()
+          .describe("DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）"),
       },
       annotations: {
         readOnlyHint: true,
@@ -133,105 +314,86 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     async ({
       action,
       providerId,
+      clientId,
     }: {
       action: QueryAppAuthAction;
       providerId?: string;
+      clientId?: string;
     }) =>
       withEnvelope(async () => {
-        const envId = await getEnvId(cloudBaseOptions);
+        const envId = await getActiveEnvId(cloudBaseOptions as Record<string, unknown>);
         const cloudbase = await getManager();
 
         switch (action) {
           case "getLoginConfig": {
-            // Manager SDK v5 provides a dedicated helper for login config.
             const result = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, result);
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                loginConfig: result,
-              },
-              "应用登录配置查询成功",
-            );
+            return buildSupabaseLikeAuthResponse({
+              success: true,
+              envId,
+              loginMethods: buildLoginMethods(result),
+            });
           }
           case "listProviders": {
             const result = await callControlPlaneAction("GetProviders", {
               EnvId: envId,
             });
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                providers: result.Providers ?? result.ProviderList ?? result.Data ?? result,
-                raw: result,
-              },
-              "应用 provider 列表查询成功",
-            );
+            return {
+              success: true,
+              envId,
+              providers: extractProviders(result),
+            };
           }
           case "getProvider": {
             if (!providerId) {
               throw new Error("action=getProvider 时必须提供 providerId");
             }
+
             const result = await callControlPlaneAction("GetProviders", {
               EnvId: envId,
             });
-            const providers = (result.Providers ??
-              result.ProviderList ??
-              result.Data ??
-              []) as Array<Record<string, unknown>>;
             const provider =
-              providers.find((item) => item.Id === providerId || item.id === providerId) ?? null;
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                providerId,
-                provider,
-                raw: result,
-              },
-              `应用 provider ${providerId} 查询成功`,
-            );
+              extractProviders(result).find(
+                (item) => item.Id === providerId || item.id === providerId,
+              ) ?? null;
+
+            return {
+              success: true,
+              envId,
+              providerId,
+              provider,
+            };
           }
           case "getClientConfig": {
+            const clientRecordId = clientId ?? envId;
             const result = await callControlPlaneAction("DescribeClient", {
               EnvId: envId,
+              Id: clientRecordId,
             });
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                clientConfig: result,
-              },
-              "应用 client 配置查询成功",
-            );
+            return buildClientConfigResponse(envId, clientRecordId, result);
           }
-          case "listApiKeyTokens": {
-            const result = await callControlPlaneAction("DescribeApiKeyTokens", {
-              EnvId: envId,
-            });
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                apiKeyTokens: result.ApiKeyTokens ?? result.Data ?? result,
-                raw: result,
-              },
-              "应用 publishable key 列表查询成功",
-            );
+          case "getPublishableKey": {
+            const { record } = await describePublishableKey(envId);
+            return buildPublishableKeyResponse(envId, record);
           }
           case "getStaticDomain": {
-            const result = await callControlPlaneAction("DescribeStaticDomain", {
+            const result = await callControlPlaneAction("DescribeStaticStore", {
               EnvId: envId,
             });
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                staticDomain: result,
-              },
-              "应用静态域名查询成功",
-            );
+            const stores = extractStaticStores(result);
+            const first = stores[0];
+            const primaryDomain =
+              (typeof first?.CdnDomain === "string" ? first.CdnDomain : undefined) ??
+              (typeof first?.StaticDomain === "string" ? first.StaticDomain : undefined) ??
+              null;
+
+            return {
+              success: true,
+              envId,
+              cdnDomain: primaryDomain,
+              staticDomain: primaryDomain,
+              staticStores: stores,
+            };
           }
         }
       }),
@@ -242,12 +404,19 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     {
       title: "管理应用认证配置",
       description:
-        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，创建 publishable key 和自定义登录密钥。",
+        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，确保 publishable key 和创建自定义登录密钥。",
       inputSchema: {
         action: z.enum(MANAGE_APP_AUTH_ACTIONS),
-        loginConfig: z.record(z.any()).optional().describe("updateLoginConfig 使用的登录配置对象"),
+        patch: z
+          .record(z.any())
+          .optional()
+          .describe("patchLoginStrategy 使用的简化登录策略 patch，如 { usernamePassword: true }"),
         providerId: z.string().optional().describe("provider 标识，如 email、google"),
-        config: z.record(z.any()).optional().describe("provider / client / api key 的配置对象"),
+        clientId: z
+          .string()
+          .optional()
+          .describe("updateClientConfig 时的客户端 Id；省略时默认使用当前环境 ID"),
+        config: z.record(z.any()).optional().describe("provider / client 的配置对象"),
       },
       annotations: {
         readOnlyHint: false,
@@ -259,111 +428,124 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     },
     async ({
       action,
-      loginConfig,
+      patch,
       providerId,
+      clientId,
       config,
     }: {
       action: ManageAppAuthAction;
-      loginConfig?: Record<string, unknown>;
+      patch?: Record<string, unknown>;
       providerId?: string;
+      clientId?: string;
       config?: Record<string, unknown>;
     }) =>
       withEnvelope(async () => {
-        const envId = await getEnvId(cloudBaseOptions);
+        const envId = await getActiveEnvId(cloudBaseOptions as Record<string, unknown>);
         const cloudbase = await getManager();
 
         switch (action) {
-          case "updateLoginConfig": {
-            const normalized = normalizePlainObject(loginConfig, "loginConfig");
+          case "patchLoginStrategy": {
+            const input = normalizePlainObject(patch, "patch");
+            const normalized = input ? normalizeLoginConfigPatch(input) : undefined;
             if (!normalized) {
-              throw new Error("action=updateLoginConfig 时必须提供 loginConfig");
+              throw new Error("action=patchLoginStrategy 时必须提供 patch");
             }
+
             const current = await cloudbase.env.getLoginConfigListV2();
             const merged = {
               EnvId: envId,
               ...extractLoginStrategyState(current),
-              ...normalizeLoginConfigPatch(normalized),
+              ...normalized,
             };
-            // Manager SDK v5 provides a dedicated helper for login config updates.
             const result = await cloudbase.env.updateLoginConfigV2(merged as any);
             logCloudBaseResult(server.logger, result);
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                appliedLoginConfig: merged,
-                raw: result,
-              },
-              "应用登录配置更新成功",
-            );
+
+            const confirmed = await cloudbase.env.getLoginConfigListV2();
+            logCloudBaseResult(server.logger, confirmed);
+
+            return buildSupabaseLikeAuthResponse({
+              success: true,
+              envId,
+              loginMethods: buildLoginMethods(confirmed),
+            });
           }
           case "updateProvider": {
-            const normalized = normalizePlainObject(config, "config");
+            const normalized = omitKeys(normalizePlainObject(config, "config"), ["EnvId", "Id"]);
             if (!providerId) {
               throw new Error("action=updateProvider 时必须提供 providerId");
             }
             if (!normalized) {
               throw new Error("action=updateProvider 时必须提供 config");
             }
-            const result = await callControlPlaneAction("ModifyProvider", {
+
+            await callControlPlaneAction("ModifyProvider", {
               EnvId: envId,
               Id: providerId,
               ...normalized,
             });
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                providerId,
-                raw: result,
-              },
-              `应用 provider ${providerId} 更新成功`,
-            );
+
+            return {
+              success: true,
+              envId,
+              providerId,
+            };
           }
           case "updateClientConfig": {
-            const normalized = normalizePlainObject(config, "config");
+            const normalized = omitKeys(normalizePlainObject(config, "config"), ["EnvId", "Id"]);
             if (!normalized) {
               throw new Error("action=updateClientConfig 时必须提供 config");
             }
-            const result = await callControlPlaneAction("ModifyClient", {
+
+            const clientRecordId = clientId ?? envId;
+            await callControlPlaneAction("ModifyClient", {
               EnvId: envId,
+              Id: clientRecordId,
               ...normalized,
             });
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                raw: result,
-              },
-              "应用 client 配置更新成功",
-            );
-          }
-          case "createApiKeyToken": {
-            const normalized = normalizePlainObject(config, "config");
-            const result = await callControlPlaneAction("CreateApiKeyToken", {
+            const confirmed = await callControlPlaneAction("DescribeClient", {
               EnvId: envId,
-              ...(normalized ?? {}),
+              Id: clientRecordId,
             });
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                raw: result,
-              },
-              "应用 publishable key 创建成功",
-            );
+
+            return buildClientConfigResponse(envId, clientRecordId, confirmed);
+          }
+          case "ensurePublishableKey": {
+            const existing = await describePublishableKey(envId);
+            if (existing.record) {
+              return buildPublishableKeyResponse(envId, existing.record, { created: false });
+            }
+
+            let created: unknown;
+            try {
+              created = await callControlPlaneAction("CreateApiKey", {
+                EnvId: envId,
+                KeyType: "publish_key",
+              });
+            } catch (error) {
+              if (!isResourceInUseError(error)) {
+                throw error;
+              }
+
+              const reread = await describePublishableKey(envId);
+              if (!reread.record) {
+                throw error;
+              }
+              return buildPublishableKeyResponse(envId, reread.record, { created: false });
+            }
+
+            return buildPublishableKeyResponse(envId, normalizePlainObject(created, "createdApiKey") ?? null, {
+              created: true,
+            });
           }
           case "createCustomLoginKeys": {
             const result = await cloudbase.env.createCustomLoginKeys();
             logCloudBaseResult(server.logger, result);
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                raw: result,
-              },
-              "自定义登录密钥创建成功",
-            );
+            return {
+              success: true,
+              envId,
+              privateKey: result.PrivateKey,
+              keyId: result.KeyID,
+            };
           }
         }
       }),
