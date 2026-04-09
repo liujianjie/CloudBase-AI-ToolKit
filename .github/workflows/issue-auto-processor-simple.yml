@@ -252,6 +252,26 @@ jobs:
             jq -e --arg label "$label" '((.labels // []) | map(ascii_downcase)) | any(. == ($label | ascii_downcase))' /tmp/issue.json >/dev/null 2>&1
           }
 
+          sync_issue_json_label() {
+            local action="$1"
+            local label="$2"
+
+            if [ "$action" = "add" ]; then
+              jq --arg label "$label" '
+                if ((.labels // []) | map(ascii_downcase) | any(. == ($label | ascii_downcase)))
+                then .
+                else .labels = ((.labels // []) + [$label])
+                end
+              ' /tmp/issue.json > /tmp/issue.json.next
+            else
+              jq --arg label "$label" '
+                .labels = ((.labels // []) | map(select(ascii_downcase != ($label | ascii_downcase))))
+              ' /tmp/issue.json > /tmp/issue.json.next
+            fi
+
+            mv /tmp/issue.json.next /tmp/issue.json
+          }
+
           update_issue_labels() {
             local issue_number="$1"
             shift
@@ -267,11 +287,13 @@ jobs:
                 add)
                   if ! issue_has_label "$label"; then
                     args+=(--add-label "$label")
+                    sync_issue_json_label add "$label"
                   fi
                   ;;
                 remove)
                   if issue_has_label "$label"; then
                     args+=(--remove-label "$label")
+                    sync_issue_json_label remove "$label"
                   fi
                   ;;
                 *)

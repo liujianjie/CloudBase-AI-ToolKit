@@ -93,10 +93,11 @@ test('buildAnalysisPrompt includes issue comments for continue runs', () => {
   expect(prompt).toContain('Generated automatically by CodeBuddy CLI headless mode.');
 });
 
-test('workflow listens for issue comments and delegates slash command parsing to the helper script', () => {
+test('workflow listens for issue comments and keeps label state in sync during reruns', () => {
   const raw = fs.readFileSync(WORKFLOW_FILE, 'utf8');
 
   expect(raw).toContain('issue_comment:');
   expect(raw).toContain('parseIssueCommentCommand');
   expect(raw).toContain('requestedAction');
+  expect(raw).toContain('sync_issue_json_label');
 });
