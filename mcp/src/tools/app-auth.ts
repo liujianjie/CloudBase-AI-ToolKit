@@ -229,14 +229,14 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             const result = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, result);
             const loginMethods = buildLoginMethods(result);
+            const nextStep = buildLoginConfigNextStep(loginMethods);
+            const webSdkHint = buildWebSdkHint(loginMethods);
             return {
               success: true,
               envId,
               loginMethods,
-              ...(buildLoginConfigNextStep(loginMethods)
-                ? { next_step: buildLoginConfigNextStep(loginMethods) }
-                : {}),
-              ...(buildWebSdkHint(loginMethods) ? { webSdkHint: buildWebSdkHint(loginMethods) } : {}),
+              ...(nextStep ? { next_step: nextStep } : {}),
+              ...(webSdkHint ? { webSdkHint } : {}),
             } as ToolEnvelope;
           }
           case "listProviders": {
@@ -392,14 +392,14 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             const confirmed = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, confirmed);
             const loginMethods = buildLoginMethods(confirmed);
+            const nextStep = buildLoginConfigNextStep(loginMethods);
+            const webSdkHint = buildWebSdkHint(loginMethods);
             return {
               success: true,
               envId,
               loginMethods,
-              ...(buildLoginConfigNextStep(loginMethods)
-                ? { next_step: buildLoginConfigNextStep(loginMethods) }
-                : {}),
-              ...(buildWebSdkHint(loginMethods) ? { webSdkHint: buildWebSdkHint(loginMethods) } : {}),
+              ...(nextStep ? { next_step: nextStep } : {}),
+              ...(webSdkHint ? { webSdkHint } : {}),
             } as ToolEnvelope;
           }
           case "updateProvider": {
