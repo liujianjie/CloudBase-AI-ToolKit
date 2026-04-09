@@ -1,6 +1,6 @@
 ---
 name: cloudbase-all-in-one
-description: Unified CloudBase execution guide for all-in-one skill installs. Use this as the first entry point for CloudBase app tasks, especially existing scaffolds or evaluation apps that already contain TODOs, fixed pages, and active handlers.
+description: Unified CloudBase execution guide for all-in-one skill installs. Use this as the first entry point for CloudBase app tasks, especially existing applications that already contain TODOs, fixed pages, and active handlers.
 version: 2.16.1
 alwaysApply: true
 ---
@@ -11,7 +11,7 @@ alwaysApply: true
 
 ### Use this first when
 
-- The task is a CloudBase app build, integration, repair, or evaluation run and the workspace already contains an application scaffold.
+- The task is a CloudBase app build, integration, or repair and the workspace already contains an application implementation.
 - The request mixes auth, database, storage, and frontend work in one CloudBase application task.
 
 ### Do this before broad exploration
@@ -23,9 +23,8 @@ alwaysApply: true
   - route guards
   - the page handlers bound to the active form submit buttons
 - If these files contain TODOs, implement those TODOs in place before creating new helpers, examples, or replacement pages.
-- Do not download a new template when the workspace already contains the target app scaffold.
 - Do not start with UI redesign or design-spec output unless the user explicitly asks for visual changes.
-- Do not start with project-management loops such as repeated `TaskCreate` / `TaskUpdate` when the task is a single scaffold repair. Read the active files and edit them directly.
+- Do not start with project-management loops such as repeated `TaskCreate` / `TaskUpdate` when the task is a single targeted repair. Read the active files and edit them directly.
 
 ### Route quickly to the minimum needed skills
 
@@ -43,7 +42,7 @@ alwaysApply: true
 
 ## Working rules
 
-1. Existing scaffold with TODOs:
+1. Existing application with TODOs:
    - Treat it as a targeted repair task, not a greenfield build.
    - Prefer the shortest path from current code to working flow.
 
@@ -59,7 +58,7 @@ alwaysApply: true
    - Reuse the current shared `app`, `auth`, `db`, and storage helpers instead of creating parallel SDK wrappers.
    - For writes, validate the actual SDK result instead of assuming success.
 
-4. Evaluation scaffold tasks:
+4. Targeted repair tasks:
    - Functional closure beats exploration.
-   - Avoid template download, broad repo sweeps, UI redesign, and detached demo code.
+   - Avoid broad repo sweeps, UI redesign, and detached demo code.
    - Keep file discovery narrow. Prefer direct reads of the known active files over `Glob` / broad search across the whole project.

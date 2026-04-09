@@ -202,7 +202,7 @@ CloudBase security rules can be tricky around document-ID writes. For many owner
 }
 ```
 
-With that rule shape, `.doc(id).update()` / `.doc(id).remove()` is a validated implementation path for the CMS scaffold.
+With that rule shape, `.doc(id).update()` / `.doc(id).remove()` is a validated implementation path for CMS-style article management.
 
 **Problematic rule for document-ID writes:**
 

@@ -285,7 +285,7 @@ await managePermissions({
 });
 ```
 
-> Warning: This owner-only pattern is not the best fit for CMS article collections that need app-level admin override. For the CMS scaffold, prefer a `CUSTOM` rule that combines `get('database.user_roles.' + auth.uid).role == 'admin'` with `doc.authorId == auth.uid`, and keep frontend writes on `.doc(id).update()` / `.doc(id).remove()`.
+> Warning: This owner-only pattern is not the best fit for CMS article collections that need app-level admin override. For article collections with admin override, prefer a `CUSTOM` rule that combines `get('database.user_roles.' + auth.uid).role == 'admin'` with `doc.authorId == auth.uid`, and keep frontend writes on `.doc(id).update()` / `.doc(id).remove()`.
 
 **Example 2A: Keep owner-only CUSTOM rule and switch the client write path to `where(...)`**
 

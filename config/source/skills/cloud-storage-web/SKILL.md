@@ -47,7 +47,7 @@ alwaysApply: false
 - Check security-domain/CORS requirements.
 - Pick the right storage method before coding.
 
-### Local dev / evaluation recipe
+### Local dev recipe
 
 When the app runs on a local browser origin and must upload files from the frontend:
 
@@ -60,7 +60,7 @@ When the app runs on a local browser origin and must upload files from the front
 5. Tell the user that security-domain changes may take several minutes to propagate.
 6. Only after that should you implement and test browser-side `app.uploadFile()` flows.
 
-If the task is an evaluation scaffold with browser-side cover upload, treat this as a prerequisite rather than an optional cleanup.
+If the task uses browser-side file upload, treat this as a prerequisite rather than an optional cleanup.
 
 ## Overview
 

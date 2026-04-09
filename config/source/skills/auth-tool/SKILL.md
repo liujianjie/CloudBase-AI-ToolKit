@@ -38,7 +38,7 @@ alwaysApply: false
 - Treating any mention of "auth" as a provider-management task.
 - Implementing Web login in cloud functions.
 - Routing native App auth to Web SDK flows.
-- In an existing scaffold or evaluation app, looping on provider queries after readiness is already known instead of wiring the active login and register handlers.
+- In an existing application, looping on provider queries after readiness is already known instead of wiring the active login and register handlers.
 
 ### Minimal checklist
 
@@ -62,7 +62,7 @@ Preferred execution order for this skill:
 1. Use `queryAppAuth` / `manageAppAuth` first when the needed action exists there.
 2. Use `callCloudApi` only as a fallback or for debugging raw request shapes.
 3. Do not route app-side provider configuration back to the MCP `auth` tool.
-4. In scaffold or evaluation projects, stop revisiting provider setup after the required login method and publishable key are confirmed. Move back to the active frontend handler and finish the actual user flow.
+4. In existing projects with active login and register handlers, stop revisiting provider setup after the required login method and publishable key are confirmed. Move back to the active frontend handler and finish the actual user flow.
 
 ---
 
