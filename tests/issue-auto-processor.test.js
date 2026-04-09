@@ -120,3 +120,12 @@ test('workflow hardens fix path with git identity and PR creation guards', () =>
   expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created a branch diff, but git commit failed before a PR could be opened. Please inspect the workflow logs before retrying.'");
   expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL. Please inspect the workflow logs before retrying.'");
 });
+
+test('workflow creates fix branches from the default branch baseline', () => {
+  const raw = fs.readFileSync(WORKFLOW_FILE, 'utf8');
+
+  expect(raw).toContain('DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}');
+  expect(raw).toContain('git fetch origin "$DEFAULT_BRANCH"');
+  expect(raw).toContain('git switch -C "$branch" "origin/$DEFAULT_BRANCH"');
+  expect(raw).toContain('gh pr create --base "$DEFAULT_BRANCH" --head "$branch"');
+});

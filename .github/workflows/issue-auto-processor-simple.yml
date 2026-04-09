@@ -19,6 +19,7 @@ concurrency:
 env:
   DELAY_HOURS: '4'
   MAX_ISSUES_PER_RUN: '5'
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
 
 jobs:
   process-issues:
@@ -389,7 +390,8 @@ jobs:
             if [ "$is_bug" = "true" ]; then
               echo "Route: bug -> attempt fix"
               branch="ai-fix/issue-$number"
-              git switch -c "$branch"
+              git fetch origin "$DEFAULT_BRANCH"
+              git switch -C "$branch" "origin/$DEFAULT_BRANCH"
               build_bug_prompt
 
               set +e
@@ -458,7 +460,7 @@ jobs:
                 write_file_from_env /tmp/pr-body.md
 
                 set +e
-                pr_url=$(gh pr create --base main --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md)
+                pr_url=$(gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md)
                 exit_code=$?
                 set -e
                 if [ $exit_code -ne 0 ] || ! has_nonempty_text "$pr_url"; then
