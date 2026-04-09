@@ -279,10 +279,15 @@ describe("NoSQL database tools", () => {
     expect(describePayload.collectionName).toBe("t_nosql_products");
     expect(describePayload.message).toBe("获取云开发数据库集合信息成功");
 
-    mockCheckCollectionExists.mockResolvedValue({
-      RequestId: "req-check-ready",
-      Exists: true,
-    });
+    mockCheckCollectionExists
+      .mockResolvedValueOnce({
+        RequestId: "req-check-pre",
+        Exists: false,
+      })
+      .mockResolvedValueOnce({
+        RequestId: "req-check-ready",
+        Exists: true,
+      });
     const createResult = await tools.writeNoSqlDatabaseStructure.handler({
       action: "createCollection",
       collectionName: "t_nosql_products",
@@ -291,6 +296,7 @@ describe("NoSQL database tools", () => {
     expect(createPayload.collection).toBe("t_nosql_products");
     expect(createPayload.collectionName).toBe("t_nosql_products");
     expect(createPayload.action).toBe("createCollection");
+    expect(createPayload.message).toBe("云开发数据库集合创建成功");
 
     const insertResult = await tools.writeNoSqlDatabaseContent.handler({
       action: "insert",
@@ -304,6 +310,32 @@ describe("NoSQL database tools", () => {
     expect(insertPayload.insertedCount).toBe(1);
     expect(insertPayload.message).toBe("文档插入成功");
     expect(insertPayload).not.toHaveProperty("nextActions");
+  });
+
+  it("createCollection should return friendly message when collection already exists", async () => {
+    const { tools } = createMockServer();
+
+    mockCheckCollectionExists.mockResolvedValue({
+      RequestId: "req-check-exists",
+      Exists: true,
+    });
+
+    const result = await tools.writeNoSqlDatabaseStructure.handler({
+      action: "createCollection",
+      collectionName: "users",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockCreateCollection).not.toHaveBeenCalled();
+    expect(payload).toMatchObject({
+      success: true,
+      action: "createCollection",
+      collection: "users",
+      collectionName: "users",
+      requestId: "req-check-exists",
+      message: "集合已存在，无需重复创建",
+      exists: true,
+    });
   });
 
   it("readNoSqlDatabaseContent should keep non-document strings untouched", async () => {
