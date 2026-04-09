@@ -1021,6 +1021,85 @@ describe("env tools - envQuery", () => {
     expect(payload.Bucket).not.toBe("storage-bucket");
   });
 
+  it("envQuery(domains) should include local development host:port guidance", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      env: {
+        getEnvAuthDomains: vi.fn().mockResolvedValue({
+          Domains: [
+            {
+              Id: "domain-1",
+              Domain: "localhost:5173",
+              Status: "ENABLE",
+              Type: "USER",
+              CreateTime: "2026-04-08 10:00:00",
+            },
+          ],
+        }),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const payload = JSON.parse((await tools.envQuery.handler({ action: "domains" })).content[0].text);
+
+    expect(payload).toMatchObject({
+      Domains: [{ Domain: "localhost:5173", Status: "ENABLE", Type: "USER" }],
+      localDevHint: {
+        format: "host:port",
+        useActualOrigin: true,
+        requiredValue: "当前浏览器实际访问 origin 对应的 host:port",
+        deriveFrom: ["浏览器地址栏中的当前 origin", "本地 dev server 实际启动输出"],
+      },
+      localDevStatus: {
+        requiresExactCurrentOrigin: true,
+        browserUploadReady: false,
+        coverageConfirmed: false,
+        doNotAssumeConfiguredEntriesAreSufficient: true,
+        canAutoDetermineCurrentOrigin: false,
+        hasAnyConfiguredLocalEntry: true,
+        configuredEntries: ["localhost:5173"],
+      },
+      next_step_template: {
+        tool: "envDomainManagement",
+        action: "create",
+        domains: ["<actual-browser-host>:<actual-browser-port>"],
+      },
+    });
+    expect(payload.Domains[0]).not.toHaveProperty("Id");
+    expect(payload.Domains[0]).not.toHaveProperty("CreateTime");
+  });
+
+  it("envQuery(domains) should report configured local entries without inferring completeness", async () => {
+    mockGetCloudBaseManager.mockResolvedValue({
+      env: {
+        getEnvAuthDomains: vi.fn().mockResolvedValue({
+          Domains: [
+            { Domain: "127.0.0.1:4173", Status: "ENABLE" },
+            { Domain: "localhost:4173", Status: "ENABLE" },
+            { Domain: "example.com", Status: "ENABLE" },
+          ],
+        }),
+      },
+    });
+
+    const { tools } = createMockServer();
+    const payload = JSON.parse((await tools.envQuery.handler({ action: "domains" })).content[0].text);
+
+    expect(payload.localDevStatus).toMatchObject({
+      requiresExactCurrentOrigin: true,
+      browserUploadReady: false,
+      coverageConfirmed: false,
+      doNotAssumeConfiguredEntriesAreSufficient: true,
+      canAutoDetermineCurrentOrigin: false,
+      hasAnyConfiguredLocalEntry: true,
+      configuredEntries: ["127.0.0.1:4173", "localhost:4173"],
+    });
+    expect(payload.next_step_template).toMatchObject({
+      tool: "envDomainManagement",
+      action: "create",
+      domains: ["<actual-browser-host>:<actual-browser-port>"],
+    });
+  });
+
   it("envQuery(hosting) should keep website config when env enrichment fails", async () => {
     mockGetCloudBaseManager.mockResolvedValue({
       hosting: {

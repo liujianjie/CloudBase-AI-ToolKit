@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getCloudBaseManager, getEnvId, logCloudBaseResult } from "../cloudbase-manager.js";
 import type { ExtendedMcpServer } from "../server.js";
 import { jsonContent } from "../utils/json-content.js";
+import { isToolPayloadError } from "../utils/tool-result.js";
 
 const QUERY_APP_AUTH_ACTIONS = [
   "getLoginConfig",
@@ -13,7 +14,7 @@ const QUERY_APP_AUTH_ACTIONS = [
 ] as const;
 
 const MANAGE_APP_AUTH_ACTIONS = [
-  "updateLoginConfig",
+  "patchLoginStrategy",
   "updateProvider",
   "updateClientConfig",
   "createApiKeyToken",
@@ -23,11 +24,7 @@ const MANAGE_APP_AUTH_ACTIONS = [
 type QueryAppAuthAction = (typeof QUERY_APP_AUTH_ACTIONS)[number];
 type ManageAppAuthAction = (typeof MANAGE_APP_AUTH_ACTIONS)[number];
 
-type ToolEnvelope = {
-  success: boolean;
-  data: Record<string, unknown>;
-  message: string;
-};
+type ToolEnvelope = Record<string, unknown>;
 
 function buildEnvelope(data: Record<string, unknown>, message: string): ToolEnvelope {
   return {
@@ -42,6 +39,13 @@ function buildErrorEnvelope(error: unknown): ToolEnvelope {
     success: false,
     data: {},
     message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+function buildShortError(error: string) {
+  return {
+    success: false,
+    error,
   };
 }
 
@@ -78,6 +82,10 @@ function normalizeLoginConfigPatch(value: Record<string, unknown>) {
   const {
     PhoneLogin,
     UsernameLogin,
+    usernamePassword,
+    email,
+    anonymous,
+    phone,
     ...rest
   } = value;
 
@@ -85,7 +93,70 @@ function normalizeLoginConfigPatch(value: Record<string, unknown>) {
     ...rest,
     ...(typeof PhoneLogin === "boolean" ? { PhoneNumberLogin: PhoneLogin } : {}),
     ...(typeof UsernameLogin === "boolean" ? { UserNameLogin: UsernameLogin } : {}),
+    ...(typeof usernamePassword === "boolean" ? { UserNameLogin: usernamePassword } : {}),
+    ...(typeof email === "boolean" ? { EmailLogin: email } : {}),
+    ...(typeof anonymous === "boolean" ? { AnonymousLogin: anonymous } : {}),
+    ...(typeof phone === "boolean" ? { PhoneNumberLogin: phone } : {}),
   };
+}
+
+function buildLoginMethods(value: unknown) {
+  const state = extractLoginStrategyState(value);
+  return {
+    usernamePassword: Boolean(state.UserNameLogin),
+    email: Boolean(state.EmailLogin),
+    anonymous: Boolean(state.AnonymousLogin),
+    phone: Boolean(state.PhoneNumberLogin),
+  };
+}
+
+function buildWebSdkHint(loginMethods: ReturnType<typeof buildLoginMethods>) {
+  if (!loginMethods.usernamePassword) {
+    return {
+      blocked: true,
+      reason: "plain username-style identifiers require usernamePassword auth",
+      nextStep: 'manageAppAuth({ action: "patchLoginStrategy", patch: { usernamePassword: true } })',
+      accountInputType: "text",
+      avoidEmailHelpers: true,
+    };
+  }
+
+  return {
+    blocked: false,
+    register: "auth.signUp({ username, password })",
+    login: "auth.signInWithPassword({ username, password })",
+    accountInputType: "text",
+    avoidEmailHelpers: true,
+  };
+}
+
+function buildLoginConfigNextStep(loginMethods: ReturnType<typeof buildLoginMethods>) {
+  if (loginMethods.usernamePassword) {
+    return undefined;
+  }
+
+  return {
+    tool: "manageAppAuth",
+    action: "patchLoginStrategy",
+    patch: {
+      usernamePassword: true,
+    },
+  };
+}
+
+async function getActiveEnvId(cloudBaseOptions?: Record<string, unknown>) {
+  try {
+    return await getEnvId(cloudBaseOptions as any);
+  } catch (error) {
+    const payload =
+      isToolPayloadError(error) ? error.payload : normalizePlainObject((error as any)?.payload, "error.payload");
+    if (
+      (payload?.code === "ENV_REQUIRED" || payload?.code === "AUTH_REQUIRED")
+    ) {
+      throw new Error("no active environment selected");
+    }
+    throw error;
+  }
 }
 
 export function registerAppAuthTools(server: ExtendedMcpServer) {
@@ -96,6 +167,9 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     try {
       return jsonContent(await handler());
     } catch (error) {
+      if (error instanceof Error && error.message === "no active environment selected") {
+        return jsonContent(buildShortError(error.message));
+      }
       return jsonContent(buildErrorEnvelope(error));
     }
   };
@@ -119,10 +193,16 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     {
       title: "查询应用认证配置",
       description:
-        "应用侧认证配置只读入口。用于查询登录方式、provider、publishable key、client 配置和静态域名等认证准备状态。",
+        "应用侧认证配置只读入口。用于查询登录方式、provider、publishable key、client 配置和静态域名等认证准备状态。若业务要接受普通用户名样式标识符，先查询 action=getLoginConfig；若 usernamePassword=false，下一步应立即调用 manageAppAuth(action=patchLoginStrategy, patch={ usernamePassword: true })，不要直接写 email 登录 API。",
       inputSchema: {
         action: z.enum(QUERY_APP_AUTH_ACTIONS),
         providerId: z.string().optional().describe("provider 标识，如 email、google"),
+        clientId: z
+          .string()
+          .optional()
+          .describe(
+            "OAuth client_id / DescribeClient 的 Id；省略时默认使用当前环境 ID（官方文档：默认客户端）",
+          ),
       },
       annotations: {
         readOnlyHint: true,
@@ -133,12 +213,14 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     async ({
       action,
       providerId,
+      clientId,
     }: {
       action: QueryAppAuthAction;
       providerId?: string;
+      clientId?: string;
     }) =>
       withEnvelope(async () => {
-        const envId = await getEnvId(cloudBaseOptions);
+        const envId = await getActiveEnvId(cloudBaseOptions as Record<string, unknown>);
         const cloudbase = await getManager();
 
         switch (action) {
@@ -146,14 +228,16 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             // Manager SDK v5 provides a dedicated helper for login config.
             const result = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, result);
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                loginConfig: result,
-              },
-              "应用登录配置查询成功",
-            );
+            const loginMethods = buildLoginMethods(result);
+            return {
+              success: true,
+              envId,
+              loginMethods,
+              ...(buildLoginConfigNextStep(loginMethods)
+                ? { next_step: buildLoginConfigNextStep(loginMethods) }
+                : {}),
+              ...(buildWebSdkHint(loginMethods) ? { webSdkHint: buildWebSdkHint(loginMethods) } : {}),
+            } as ToolEnvelope;
           }
           case "listProviders": {
             const result = await callControlPlaneAction("GetProviders", {
@@ -194,13 +278,16 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             );
           }
           case "getClientConfig": {
+            const clientRecordId = clientId ?? envId;
             const result = await callControlPlaneAction("DescribeClient", {
               EnvId: envId,
+              Id: clientRecordId,
             });
             return buildEnvelope(
               {
                 action,
                 envId,
+                clientId: clientRecordId,
                 clientConfig: result,
               },
               "应用 client 配置查询成功",
@@ -221,16 +308,26 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             );
           }
           case "getStaticDomain": {
-            const result = await callControlPlaneAction("DescribeStaticDomain", {
+            // Official API: DescribeStaticStore (see product 876 / static hosting), not DescribeStaticDomain.
+            const result = await callControlPlaneAction("DescribeStaticStore", {
               EnvId: envId,
             });
+            const stores = (result.Data ?? []) as Array<Record<string, unknown>>;
+            const first = stores[0];
+            const primaryDomain =
+              (typeof first?.CdnDomain === "string" ? first.CdnDomain : undefined) ??
+              (typeof first?.StaticDomain === "string" ? first.StaticDomain : undefined) ??
+              null;
             return buildEnvelope(
               {
                 action,
                 envId,
-                staticDomain: result,
+                cdnDomain: primaryDomain,
+                staticDomain: primaryDomain,
+                staticStores: stores,
+                raw: result,
               },
-              "应用静态域名查询成功",
+              "应用静态托管域名查询成功",
             );
           }
         }
@@ -242,10 +339,13 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     {
       title: "管理应用认证配置",
       description:
-        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，创建 publishable key 和自定义登录密钥。",
+        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，创建 publishable key 和自定义登录密钥。若前端登录使用普通用户名样式标识符，先执行 action=patchLoginStrategy 并传入 patch={ usernamePassword: true }；在成功返回前，不要实现 email helper 登录。",
       inputSchema: {
         action: z.enum(MANAGE_APP_AUTH_ACTIONS),
-        loginConfig: z.record(z.any()).optional().describe("updateLoginConfig 使用的登录配置对象"),
+        patch: z
+          .record(z.any())
+          .optional()
+          .describe("patchLoginStrategy 使用的简化登录策略 patch，如 { usernamePassword: true }"),
         providerId: z.string().optional().describe("provider 标识，如 email、google"),
         config: z.record(z.any()).optional().describe("provider / client / api key 的配置对象"),
       },
@@ -258,25 +358,27 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
       },
     },
     async ({
-      action,
-      loginConfig,
-      providerId,
-      config,
-    }: {
-      action: ManageAppAuthAction;
-      loginConfig?: Record<string, unknown>;
-      providerId?: string;
-      config?: Record<string, unknown>;
-    }) =>
+        action,
+        patch,
+        providerId,
+        config,
+      }: {
+        action: ManageAppAuthAction;
+        patch?: Record<string, unknown>;
+        providerId?: string;
+        config?: Record<string, unknown>;
+      }) =>
       withEnvelope(async () => {
-        const envId = await getEnvId(cloudBaseOptions);
+        const envId = await getActiveEnvId(cloudBaseOptions as Record<string, unknown>);
         const cloudbase = await getManager();
 
         switch (action) {
-          case "updateLoginConfig": {
-            const normalized = normalizePlainObject(loginConfig, "loginConfig");
+          case "patchLoginStrategy":
+          {
+            const input = normalizePlainObject(patch, "patch");
+            const normalized = input ? normalizeLoginConfigPatch(input) : undefined;
             if (!normalized) {
-              throw new Error("action=updateLoginConfig 时必须提供 loginConfig");
+              throw new Error("action=patchLoginStrategy 时必须提供 patch");
             }
             const current = await cloudbase.env.getLoginConfigListV2();
             const merged = {
@@ -287,15 +389,18 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             // Manager SDK v5 provides a dedicated helper for login config updates.
             const result = await cloudbase.env.updateLoginConfigV2(merged as any);
             logCloudBaseResult(server.logger, result);
-            return buildEnvelope(
-              {
-                action,
-                envId,
-                appliedLoginConfig: merged,
-                raw: result,
-              },
-              "应用登录配置更新成功",
-            );
+            const confirmed = await cloudbase.env.getLoginConfigListV2();
+            logCloudBaseResult(server.logger, confirmed);
+            const loginMethods = buildLoginMethods(confirmed);
+            return {
+              success: true,
+              envId,
+              loginMethods,
+              ...(buildLoginConfigNextStep(loginMethods)
+                ? { next_step: buildLoginConfigNextStep(loginMethods) }
+                : {}),
+              ...(buildWebSdkHint(loginMethods) ? { webSdkHint: buildWebSdkHint(loginMethods) } : {}),
+            } as ToolEnvelope;
           }
           case "updateProvider": {
             const normalized = normalizePlainObject(config, "config");

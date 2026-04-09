@@ -38,6 +38,7 @@ alwaysApply: false
 - Mixing framework setup, deployment, and CloudBase integration concerns into one vague change.
 - Treating cloud functions as the default solution for Web authentication.
 - Skipping browser-level validation after a UI or routing change.
+- In an existing scaffold or evaluation app, detouring into template creation, UI redesign, or broad repo sweeps before patching the current handlers and services.
 
 ## When to use this skill
 
@@ -59,11 +60,13 @@ Use this skill for Web engineering work such as:
 1. **Clarify the execution surface**
    - Confirm whether the task is framework setup, page implementation, debugging, deployment, validation, or CloudBase integration.
    - Keep the work scoped to the actual Web app surface instead of spreading into unrelated backend changes.
+   - If the workspace is a scaffold or evaluation app with existing TODOs, treat it as a targeted repair task, not a greenfield build.
 
 2. **Follow framework and build conventions**
    - Prefer the existing project stack if one already exists.
    - For new work, treat Vite as the default bundler unless the repo or user constraints say otherwise.
    - Put reusable app code under `src` and build output under `dist` unless the repo already uses a different convention.
+   - In fixed scaffolds, inspect the files that already own the flow before reading broad docs: `src/lib/backend.*`, `src/lib/auth.*`, `src/lib/*service.*`, route guards, and the page handlers bound to submit buttons.
 
 3. **Validate through the browser, not only by reading code**
    - For interaction, routing, rendering, or regression checks, use `agent-browser` workflows from `browser-testing.md`.
@@ -87,6 +90,7 @@ Use this skill for Web engineering work such as:
 - Follow the repo's package manager, scripts, and lint/test patterns
 - Avoid framework rewrites unless the user explicitly asks for one
 - Prefer the smallest viable page/component/config change that satisfies the task
+- In TODO-based apps, complete the existing implementation directly instead of creating parallel helpers, sample pages, or detached prototypes
 
 ### 3. Validate changed flows explicitly
 

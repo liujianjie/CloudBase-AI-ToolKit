@@ -39,6 +39,21 @@ describe('skill quality standards', () => {
     expect(raw).not.toContain('## WeChat Mini Program');
     expect(raw).not.toContain('auth.signInWithOpenId');
     expect(raw).not.toContain('auth.signInWithPhoneAuth');
+    expect(raw).toContain('auth.signUp({ username, password })');
+    expect(raw).toContain('auth.signInWithPassword({ username, password })');
+    expect(raw).toContain('type="text"');
+    expect(raw).toContain('Do not switch to email OTP or phone OTP unless the task explicitly says');
+  });
+
+  test('cloud-storage-web documents exact-origin security-domain setup for local uploads', () => {
+    const raw = readSourceSkill('cloud-storage-web');
+
+    expect(raw).toContain('envQuery');
+    expect(raw).toContain('envDomainManagement');
+    expect(raw).toContain('127.0.0.1:4173');
+    expect(raw).toContain('localhost:5173');
+    expect(raw).toContain('app.uploadFile()');
+    expect(raw).toContain('Browser origin `http://127.0.0.1:4173` -> whitelist entry `127.0.0.1:4173`');
   });
 
   test('cloudrun-development explains the MinNum cold-start tradeoff with a default of 1', () => {

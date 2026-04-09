@@ -88,6 +88,15 @@ describe("NoSQL database tools", () => {
         };
       }
 
+      if (Action === "UpdateItem") {
+        return {
+          RequestId: "req-update",
+          ModifiedNum: 1,
+          MatchedNum: 1,
+          UpsertedId: "doc-users-1",
+        };
+      }
+
       throw new Error(`Unexpected action: ${Action}`);
     });
     mockGetCloudBaseManager.mockResolvedValue({
@@ -230,12 +239,29 @@ describe("NoSQL database tools", () => {
 
     expect(meta.description).toContain("MongoDB updateOne/updateMany");
     expect(meta.description).toContain("$set/$inc/$push");
+    expect(meta.description).toContain("`_id` 就是该 `uid`");
     expect(meta.inputSchema.update.description).toContain(
       "{ \"$set\": { \"status\": \"pending\" } }",
     );
     expect(meta.inputSchema.update.description).toContain(
       "{ \"status\": \"pending\" }",
     );
+  });
+
+  it("writeNoSqlDatabaseContent should warn when auth-linked role docs are upserted by uid query", async () => {
+    const { tools } = createMockServer();
+
+    const result = await tools.writeNoSqlDatabaseContent.handler({
+      action: "update",
+      collectionName: "users",
+      query: { uid: "user-123" },
+      update: { $set: { role: "admin" } },
+      upsert: true,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.warning).toContain("doc(uid)");
+    expect(payload.message).toContain("doc(uid)");
   });
 
   it("NoSQL structure tools should describe index management entry points explicitly", () => {

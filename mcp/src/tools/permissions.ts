@@ -36,6 +36,51 @@ type ToolEnvelope = {
   message: string;
 };
 
+function buildWriteVerificationHint(resourceId: string) {
+  return `对于 ${resourceId} 这类有后端权限控制的集合，前端调用 .doc(id).update() / .doc(id).remove() 后，不能只看是否没有抛异常。请显式检查返回结果中的 updated / deleted 是否大于 0；如果 result.code、result.message 存在，或 updated / deleted 为 0，要把它当作真实失败并向上抛错。`;
+}
+
+function buildPermissionPropagationHint(resourceId: string) {
+  return `刚更新完 ${resourceId} 的安全规则时，后端权限可能需要一小段传播时间。若紧接着的真实写操作仍返回 DATABASE_PERMISSION_DENIED，请先等待一小段时间，再用同一登录态重试同一条 .doc(id).update() / .doc(id).remove()；不要立刻连续重写规则，也不要在传播窗口里把旧拒绝直接当成规则表达式仍然错误。`;
+}
+
+type PermissionHint = {
+  type: "docIdWriteRuleWarning";
+  severity: "warning";
+  appliesTo: Array<"update" | "delete">;
+  summary: string;
+  detail: string;
+  recommendedRulePattern: string;
+  recommendedPermission?: string;
+  recommendedSecurityRule?: string;
+  recommendedClientWritePattern?: string;
+  roleLookupNote?: string;
+};
+
+type GetPathHint = {
+  type: "invalidGetPathWarning";
+  severity: "warning";
+  summary: string;
+  detail: string;
+  recommendedRulePattern: string;
+  recommendedPermission?: string;
+  recommendedSecurityRule?: string;
+  recommendedClientWritePattern?: string;
+  roleLookupNote?: string;
+};
+
+type TemplateLiteralHint = {
+  type: "templateLiteralRuleWarning";
+  severity: "warning";
+  summary: string;
+  detail: string;
+  recommendedRulePattern: string;
+  recommendedPermission?: string;
+  recommendedSecurityRule?: string;
+  recommendedClientWritePattern?: string;
+  roleLookupNote?: string;
+};
+
 function buildEnvelope(data: Record<string, unknown>, message: string): ToolEnvelope {
   return {
     success: true,
@@ -71,6 +116,141 @@ function normalizeRecordArray(value: unknown, label: string) {
     throw new Error(`${label} 必须是数组`);
   }
   return value as Array<Record<string, unknown>>;
+}
+
+function extractRiskyDocFieldOperations(securityRule: string | undefined): Array<"update" | "delete"> {
+  if (!securityRule) {
+    return [];
+  }
+
+  const operations: Array<"update" | "delete"> = [];
+  const operationPatterns: Array<["update" | "delete", RegExp]> = [
+    ["update", /"update"\s*:\s*"([^"]*)"/],
+    ["delete", /"delete"\s*:\s*"([^"]*)"/],
+  ];
+
+  for (const [operation, pattern] of operationPatterns) {
+    const match = securityRule.match(pattern);
+    const expression = match?.[1];
+    if (!expression) {
+      continue;
+    }
+    const referencesNonIdDocField = /doc\.(?!_id\b)[A-Za-z_][A-Za-z0-9_]*/.test(expression);
+    const usesGetByDocId = /get\('database\.[^']+'\s*\+\s*doc\._id\)/.test(expression);
+    if (referencesNonIdDocField && !usesGetByDocId) {
+      operations.push(operation);
+    }
+  }
+
+  return operations;
+}
+
+function buildRecommendedOwnerWriteRule(resourceId: string): string {
+  return JSON.stringify({
+    create: "auth.uid != null",
+    update:
+      "auth.uid != null && (get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid)",
+    delete:
+      "auth.uid != null && (get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid)",
+  });
+}
+
+function buildRoleLookupNote() {
+  return "如果你需要 app-level admin override（例如 CMS 中 admin 可编辑所有文章，而 editor 只能编辑自己的文章），CUSTOM 规则通常是必要的。一个已验证可用的模式是：角色集合文档主键就是 auth.uid，并在文章权限里写 get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid。若现有 schema 已经有 users / profiles / user_roles 其一，请复用已存在且能通过 _id == auth.uid 直接 get() 到的那一份；不要把 where({ uid }) 查询得到的集合误写成 get('database.users.' + auth.uid)。";
+}
+
+function buildRecommendedClientWritePattern(resourceId: string) {
+  return `对于 CMS 文章这类使用 app-level admin override 的 CUSTOM 规则，前端可继续使用 db.collection('${resourceId}').doc(id).update(...) / remove(...)。关键是安全规则要采用已验证模式：get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid，并且文章文档中要真实写入 authorId。`;
+}
+
+function buildDocIdWriteRuleHint(
+  securityRule: string | undefined,
+  resourceId: string,
+): PermissionHint | undefined {
+  const appliesTo = extractRiskyDocFieldOperations(securityRule);
+  if (!appliesTo.length) {
+    return undefined;
+  }
+
+  return {
+    type: "docIdWriteRuleWarning",
+    severity: "warning",
+    appliesTo,
+    summary:
+      "当前安全规则在 document-id 写入场景下可能被后端直接拒绝。",
+    detail:
+      "这类规则经常在 owner-only 集合里被写错，但对于 CMS 文章这种“admin 可编辑所有文章、editor 只能编辑自己的文章”的场景，已验证可用的做法是保留 doc.authorId，并通过独立角色集合做 admin override：get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid。不要默认改成 where(...)，也不要把同集合 owner 判断重写成 get('database.collection.' + doc._id)。",
+    recommendedRulePattern: "doc.authorId == auth.uid",
+    recommendedPermission: "CUSTOM",
+    recommendedSecurityRule: buildRecommendedOwnerWriteRule(resourceId),
+    recommendedClientWritePattern: buildRecommendedClientWritePattern(resourceId),
+    roleLookupNote: buildRoleLookupNote(),
+  };
+}
+
+function buildInvalidGetPathHint(
+  securityRule: string | undefined,
+  resourceId: string,
+): GetPathHint | undefined {
+  if (!securityRule) {
+    return undefined;
+  }
+
+  const hasFieldEmbeddedInsideGetPath =
+    /get\('database\.[^']+'\s*\+\s*[^)]*\+\s*'\.[A-Za-z_][A-Za-z0-9_]*'\)/.test(securityRule);
+  if (!hasFieldEmbeddedInsideGetPath) {
+    return undefined;
+  }
+
+  return {
+    type: "invalidGetPathWarning",
+    severity: "warning",
+    summary: "get() 的 path 只应包含 collection 和 documentId，不应把字段名拼进 path 字符串。",
+    detail:
+      "请写成 get('database.collection.' + doc._id).fieldName，而不是 get('database.collection.' + doc._id + '.fieldName')。但在 CMS 文章权限里，不要把 get('database.collection.' + doc._id) 当成默认首选方案；更稳的已验证模式是读取单独的角色集合：get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid。",
+    recommendedRulePattern: "doc.authorId == auth.uid",
+    recommendedPermission: "CUSTOM",
+    recommendedSecurityRule: buildRecommendedOwnerWriteRule(resourceId),
+    recommendedClientWritePattern: buildRecommendedClientWritePattern(resourceId),
+    roleLookupNote: buildRoleLookupNote(),
+  };
+}
+
+function buildTemplateLiteralRuleHint(
+  securityRule: string | undefined,
+  resourceId: string,
+): TemplateLiteralHint | undefined {
+  if (!securityRule) {
+    return undefined;
+  }
+
+  const usesTemplateLiteralPlaceholderInRule = /\$\{(?:auth\.uid|doc\._id|doc\.[A-Za-z_][A-Za-z0-9_]*)\}/.test(
+    securityRule,
+  );
+  if (!usesTemplateLiteralPlaceholderInRule) {
+    return undefined;
+  }
+
+  return {
+    type: "templateLiteralRuleWarning",
+    severity: "warning",
+    summary: "CloudBase security rule 表达式不支持把 ${...} 当作 JS 模板字符串插值。",
+    detail:
+      "在 securityRule 字符串里，请使用表达式拼接，例如 get('database.user_roles.' + auth.uid).role，而不是 get('database.user_roles.${auth.uid}').role。对于 CMS 文章这类需要 app-level admin override 的规则，请优先使用已验证的 user_roles + doc.authorId 模式。",
+    recommendedRulePattern: "doc.authorId == auth.uid",
+    recommendedPermission: "CUSTOM",
+    recommendedSecurityRule: buildRecommendedOwnerWriteRule(resourceId),
+    recommendedClientWritePattern: buildRecommendedClientWritePattern(resourceId),
+    roleLookupNote: buildRoleLookupNote(),
+  };
+}
+
+function buildPermissionHints(securityRule: string | undefined, resourceId: string) {
+  return [
+    buildDocIdWriteRuleHint(securityRule, resourceId),
+    buildInvalidGetPathHint(securityRule, resourceId),
+    buildTemplateLiteralRuleHint(securityRule, resourceId),
+  ].filter(Boolean);
 }
 
 export function registerPermissionTools(server: ExtendedMcpServer) {
@@ -151,13 +331,19 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
               resources: [resourceId],
             });
             logCloudBaseResult(server.logger, result);
+            const permissions = result.Data.PermissionList ?? [];
+            const securityRule =
+              permissions.find((item) => item.Resource === resourceId)?.SecurityRule ??
+              permissions[0]?.SecurityRule;
+            const hints = buildPermissionHints(securityRule, resourceId);
             return buildEnvelope(
               {
                 action,
                 envId,
                 resourceType,
                 resourceId,
-                permissions: result.Data.PermissionList ?? [],
+                permissions,
+                hints,
                 raw: result,
               },
               "资源权限查询成功",
@@ -172,12 +358,24 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
               resources: resourceIds,
             });
             logCloudBaseResult(server.logger, result);
+            const permissions = result.Data.PermissionList ?? [];
+            const resourceHints = permissions
+              .map((item) => ({
+                resourceId: item.Resource ?? "",
+                permission: item.Permission,
+                hints:
+                  item.Permission === "CUSTOM" && item.Resource
+                    ? buildPermissionHints(item.SecurityRule, item.Resource)
+                    : [],
+              }))
+              .filter((item) => item.resourceId && item.hints.length > 0);
             return buildEnvelope(
               {
                 action,
                 envId,
                 resourceType,
-                permissions: result.Data.PermissionList ?? [],
+                permissions,
+                resourceHints,
                 total: result.Data.TotalCount ?? 0,
                 raw: result,
               },
@@ -285,7 +483,7 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
     {
       title: "管理权限与用户配置",
       description:
-        "权限域统一写入口。支持修改资源权限、角色管理、成员与策略增删、应用用户 CRUD。",
+        "权限域统一写入口。支持修改资源权限、角色管理、成员与策略增删、应用用户 CRUD。`createUser` / `updateUser` 是环境侧应用用户管理能力，适合测试账号、管理员或预置用户，不应替代浏览器里的 Web SDK 注册表单；前端用户名密码注册应使用 `auth.signUp({ username, password })`，登录应使用 `auth.signInWithPassword({ username, password })`。",
       inputSchema: {
         action: z.enum(MANAGE_PERMISSION_ACTIONS),
         resourceType: z
@@ -371,6 +569,7 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
               securityRule,
             });
             logCloudBaseResult(server.logger, result);
+            const hints = permission === "CUSTOM" ? buildPermissionHints(securityRule, resourceId) : [];
             return buildEnvelope(
               {
                 action,
@@ -378,6 +577,15 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
                 resourceType,
                 resourceId,
                 permission,
+                hints,
+                verificationHint:
+                  resourceType === "noSqlDatabase" && permission === "CUSTOM"
+                    ? buildWriteVerificationHint(resourceId)
+                    : undefined,
+                propagationHint:
+                  resourceType === "noSqlDatabase" && permission === "CUSTOM"
+                    ? buildPermissionPropagationHint(resourceId)
+                    : undefined,
                 raw: result,
               },
               "资源权限更新成功",

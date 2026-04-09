@@ -13,12 +13,20 @@ alwaysApply: true
 **⚠️ CRITICAL: Read this section first based on your project type**
 
 ### When Developing a Web Project:
-1. **Environment Check**: Call \`envQuery\` tool first (applies to all interactions)
+1. **Environment Check**: Query environment info only when the task actually needs environment metadata, deployment, or an env ID. For existing scaffold / TODO-completion tasks, do not spend turns on hosting or domain queries unless the user explicitly asks for deployment.
+1. **Execution Mode for Scaffold / TODO Tasks**: If the task is to complete an existing scaffold, wire TODO logic, or pass an evaluation case, do **not** enter design-only, brainstorming-only, or spec-only flows first. Gather only the minimum context needed, then implement directly. Do not stop after “project exploration complete”.
+1. **Scaffold File Focus (MANDATORY)**: For an existing scaffold / TODO-completion Web app, do not broad-scan the whole repo before coding. First inspect only the task-critical files: \`src/lib/backend.*\`, \`src/lib/auth.*\`, \`src/lib/cms-service.*\`, \`src/lib/storage-service.*\`, and the page/components that already consume those APIs. Then implement those TODOs before doing any wide repo exploration.
+1. **Task Tool Discipline**: For scaffold / evaluation tasks, do not spend many turns in \`TaskCreate\`, \`TaskUpdate\`, or project-management loops. At most keep one short checklist. After that, write code. Do not let task-management consume the turn budget.
+1. **No README / UI-Design Detour For Existing Scaffolds**: If the repo already contains the target pages and only backend TODOs are missing, skip README-driven discovery and skip UI-design workflows unless the task explicitly asks for a visual redesign. Backend wiring is the priority.
+1. **No Broad Grep / Glob Sweep**: In scaffold evaluation tasks, do not recursively Grep / Glob the whole repo for long periods. Open the known TODO-bearing files directly and start editing.
 2. **⚠️ Template Download (MANDATORY for New Projects)**: **MUST call \`downloadTemplate\` tool FIRST when starting a new project** - Do NOT create files manually. Use \`downloadTemplate\` with \`template="react"\` or \`template="vue"\` to get the complete project structure. Only proceed with manual file creation if template download fails or user explicitly requests it.
 3. **⚠️ UI Design (CRITICAL)**: **MUST read \`rules/ui-design/rule.md\` FIRST before generating any page, interface, component, or style** - This is NOT optional. You MUST explicitly read this file and output the design specification before writing any UI code.
 4. **Core Capabilities**: Read Core Capabilities section below (especially UI Design and Database + Authentication for Web)
 5. **Platform Rules**: Read \`rules/web-development/rule.md\` for platform-specific rules (SDK integration, static hosting, build configuration)
 6. **Authentication**: Read \`rules/auth-web/rule.md\` - **MUST use Web SDK built-in authentication**
+   - \`accessKey\` can only be a real Publishable Key obtained from CloudBase auth/app config. Never use \`envId\`, a username, or any placeholder string as \`accessKey\`.
+   - If you do not have a real Publishable Key yet, do not fabricate one. First query or configure auth readiness, or initialize without \`accessKey\` if the login flow itself is what will establish end-user identity.
+7. **Cloud Storage (when files are uploaded from browser code)**: Read \`rules/cloud-storage-web/rule.md\` before implementing upload / preview / temp URL flows. For local dev origins (for example Vite on \`127.0.0.1\` / \`localhost\`), query current security domains first and compare against the returned whitelist entry format (usually \`host:port\`, such as \`127.0.0.1:4173\` or \`localhost:5173\`). If \`envQuery(action="domains")\` reports missing local entries or returns a \`next_step\`, execute that \`envDomainManagement\` step before relying on \`app.uploadFile()\`. After upload, do not handcraft a storage URL from \`envId\`, bucket domain, or \`cloudPath\`; resolve an actual browser-usable URL through \`app.getTempFileURL()\` using the returned \`fileID\`.
 7. **Database**: 
    - NoSQL: \`rules/no-sql-web-sdk/rule.md\`
    - MySQL: \`rules/relational-database-web/rule.md\` + \`rules/relational-database-mcp/rule.md\`
@@ -71,6 +79,10 @@ As the most important part of application development, the following four core c
 **Authentication**:
 - **Web Projects**: 
   - Must use CloudBase Web SDK built-in authentication, refer to \`rules/auth-web/rule.md\`
+  - For username-style accounts, use \`auth.signUp({ username, password })\` and \`auth.signInWithPassword({ username, password })\`
+  - Do not use email-only helpers or email-only input semantics when the account identifier is a plain username string
+  - When an existing schema or fixture already provides role/profile metadata in \`users\`, \`profiles\`, or \`user_roles\`, reuse that collection instead of inventing yet another one. In role-based CMS scaffolds, a \`user_roles\` collection keyed by \`uid\` is an acceptable and validated pattern.
+  - For browser-side file upload / preview flows, read \`rules/cloud-storage-web/rule.md\`; on local dev origins, verify the required local host entries (for example \`127.0.0.1:4173\`, \`localhost:5173\`) are already in the environment security-domain whitelist before depending on \`app.uploadFile()\`. If \`envQuery(action="domains")\` returns missing local entries or a \`next_step\`, execute that \`envDomainManagement\` action first. After upload, use \`app.getTempFileURL()\` to resolve the preview/download URL instead of constructing a URL string manually.
   - Platform development rules: Refer to \`rules/web-development/rule.md\` for Web SDK integration, static hosting deployment, and build configuration
 - **Mini Program Projects**: 
   - Naturally login-free, get \`wxContext.OPENID\` in cloud functions, refer to \`rules/auth-wechat/rule.md\`
@@ -80,6 +92,9 @@ As the most important part of application development, the following four core c
 **Database Operations**:
 - **Web Projects**:
   - NoSQL Database: Refer to \`rules/no-sql-web-sdk/rule.md\`
+  - For content collections that only need owner-only writes, simple permissions such as \`READONLY\` can be a good fit. But for CMS-style collections that require **app-level admin users** to edit/delete any record while editors can only edit/delete their own records, a \`CUSTOM\` rule is expected.
+  - A validated CMS article rule shape is: \`{"read":"auth.uid != null","create":"auth.uid != null","update":"auth.uid != null && (get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid)","delete":"auth.uid != null && (get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid)"}\`.
+  - For that CMS pattern, frontend writes can stay on \`.doc(id).update()\` / \`.doc(id).remove()\`. Do not force a \`where(...)\` rewrite unless the task explicitly requires a different rule design.
   - MySQL Relational Database: Refer to \`rules/relational-database-web/rule.md\` (Web application development) and \`rules/relational-database-mcp/rule.md\` (Management via MCP tools)
   - Platform development rules: Refer to \`rules/web-development/rule.md\` for Web SDK database integration patterns
 - **Mini Program Projects**:
@@ -93,6 +108,7 @@ As the most important part of application development, the following four core c
 - Use CloudBase static hosting after build completion
 - Deploy using \`uploadFiles\` tool
 - \`uploadFiles\` is only for static hosting deployment; do not use it for COS / cloud storage uploads. For storage objects, use \`manageStorage(action="upload")\`
+- If the task is an evaluation scaffold or existing app shell with a local dev server workflow, skip static hosting deployment unless the user explicitly asks for a deployed URL
 - Remind users that CDN has a few minutes of cache after deployment
 - Generate markdown format access links with random queryString
 
@@ -111,7 +127,7 @@ As the most important part of application development, the following four core c
 ### 0. Environment Check (First Step)
 After user inputs any content, first check CloudBase environment status:
 - Ensure current CloudBase environment ID is known
-- If not present in conversation history, must call \`envQuery\` tool with parameter \`action=info\` to query current environment information and environment ID
+- If not present in conversation history and the task needs env metadata or deployment, call \`envQuery\` tool with parameter \`action=info\` to query current environment information and environment ID
 - **Important**: When environment ID configuration is involved in code later, automatically use the queried environment ID, no need for manual user input
 
 ### 1. Scenario Identification
@@ -151,18 +167,24 @@ Before starting work, suggest confirming with user:
 3. "Please confirm if my understanding is correct"
 
 ## Core Behavior Rules
+0. **Scaffold/TODO Completion Bias**: For existing scaffold applications and evaluation tasks, implementation is the goal. Do not hand off to a design-only phase, do not stop at exploration, and do not treat a summary of findings as task completion. After minimal context gathering, write code and wire the real backend flow.
+0. **No Broad Exploration For TODO Apps**: When the repo already exposes TODO markers in backend integration files, do not keep globbing, summarizing, or reading unrelated files. Open the TODO-bearing files and implement them.
+0. **No Task-Loop Derailment**: In scaffold / evaluation tasks, avoid repeated \`TaskCreate\` / \`TaskUpdate\` cycles. One minimal checklist is enough; the rest of the budget should go to file edits, tool calls, and verification.
+0. **Do Not Delegate Or Defer**: In scaffold / evaluation tasks, do not invoke design copilots, brainstorming helpers, or delegated agent flows before the core TODO files are implemented. Finish the direct file edits first.
 1. **Tool Priority**: For Tencent CloudBase operations, must prioritize using CloudBase MCP tools
 2. **⚠️ Template Download (MANDATORY)**: **When starting a new project or when user requests to develop an application, MUST FIRST call \`downloadTemplate\` tool** - Do NOT manually create project files. Use \`downloadTemplate\` with appropriate template type (\`react\`, \`vue\`, \`miniprogram\`, \`uniapp\`). Only create files manually if template download fails or user explicitly requests manual creation. This ensures proper project structure, configuration files, and best practices.
-3. **Project Understanding**: First read current project's README.md, follow project instructions for development
+3. **Project Understanding**: First read current project's README.md, follow project instructions for development. Exception: for existing scaffold / TODO-completion evaluation tasks where the missing work is clearly in known backend integration files, skip README-first and go straight to those files.
 4. **Directory Standards**: Before outputting project code in current directory, first check current directory files
 5. **Development Order**: When developing, prioritize frontend first, then backend, ensuring frontend interface and interaction logic are completed first, then implement backend business logic
-6. **⚠️ UI Design Rules Mandatory Application**: When tasks involve generating pages, interfaces, components, styles, or any frontend visual elements, **MUST FIRST explicitly read the file \`rules/ui-design/rule.md\` using file reading tools**, then strictly follow the rule file, ensuring generated interfaces have distinctive aesthetic styles and high-quality visual design, avoiding generic AI aesthetics. **You MUST output the design specification before writing any UI code.**
+6. **⚠️ UI Design Rules Mandatory Application**: When tasks involve generating pages, interfaces, components, styles, or any frontend visual elements, **MUST FIRST explicitly read the file \`rules/ui-design/rule.md\` using file reading tools**, then strictly follow the rule file, ensuring generated interfaces have distinctive aesthetic styles and high-quality visual design, avoiding generic AI aesthetics. **You MUST output the design specification before writing any UI code.** Exception: for existing scaffold / TODO-completion evaluation tasks where page structure is already fixed and only backend integration is missing, do not trigger the UI-design workflow.
 7. **Backend Development Priority Strategy**: When developing backend, prioritize using SDK to directly call CloudBase database, rather than through cloud functions, unless specifically needed (such as complex business logic, server-side computation, calling third-party APIs, etc.)
 8. **Deployment Order**: When there are backend dependencies, prioritize deploying backend before previewing frontend
 9. **Interactive Confirmation**: Clarify requirements when needed, and confirm before executing high-risk operations
 10. **Real-time Communication**: Use CloudBase real-time database watch capability
 11. **⚠️ Authentication Rules**: When users develop projects, if user login authentication is needed, must use built-in authentication functions, must strictly distinguish authentication methods by platform
    - **Web Projects**: **MUST use CloudBase Web SDK built-in authentication** (e.g., \`auth.toDefaultLoginPage()\`), refer to \`rules/auth-web/rule.md\`
+   - **Username-style Web accounts**: Use \`auth.signUp({ username, password })\` for registration and \`auth.signInWithPassword({ username, password })\` for login. Do not use \`signInWithEmailAndPassword\` / \`signUpWithEmailAndPassword\` when the identifier is not an email address.
+   - **Web initialization**: Only set \`accessKey\` when you have a real Publishable Key. Never set \`accessKey: envId\` or any made-up string.
    - **Mini Program Projects**: **Naturally login-free**, get \`wxContext.OPENID\` in cloud functions, refer to \`rules/auth-wechat/rule.md\`
 
 ## Development Workflow
@@ -203,7 +225,7 @@ If remote links are needed in the application, can continue to call uploadFile t
 
 2. **CloudRun Deployment Process**: For non-cloud function backend services (Java, Go, PHP, Python, Node.js, etc.), use manageCloudRun tool for deployment. Ensure backend code supports CORS, prepare Dockerfile, then call manageCloudRun for containerized deployment. For details, refer to \`rules/cloudrun-development/rule.md\`
 
-3. **Static Hosting Deployment Process**: Deploy using uploadFiles tool for static hosting only. If the task needs a COS object that must be queried or polled with the storage SDK, use \`manageStorage\` / \`queryStorage\` instead. After deployment, remind users that CDN has a few minutes of cache. Can generate markdown format access links with random queryString. For details, refer to \`rules/web-development/rule.md\`
+3. **Static Hosting Deployment Process**: Deploy using uploadFiles tool for static hosting only. If the task needs a COS object that must be queried or polled with the storage SDK, use \`manageStorage\` / \`queryStorage\` instead. For scaffold evaluation or local verification tasks, do not deploy hosting unless the user explicitly asks for deployment. After deployment, remind users that CDN has a few minutes of cache. Can generate markdown format access links with random queryString. For details, refer to \`rules/web-development/rule.md\`
 
 ### Documentation Generation Rules
 
