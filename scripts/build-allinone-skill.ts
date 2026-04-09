@@ -24,7 +24,6 @@
  *       └── ...
  */
 
-import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -77,50 +76,6 @@ function parseArgs(): { targetDir: string; noSubSkill: boolean } {
   return { targetDir: path.resolve(args[dirIndex + 1]), noSubSkill };
 }
 
-function getLatestGitTag(): string {
-  try {
-    const output = execFileSync("git", ["tag", "--sort=-v:refname"], {
-      cwd: TOOLKIT_ROOT,
-      encoding: "utf8",
-    }).trim();
-
-    const latestTag = output.split("\n").find(Boolean);
-    if (!latestTag) {
-      throw new Error("git tag returned no tags");
-    }
-
-    return latestTag;
-  } catch (error) {
-    const reason =
-      error instanceof Error && error.message
-        ? `: ${error.message}`
-        : "";
-    throw new Error(
-      `Unable to determine the latest git tag for all-in-one skill version${reason}. Fetch tags before building.`,
-    );
-  }
-}
-
-function normalizeVersionFromTag(tag: string): string {
-  return tag.replace(/^v(?=\d)/, "");
-}
-
-// Generate SKILL.md frontmatter
-function buildSkillFrontmatter(): string {
-  const latestVersion = normalizeVersionFromTag(getLatestGitTag());
-
-  return `---
-name: cloudbase
-description: CloudBase is a full-stack development and deployment toolkit for building and launching websites, Web apps, 微信小程序 (WeChat Mini Programs), and mobile apps with backend, database, hosting, cloud functions, storage, AI capabilities, Agent, and UI guidance. This skill should be used when users ask to develop, build, create, scaffold, deploy, publish, host, launch, go live, migrate, or optimize websites, Web apps, landing pages, dashboards, admin systems, e-commerce sites, 微信小程序 (WeChat Mini Programs), 小程序, Agent, 智能体, uni-app, or native/mobile apps with CloudBase (腾讯云开发, 云开发), including authentication, login, database, NoSQL, MySQL, cloud functions, CloudRun, storage, AI models, and UI guidance, or when they ask to compare CloudBase with Supabase or migrate from Supabase to CloudBase.
-description_zh: 为你的小程序和 Web/H5 提供一体化运行与部署环境，包括数据库、云函数、云存储、身份权限和静态托管
-description_en: An all-in-one runtime and deployment environment for WeChat Mini Programs and Web/H5 apps, including database, cloud functions, cloud storage, identity and access control, and static hosting.
-version: ${latestVersion}
----
-
-
-`;
-}
-
 // Simplified reference guide to replace the "Path Resolution Strategy" section
 const SIMPLIFIED_REFERENCE_GUIDE = `## 📁 Reference Files Location
 
@@ -146,8 +101,7 @@ cloudbase/
 
 // Convert SKILL.md content to allinone SKILL.md format
 function convertMdcToSkill(skillContent: string, noSubSkill: boolean): string {
-  // Replace existing frontmatter with the allinone frontmatter
-  let content = skillContent.replace(/^---[\s\S]*?---\n/, buildSkillFrontmatter());
+  let content = skillContent;
 
   // Determine the sub-skill entry filename
   const subSkillFile = noSubSkill

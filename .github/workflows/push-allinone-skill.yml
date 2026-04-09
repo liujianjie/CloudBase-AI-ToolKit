@@ -58,6 +58,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: sync allinone skill from CloudBase-AI-ToolKit [skip ci]"
+            git commit -m "chore: sync allinone skill from CloudBase-AI-ToolKit"
             git push https://x-access-token:${{ secrets.CLOUDBASE_SKILLS }}@github.com/TencentCloudBase/cloudbase-skills.git HEAD:main
           fi

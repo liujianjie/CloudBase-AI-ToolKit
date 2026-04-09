@@ -5,6 +5,15 @@ version: 2.16.1
 alwaysApply: false
 ---
 
+## Standalone Install Note
+
+If this environment only installed the current skill, start from the CloudBase main entry and use the published `cloudbase/references/...` paths for sibling skills.
+
+- CloudBase main entry: `https://cnb.cool/tencent/cloud/cloudbase/cloudbase-skills/-/git/raw/main/skills/cloudbase/SKILL.md`
+- Current skill raw source: `https://cnb.cool/tencent/cloud/cloudbase/cloudbase-skills/-/git/raw/main/skills/cloudbase/references/auth-tool/SKILL.md`
+
+Keep local `references/...` paths for files that ship with the current skill directory. When this file points to a sibling skill such as `auth-tool` or `web-development`, use the standalone fallback URL shown next to that reference.
+
 ## Activation Contract
 
 ### Use this first when
@@ -20,10 +29,10 @@ alwaysApply: false
 
 ### Then also read
 
-- Web auth UI -> `../auth-web/SKILL.md`
-- Mini program native auth -> `../auth-wechat/SKILL.md`
-- Node server-side identity / custom ticket -> `../auth-nodejs/SKILL.md`
-- Native App / raw HTTP auth client -> `../http-api/SKILL.md`
+- Web auth UI -> `../auth-web/SKILL.md` (standalone fallback: `https://cnb.cool/tencent/cloud/cloudbase/cloudbase-skills/-/git/raw/main/skills/cloudbase/references/auth-web/SKILL.md`)
+- Mini program native auth -> `../auth-wechat/SKILL.md` (standalone fallback: `https://cnb.cool/tencent/cloud/cloudbase/cloudbase-skills/-/git/raw/main/skills/cloudbase/references/auth-wechat/SKILL.md`)
+- Node server-side identity / custom ticket -> `../auth-nodejs/SKILL.md` (standalone fallback: `https://cnb.cool/tencent/cloud/cloudbase/cloudbase-skills/-/git/raw/main/skills/cloudbase/references/auth-nodejs/SKILL.md`)
+- Native App / raw HTTP auth client -> `../http-api/SKILL.md` (standalone fallback: `https://cnb.cool/tencent/cloud/cloudbase/cloudbase-skills/-/git/raw/main/skills/cloudbase/references/http-api/SKILL.md`)
 
 ### Do NOT use this as
 
@@ -118,10 +127,12 @@ The underlying login strategy contains fields such as:
 
 Parameter mapping for downstream Web auth code:
 
+- `queryAppAuth(action="getLoginConfig")` and `manageAppAuth(action="patchLoginStrategy")` return `sdkStyle: "supabase-like"` plus `sdkHints`; treat that as the preferred frontend-auth calling guide
 - `PhoneNumberLogin` controls phone OTP flows used by `auth-web` `auth.signInWithOtp({ phone })` and `auth.signUp({ phone })`
 - `EmailLogin` controls email OTP flows used by `auth-web` `auth.signInWithOtp({ email })` and `auth.signUp({ email })`
 - `UserNameLogin` controls username/password Web auth flows used by `auth-web` `auth.signUp({ username, password })` and `auth.signInWithPassword({ username, password })`
 - If the account identifier is a plain username string, do not route it through email-only helpers such as `signInWithEmailAndPassword`
+- `UserNameLogin` also enables the broader password-login surface exposed by `auth.signInWithPassword({ username|email|phone, password })`
 - `SmsVerificationConfig.Type = "apis"` requires both `Name` and `Method`
 - `EnvId` is always the CloudBase environment ID, not the publishable key
 
@@ -373,6 +384,8 @@ Preferred MCP tool path:
 - `queryAppAuth(action="getClientConfig")`
 - `manageAppAuth(action="updateClientConfig")`
 
+Both tools should default to the current selected environment's default client. Only pass `clientId` when you intentionally want to inspect or modify a non-default client record.
+
 **Query client config**:
 ```js
 {
@@ -401,27 +414,29 @@ Preferred MCP tool path:
 
 Preferred MCP tool path:
 
-- `queryAppAuth(action="listApiKeyTokens")`
-- `manageAppAuth(action="createApiKeyToken")`
+- `queryAppAuth(action="getPublishableKey")`
+- `manageAppAuth(action="ensurePublishableKey")`
 
 **Query existing key**:
 ```js
 {
     "params": { "EnvId": `env`, "KeyType": "publish_key", "PageNumber": 1, "PageSize": 10 },
-    "service": "lowcode",
-    "action": "DescribeApiKeyTokens"
+    "service": "tcb",
+    "action": "DescribeApiKeyList"
 }
 ```
-Return `PublishableKey.ApiKey` if exists (filter by `Name == "publish_key"`).
+`queryAppAuth(action="getPublishableKey")` should always force `KeyType="publish_key"` and return a short payload with `publishableKey`, `keyId`, `keyName`, `expireAt`, and `createdAt`.
 
-**Create new key** (if not exists):
+**Ensure key exists**:
 ```js
 {
-    "params": { "EnvId": `env`, "KeyType": "publish_key", "KeyName": "publish_key" },
-    "service": "lowcode",
-    "action": "CreateApiKeyToken"
+    "params": { "EnvId": `env`, "KeyType": "publish_key" },
+    "service": "tcb",
+    "action": "CreateApiKey"
 }
 ```
+`manageAppAuth(action="ensurePublishableKey")` should first query the existing `publish_key`; if one already exists, return it directly; otherwise create it and return the new key. This keeps the MCP interface short and avoids requiring the model to reason about `KeyType` or whether a key already exists.
+
 If creation fails, direct user to: "https://tcb.cloud.tencent.com/dev?envId=`env`#/env/apikey"
 
 ### 10. Custom Login Keys

@@ -38,7 +38,7 @@
 <tr><td><code>queryGateway</code></td><td>网关域统一只读入口。通过 action 查询网关域名、访问入口和目标暴露情况。</td></tr>
 <tr><td><code>manageGateway</code></td><td>网关域统一写入口。通过 action 创建目标访问入口，后续承接更通用的网关配置能力。</td></tr>
 <tr><td><code>queryAppAuth</code></td><td>应用侧认证配置只读入口。用于查询登录方式、provider、publishable key、client 配置和静态域名等认证准备状态。</td></tr>
-<tr><td><code>manageAppAuth</code></td><td>应用侧认证配置写入口。用于修改登录方式、provider、client 配置，创建 publishable key 和自定义登录密钥。</td></tr>
+<tr><td><code>manageAppAuth</code></td><td>应用侧认证配置写入口。用于修改登录方式、provider、client 配置，确保 publishable key 和创建自定义登录密钥。</td></tr>
 <tr><td><code>queryPermissions</code></td><td>权限域统一只读入口。支持查询资源权限、角色列表/详情、应用用户列表/详情。</td></tr>
 <tr><td><code>managePermissions</code></td><td>权限域统一写入口。支持修改资源权限、角色管理、成员与策略增删、应用用户 CRUD。</td></tr>
 <tr><td><code>queryLogs</code></td><td>日志域统一只读入口。支持检查日志服务状态并搜索 CLS 日志。</td></tr>
@@ -779,26 +779,27 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
 <table>
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
-<tr><td><code>action</code></td><td>string</td><td>是</td><td>可填写的值: "getLoginConfig", "listProviders", "getProvider", "getClientConfig", "listApiKeyTokens", "getStaticDomain"</td></tr>
+<tr><td><code>action</code></td><td>string</td><td>是</td><td>可填写的值: "getLoginConfig", "listProviders", "getProvider", "getClientConfig", "getPublishableKey", "getStaticDomain"</td></tr>
 <tr><td><code>providerId</code></td><td>string</td><td></td><td>provider 标识，如 email、google</td></tr>
-<tr><td><code>clientId</code></td><td>string</td><td></td><td>OAuth client_id / DescribeClient 的 Id；省略时默认使用当前环境 ID（官方文档：默认客户端）</td></tr>
+<tr><td><code>clientId</code></td><td>string</td><td></td><td>OAuth client_id / DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）</td></tr>
 </tbody>
 </table>
 
 ---
 
 ### `manageAppAuth`
-应用侧认证配置写入口。用于修改登录方式、provider、client 配置，创建 publishable key 和自定义登录密钥。
+应用侧认证配置写入口。用于修改登录方式、provider、client 配置，确保 publishable key 和创建自定义登录密钥。
 
 #### 参数
 
 <table>
 <thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
 <tbody>
-<tr><td><code>action</code></td><td>string</td><td>是</td><td>可填写的值: "patchLoginStrategy", "updateProvider", "updateClientConfig", "createApiKeyToken", "createCustomLoginKeys"</td></tr>
+<tr><td><code>action</code></td><td>string</td><td>是</td><td>可填写的值: "patchLoginStrategy", "updateProvider", "updateClientConfig", "ensurePublishableKey", "createCustomLoginKeys"</td></tr>
 <tr><td><code>patch</code></td><td>object</td><td></td><td>patchLoginStrategy 使用的简化登录策略 patch，如 &#123; usernamePassword: true &#125;</td></tr>
 <tr><td><code>providerId</code></td><td>string</td><td></td><td>provider 标识，如 email、google</td></tr>
-<tr><td><code>config</code></td><td>object</td><td></td><td>provider / client / api key 的配置对象</td></tr>
+<tr><td><code>clientId</code></td><td>string</td><td></td><td>updateClientConfig 时的客户端 Id；省略时默认使用当前环境 ID</td></tr>
+<tr><td><code>config</code></td><td>object</td><td></td><td>provider / client 的配置对象</td></tr>
 </tbody>
 </table>
 
