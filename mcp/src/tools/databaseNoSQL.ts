@@ -453,6 +453,29 @@ deleteCollection: 删除集合`),
     async ({ action, collectionName, updateOptions }) => {
       const cloudbase = await getManager();
       if (action === "createCollection") {
+        const existsResult =
+          await cloudbase.database.checkCollectionExists(collectionName);
+        logCloudBaseResult(server.logger, existsResult);
+        if (existsResult.Exists) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  withCollectionName(collectionName, {
+                    success: true,
+                    action,
+                    requestId: existsResult.RequestId,
+                    message: "集合已存在，无需重复创建",
+                    exists: true,
+                  }),
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
         const result =
           await cloudbase.database.createCollection(collectionName);
         logCloudBaseResult(server.logger, result);
