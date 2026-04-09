@@ -358,7 +358,7 @@ jobs:
               is_bug="true"
             fi
 
-            update_issue_labels "$number" remove:no-ai remove:ai-failed add:ai-processing
+            update_issue_labels "$number" remove:no-ai remove:ai-failed remove:ai-processed remove:ai-fix add:ai-processing
 
             if [ "$is_bug" = "true" ]; then
               echo "Route: bug -> attempt fix"
@@ -367,7 +367,7 @@ jobs:
               build_bug_prompt
 
               set +e
-              raw_output=$(codebuddy -p "$(cat /tmp/codebuddy-prompt.txt)" -y --output-format json --permission-mode acceptEdits 2>&1)
+              raw_output=$(timeout 1200s codebuddy -p "$(cat /tmp/codebuddy-prompt.txt)" -y --output-format json --permission-mode acceptEdits 2>&1)
               exit_code=$?
               set -e
 
@@ -418,7 +418,7 @@ jobs:
             build_analysis_prompt
 
             set +e
-            raw_output=$(codebuddy -p "$(cat /tmp/codebuddy-prompt.txt)" -y --output-format json --permission-mode acceptEdits 2>&1)
+            raw_output=$(timeout 1200s codebuddy -p "$(cat /tmp/codebuddy-prompt.txt)" -y --output-format json --permission-mode acceptEdits 2>&1)
             exit_code=$?
             set -e
 
