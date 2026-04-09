@@ -36,4 +36,10 @@ test('resolvePublishTargets only returns whitelisted publish units', () => {
     'web-development',
     'spec-workflow',
   ]);
+  expect(targets.find((target) => target.key === 'ui-design')?.registrySlug).toBe(
+    'ui-design-guide',
+  );
+  expect(
+    targets.find((target) => target.key === 'spec-workflow')?.registrySlug,
+  ).toBe('spec-workflow-guide');
 });

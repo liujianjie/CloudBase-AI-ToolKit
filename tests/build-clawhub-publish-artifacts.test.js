@@ -1,8 +1,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { afterEach, expect, test } from 'vitest';
 import { buildClawhubPublishArtifacts } from '../scripts/build-clawhub-publish-artifacts.mjs';
+
+const TEST_FILE = fileURLToPath(import.meta.url);
+const REPO_ROOT = path.resolve(path.dirname(TEST_FILE), '..');
 
 const tempDirs = [];
 afterEach(() => {
@@ -10,6 +14,25 @@ afterEach(() => {
     fs.rmSync(tempDirs.pop(), { recursive: true, force: true });
   }
 });
+
+function readSourceSkillName(targetKey) {
+  const raw = fs.readFileSync(
+    path.join(
+      REPO_ROOT,
+      'config',
+      'source',
+      'skills',
+      targetKey,
+      'SKILL.md',
+    ),
+    'utf8',
+  );
+  const match = raw.match(/^name:\s*(.+)$/m);
+  if (!match) {
+    throw new Error(`Expected ${targetKey} source skill to declare a name`);
+  }
+  return match[1].trim();
+}
 
 test('buildClawhubPublishArtifacts builds miniprogram-development artifact', () => {
   const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clawhub-publish-'));
@@ -80,15 +103,31 @@ test.each([
 
   expect(manifest.targets).toHaveLength(1);
   expect(manifest.targets[0].targetKey).toBe(targetKey);
-  expect(manifest.targets[0].registrySlug).toBe(targetKey);
   if (targetKey === 'ui-design') {
+    expect(manifest.targets[0].registrySlug).toBe('ui-design-guide');
+  } else if (targetKey === 'spec-workflow') {
+    expect(manifest.targets[0].registrySlug).toBe('spec-workflow-guide');
+  } else {
+    expect(manifest.targets[0].registrySlug).toBe(targetKey);
+  }
+  if (targetKey === 'ui-design') {
+    expect(readSourceSkillName(targetKey)).toBe('ui-design');
     expect(manifest.targets[0].metadata.name).toBe('ui-design-guide');
   }
   if (targetKey === 'spec-workflow') {
+    expect(readSourceSkillName(targetKey)).toBe('spec-workflow');
     expect(manifest.targets[0].metadata.name).toBe('spec-workflow-guide');
   }
   expect(
-    fs.existsSync(path.join(outputDir, targetKey, 'skills', targetKey, 'SKILL.md')),
+    fs.existsSync(
+      path.join(
+        outputDir,
+        targetKey,
+        'skills',
+        manifest.targets[0].registrySlug,
+        'SKILL.md',
+      ),
+    ),
   ).toBe(true);
 });
 
