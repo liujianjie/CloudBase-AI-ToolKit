@@ -1,0 +1,357 @@
+name: 🤖 Issue Auto Processor
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process immediately (optional)'
+        required: false
+        type: string
+
+concurrency:
+  group: issue-auto-processor
+  cancel-in-progress: false
+
+env:
+  DELAY_HOURS: '4'
+  MAX_ISSUES_PER_RUN: '5'
+
+jobs:
+  process-issues:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CodeBuddy CLI
+        run: npm install -g @tencent-ai/codebuddy-code
+
+      - name: Validate CodeBuddy credentials
+        env:
+          CODEBUDDY_AUTH_TOKEN: ${{ secrets.CODEBUDDY_AUTH_TOKEN }}
+          CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
+          CODEBUDDY_INTERNET_ENVIRONMENT: ${{ vars.CODEBUDDY_INTERNET_ENVIRONMENT }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CODEBUDDY_AUTH_TOKEN:-}" ] && [ -z "${CODEBUDDY_API_KEY:-}" ]; then
+            echo "::error::Set CODEBUDDY_AUTH_TOKEN or CODEBUDDY_API_KEY in repository secrets before enabling this workflow."
+            exit 1
+          fi
+
+          if [ -n "${CODEBUDDY_API_KEY:-}" ] && [ -z "${CODEBUDDY_INTERNET_ENVIRONMENT:-}" ]; then
+            echo "::warning::CODEBUDDY_API_KEY is set but CODEBUDDY_INTERNET_ENVIRONMENT is empty. This is fine for codebuddy.ai, but for 中国版请将 repository variable CODEBUDDY_INTERNET_ENVIRONMENT 设为 internal。"
+          fi
+
+      - name: Ensure AI labels exist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              { name: 'ai-processing', color: 'FBCA04', description: 'AI automation is processing this issue' },
+              { name: 'ai-processed', color: '0E8A16', description: 'AI automation already processed this issue' },
+              { name: 'ai-failed', color: 'D93F0B', description: 'AI automation failed to process this issue' },
+              { name: 'ai-fix', color: '0052CC', description: 'AI automation created a fix PR for this issue' },
+              { name: 'no-ai', color: '666666', description: 'Skip AI automation for this issue' }
+            ];
+
+            for (const label of labels) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ...label
+                });
+              }
+            }
+
+      - name: Collect eligible issues
+        id: collect
+        uses: actions/github-script@v7
+        env:
+          DELAY_HOURS: ${{ env.DELAY_HOURS }}
+          MAX_ISSUES_PER_RUN: ${{ env.MAX_ISSUES_PER_RUN }}
+        with:
+          script: |
+            const fs = require('fs');
+            const delayHours = Number(process.env.DELAY_HOURS || '4');
+            const maxIssues = Number(process.env.MAX_ISSUES_PER_RUN || '5');
+            const cutoffMs = Date.now() - delayHours * 60 * 60 * 1000;
+
+            async function normalizeIssue(issue) {
+              return {
+                number: issue.number,
+                title: issue.title,
+                body: issue.body || '',
+                url: issue.html_url,
+                createdAt: issue.created_at,
+                labels: (issue.labels || []).map(label => typeof label === 'string' ? label : label.name)
+              };
+            }
+
+            let eligible = [];
+            const manualIssueNumber = context.payload.inputs?.issue_number?.trim();
+
+            if (manualIssueNumber) {
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: Number(manualIssueNumber)
+              });
+
+              if (!issue.pull_request) {
+                eligible = [await normalizeIssue(issue)];
+              }
+            } else {
+              const allIssues = await github.paginate(github.rest.issues.listForRepo, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                sort: 'created',
+                direction: 'asc',
+                per_page: 100
+              });
+
+              eligible = allIssues
+                .filter(issue => !issue.pull_request)
+                .filter(issue => new Date(issue.created_at).getTime() <= cutoffMs)
+                .filter(issue => {
+                  const labels = (issue.labels || []).map(label => typeof label === 'string' ? label : label.name);
+                  return !labels.includes('ai-processed') && !labels.includes('ai-processing') && !labels.includes('no-ai');
+                })
+                .slice(0, maxIssues);
+
+              eligible = await Promise.all(eligible.map(normalizeIssue));
+            }
+
+            fs.writeFileSync('.issue-auto-processor-issues.json', JSON.stringify(eligible, null, 2));
+            core.setOutput('count', String(eligible.length));
+            await core.summary.addHeading('Issue Auto Processor').addRaw(`Eligible issues: ${eligible.length}`).write();
+
+      - name: Process issues with CodeBuddy headless mode
+        if: steps.collect.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODEBUDDY_AUTH_TOKEN: ${{ secrets.CODEBUDDY_AUTH_TOKEN }}
+          CODEBUDDY_API_KEY: ${{ secrets.CODEBUDDY_API_KEY }}
+          CODEBUDDY_INTERNET_ENVIRONMENT: ${{ vars.CODEBUDDY_INTERNET_ENVIRONMENT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE_REF="${GITHUB_SHA}"
+
+          cleanup_repo() {
+            git reset --hard "$BASE_REF" >/dev/null 2>&1 || true
+            git clean -fd >/dev/null 2>&1 || true
+            git switch --detach "$BASE_REF" >/dev/null 2>&1 || true
+          }
+
+          write_file_from_env() {
+            local target_path="$1"
+            FILE_PATH="$target_path" python -c 'import os; open(os.environ["FILE_PATH"], "w", encoding="utf-8").write(os.environ["FILE_CONTENT"])'
+          }
+
+          build_bug_prompt() {
+            node -e 'const fs=require("fs"); const issue=JSON.parse(fs.readFileSync("/tmp/issue.json","utf8")); process.stdout.write([
+              `You are fixing GitHub issue #${issue.number} in the CloudBase MCP repository.`,
+              "",
+              `Issue title: ${issue.title}`,
+              `Issue URL: ${issue.url}`,
+              `Labels: ${(issue.labels || []).join(", ") || "(none)"}`,
+              "",
+              "Issue body:",
+              issue.body || "No description provided.",
+              "",
+              "Requirements:",
+              "1. Investigate the issue and make the smallest credible fix.",
+              "2. Edit files in the repository if you can produce a concrete patch.",
+              "3. Do not run git commit, git push, or gh pr create. The workflow handles git operations outside of CodeBuddy.",
+              "4. Keep your final response under 1200 words.",
+              "5. End with a short section named \"Summary\" describing what you changed or why no safe patch was produced."
+            ].join("\n"));' > /tmp/codebuddy-prompt.txt
+          }
+
+          build_analysis_prompt() {
+            node -e 'const fs=require("fs"); const issue=JSON.parse(fs.readFileSync("/tmp/issue.json","utf8")); process.stdout.write([
+              `You are analyzing GitHub issue #${issue.number} in the CloudBase MCP repository.`,
+              "",
+              `Issue title: ${issue.title}`,
+              `Issue URL: ${issue.url}`,
+              `Labels: ${(issue.labels || []).join(", ") || "(none)"}`,
+              "",
+              "Issue body:",
+              issue.body || "No description provided.",
+              "",
+              "Provide a concise, actionable response in Markdown with these sections:",
+              "1. Classification",
+              "2. Likely area",
+              "3. Suggested next step",
+              "4. Open questions (optional)",
+              "",
+              "Keep the response under 800 words."
+            ].join("\n"));' > /tmp/codebuddy-prompt.txt
+          }
+
+          extract_result_text() {
+            local raw_output="$1"
+            if printf '%s' "$raw_output" | jq -e . >/dev/null 2>&1; then
+              printf '%s' "$raw_output" | jq -r '.result // empty'
+            else
+              printf '%s' "$raw_output"
+            fi
+          }
+
+          write_issue_comment_file() {
+            local heading="$1"
+            local body="$2"
+            local footer="$3"
+            FILE_CONTENT=$(printf '%s\n\n%s' "$heading" "$body")
+            if [ -n "$footer" ]; then
+              FILE_CONTENT=$(printf '%s\n\n---\n%s\n' "$FILE_CONTENT" "$footer")
+            else
+              FILE_CONTENT=$(printf '%s\n' "$FILE_CONTENT")
+            fi
+            export FILE_CONTENT
+            write_file_from_env /tmp/issue-comment.md
+          }
+
+          post_file_comment() {
+            local issue_number="$1"
+            local file_path="$2"
+            gh issue comment "$issue_number" --body-file "$file_path"
+          }
+
+          process_issue() {
+            local issue_json="$1"
+            local raw_output=""
+            local result_text=""
+            local exit_code=0
+            local branch=""
+            local number=""
+            local title=""
+            local issue_url=""
+            local pr_url=""
+            local is_bug="false"
+
+            cleanup_repo
+            printf '%s' "$issue_json" > /tmp/issue.json
+
+            number=$(jq -r '.number' /tmp/issue.json)
+            title=$(jq -r '.title' /tmp/issue.json)
+            issue_url=$(jq -r '.url' /tmp/issue.json)
+            is_bug=$(jq -r '((.labels // []) | map(ascii_downcase) | any(. == "bug" or . == "error" or . == "crash" or . == "broken")) or (((.title + " " + (.body // "")) | ascii_downcase) | test("\\b(bug|error|crash|broken|fail|not working)\\b"))' /tmp/issue.json)
+
+            echo "Processing issue #$number: $title"
+            gh issue edit "$number" --add-label "ai-processing"
+
+            if [ "$is_bug" = "true" ]; then
+              echo "Route: bug -> attempt fix"
+              branch="ai-fix/issue-$number"
+              git switch -c "$branch"
+              build_bug_prompt
+
+              set +e
+              raw_output=$(codebuddy -p "$(cat /tmp/codebuddy-prompt.txt)" -y --output-format json --permission-mode acceptEdits 2>&1)
+              exit_code=$?
+              set -e
+
+              result_text=$(extract_result_text "$raw_output")
+
+              if [ $exit_code -ne 0 ]; then
+                write_issue_comment_file '## 🤖 AI Fix Attempt Failed' "CodeBuddy exited with status $exit_code before producing a usable patch.\n\nAutomation output:\n\n\`\`\`\n$result_text\n\`\`\`" ''
+                post_file_comment "$number" /tmp/issue-comment.md
+                gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed"
+                cleanup_repo
+                return 0
+              fi
+
+              if git diff --quiet; then
+                write_issue_comment_file '## 🤖 AI Bug Analysis' "AI reviewed this bug but did not produce a safe patch.\n\n$result_text" ''
+                post_file_comment "$number" /tmp/issue-comment.md
+                gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed"
+                cleanup_repo
+                return 0
+              fi
+
+              git add -A
+              git commit -m "fix(issue-auto): 🤖 attempt fix for issue #$number"
+              git push origin "$branch" --force
+
+              pr_url=$(gh pr list --head "$branch" --state open --json url --jq '.[0].url')
+              if [ -z "$pr_url" ]; then
+                FILE_CONTENT=$(printf '%s\n\n%s\n\n%s\n\n%s\n\n%s\n' '## 🤖 Automated fix attempt' "Fixes #$number" "Source issue: $issue_url" '### Summary' "$result_text")
+                export FILE_CONTENT
+                write_file_from_env /tmp/pr-body.md
+                pr_url=$(gh pr create --base main --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md)
+              fi
+
+              write_issue_comment_file '## 🤖 AI Fix Attempt' "I created a PR for this bug: $pr_url\n\nPlease review the generated changes before merging." ''
+              post_file_comment "$number" /tmp/issue-comment.md
+              gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-processed" --add-label "ai-fix"
+              cleanup_repo
+              return 0
+            fi
+
+            echo "Route: non-bug -> analysis only"
+            build_analysis_prompt
+
+            set +e
+            raw_output=$(codebuddy -p "$(cat /tmp/codebuddy-prompt.txt)" -y --output-format json --permission-mode acceptEdits 2>&1)
+            exit_code=$?
+            set -e
+
+            result_text=$(extract_result_text "$raw_output")
+
+            if [ $exit_code -ne 0 ]; then
+              write_issue_comment_file '## 🤖 AI Analysis Failed' "CodeBuddy exited with status $exit_code before producing a comment.\n\n\`\`\`\n$result_text\n\`\`\`" ''
+              post_file_comment "$number" /tmp/issue-comment.md
+              gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed"
+              cleanup_repo
+              return 0
+            fi
+
+            write_issue_comment_file '## 🤖 AI Analysis' "$result_text" 'Generated automatically by CodeBuddy CLI headless mode.'
+            post_file_comment "$number" /tmp/issue-comment.md
+            gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-processed"
+            cleanup_repo
+          }
+
+          while IFS= read -r issue; do
+            if ! process_issue "$issue"; then
+              number=$(printf '%s' "$issue" | jq -r '.number')
+              title=$(printf '%s' "$issue" | jq -r '.title')
+              echo "Unexpected failure while processing issue #$number: $title"
+              cleanup_repo
+              gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed" || true
+              write_issue_comment_file '## 🤖 AI Automation Error' 'The issue auto processor hit an unexpected workflow error before completion. Please inspect the workflow logs for details.' ''
+              post_file_comment "$number" /tmp/issue-comment.md || true
+            fi
+          done < <(jq -c '.[]' .issue-auto-processor-issues.json)
+
+      - name: No eligible issues
+        if: steps.collect.outputs.count == '0'
+        run: echo 'No eligible issues found.'
