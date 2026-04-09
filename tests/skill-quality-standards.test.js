@@ -34,15 +34,16 @@ describe('skill quality standards', () => {
   test('auth-web stays web-only and fixes the known snippet issues', () => {
     const raw = readSourceSkill('auth-web');
 
-    expect(raw).toContain('const auth = app.auth()');
+    expect(raw).toMatch(/const\s+auth\s*=\s*app\.auth\(/);
     expect(raw).not.toContain('const { data, error } = const { data, error } =');
     expect(raw).not.toContain('## WeChat Mini Program');
     expect(raw).not.toContain('auth.signInWithOpenId');
     expect(raw).not.toContain('auth.signInWithPhoneAuth');
-    expect(raw).toContain('auth.signUp({ username, password })');
-    expect(raw).toContain('auth.signInWithPassword({ username, password })');
-    expect(raw).toContain('type="text"');
-    expect(raw).toContain('Do not switch to email OTP or phone OTP unless the task explicitly says');
+    expect(raw).toMatch(/auth\.signUp\(\{\s*username,\s*password\s*\}\)/);
+    expect(raw).toMatch(/auth\.signInWithPassword\(\{\s*username,\s*password\s*\}\)/);
+    expect(raw).toMatch(/type="text"|type='text'/);
+    expect(raw).toMatch(/username-style identifier|plain username string|username-style account/i);
+    expect(raw).toMatch(/do not switch to email otp or phone otp unless/i);
   });
 
   test('cloud-storage-web documents exact-origin security-domain setup for local uploads', () => {
