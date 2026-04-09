@@ -55,7 +55,6 @@ function buildShortErrorWithCode(error: string, code: string) {
     code,
   };
 }
-
 function normalizePlainObject(
   value: unknown,
   label: string,
@@ -127,6 +126,40 @@ function buildLoginMethods(value: unknown) {
     email: Boolean(state.EmailLogin),
     anonymous: Boolean(state.AnonymousLogin),
     phone: Boolean(state.PhoneNumberLogin),
+  };
+}
+
+function buildWebSdkHint(loginMethods: ReturnType<typeof buildLoginMethods>) {
+  if (!loginMethods.usernamePassword) {
+    return {
+      blocked: true,
+      reason: "plain username-style identifiers require usernamePassword auth",
+      nextStep: 'manageAppAuth({ action: "patchLoginStrategy", patch: { usernamePassword: true } })',
+      accountInputType: "text",
+      avoidEmailHelpers: true,
+    };
+  }
+
+  return {
+    blocked: false,
+    register: "auth.signUp({ username, password })",
+    login: "auth.signInWithPassword({ username, password })",
+    accountInputType: "text",
+    avoidEmailHelpers: true,
+  };
+}
+
+function buildLoginConfigNextStep(loginMethods: ReturnType<typeof buildLoginMethods>) {
+  if (loginMethods.usernamePassword) {
+    return undefined;
+  }
+
+  return {
+    tool: "manageAppAuth",
+    action: "patchLoginStrategy",
+    patch: {
+      usernamePassword: true,
+    },
   };
 }
 
@@ -243,7 +276,6 @@ function isResourceInUseError(error: unknown) {
 
   return /ResourceInUse/i.test(haystack);
 }
-
 export function registerAppAuthTools(server: ExtendedMcpServer) {
   const cloudBaseOptions = server.cloudBaseOptions;
   const getManager = () => getCloudBaseManager({ cloudBaseOptions });
@@ -296,14 +328,14 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     {
       title: "查询应用认证配置",
       description:
-        "应用侧认证配置只读入口。用于查询登录方式、provider、publishable key、client 配置和静态域名等认证准备状态。",
+        "应用侧认证配置只读入口。用于查询登录方式、provider、publishable key、client 配置和静态域名等认证准备状态。若业务要接受普通用户名样式标识符，先查询 action=getLoginConfig；若 usernamePassword=false，下一步应立即调用 manageAppAuth(action=patchLoginStrategy, patch={ usernamePassword: true })，不要直接写 email 登录 API。",
       inputSchema: {
         action: z.enum(QUERY_APP_AUTH_ACTIONS),
         providerId: z.string().optional().describe("provider 标识，如 email、google"),
         clientId: z
           .string()
           .optional()
-          .describe("DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）"),
+          .describe("OAuth client_id / DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）"),
       },
       annotations: {
         readOnlyHint: true,
@@ -328,10 +360,15 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
           case "getLoginConfig": {
             const result = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, result);
+            const loginMethods = buildLoginMethods(result);
+            const nextStep = buildLoginConfigNextStep(loginMethods);
+            const webSdkHint = buildWebSdkHint(loginMethods);
             return buildSupabaseLikeAuthResponse({
               success: true,
               envId,
-              loginMethods: buildLoginMethods(result),
+              loginMethods,
+              ...(nextStep ? { next_step: nextStep } : {}),
+              ...(webSdkHint ? { webSdkHint } : {}),
             });
           }
           case "listProviders": {
@@ -404,7 +441,7 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     {
       title: "管理应用认证配置",
       description:
-        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，确保 publishable key 和创建自定义登录密钥。",
+        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，确保 publishable key 和创建自定义登录密钥。若前端要接受普通用户名样式标识符，应先执行 action=patchLoginStrategy 并传入 patch={ usernamePassword: true }，再实现对应前端登录逻辑。",
       inputSchema: {
         action: z.enum(MANAGE_APP_AUTH_ACTIONS),
         patch: z
@@ -459,14 +496,17 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             };
             const result = await cloudbase.env.updateLoginConfigV2(merged as any);
             logCloudBaseResult(server.logger, result);
-
             const confirmed = await cloudbase.env.getLoginConfigListV2();
             logCloudBaseResult(server.logger, confirmed);
-
+            const loginMethods = buildLoginMethods(confirmed);
+            const nextStep = buildLoginConfigNextStep(loginMethods);
+            const webSdkHint = buildWebSdkHint(loginMethods);
             return buildSupabaseLikeAuthResponse({
               success: true,
               envId,
-              loginMethods: buildLoginMethods(confirmed),
+              loginMethods,
+              ...(nextStep ? { next_step: nextStep } : {}),
+              ...(webSdkHint ? { webSdkHint } : {}),
             });
           }
           case "updateProvider": {

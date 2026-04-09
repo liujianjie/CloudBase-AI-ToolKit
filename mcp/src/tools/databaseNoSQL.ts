@@ -652,7 +652,7 @@ deleteCollection: 删除集合`),
     {
       title: "修改 NoSQL 数据库数据记录",
       description:
-        "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 $set/$inc/$push 等更新操作符；如果直接传 { field: value } 这类普通对象，底层会把它当作替换内容，存在覆盖整条文档的风险。更新嵌套对象中的某个字段时必须使用点号路径（如 { \"$set\": { \"address.city\": \"shenzhen\" } }），若写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } } 则整个 address 对象会被替换，同级其他字段将丢失。",
+        "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 $set/$inc/$push 等更新操作符；如果直接传 { field: value } 这类普通对象，底层会把它当作替换内容，存在覆盖整条文档的风险。更新嵌套对象中的某个字段时必须使用点号路径（如 { \"$set\": { \"address.city\": \"shenzhen\" } }），若写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } } 则整个 address 对象会被替换，同级其他字段将丢失。若集合中的角色/档案文档会在前端通过 `db.collection(...).doc(uid)` 读取，请确保文档 `_id` 就是该 `uid`；不要用 `query={\"uid\":\"...\"}` + `upsert=true` 去更新 `users` / `profiles`，否则经常会生成一个不同的 `_id`，导致后续 `doc(uid)` 读取命中不到。",
       inputSchema: {
         action: z
           .enum(["insert", "update", "delete"])
@@ -827,6 +827,11 @@ async function updateDocuments({
 }) {
   const cloudbase = await getManager();
   const instanceId = await getDatabaseInstanceId(getManager);
+  const authLinkedDocWarning = buildAuthLinkedDocWarning({
+    collectionName,
+    query,
+    upsert,
+  });
   const result = await cloudbase.commonService("tcb", "2018-06-08").call({
     Action: "UpdateItem",
     Param: {
@@ -846,11 +851,45 @@ async function updateDocuments({
       modifiedCount: result.ModifiedNum,
       matchedCount: result.MatchedNum,
       upsertedId: result.UpsertedId,
-      message: "文档更新成功",
+      ...(authLinkedDocWarning ? { warning: authLinkedDocWarning } : {}),
+      message: authLinkedDocWarning ? `文档更新成功；${authLinkedDocWarning}` : "文档更新成功",
     }),
     null,
     2,
   );
+}
+
+function tryParseObjectLike(value: object | string): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function buildAuthLinkedDocWarning({
+  collectionName,
+  query,
+  upsert,
+}: {
+  collectionName: string;
+  query: object | string;
+  upsert?: boolean;
+}) {
+  if (!upsert) return null;
+  if (!["users", "profiles", "user_roles", "userProfiles"].includes(collectionName)) return null;
+  const queryObject = tryParseObjectLike(query);
+  if (!queryObject) return null;
+  if (!("uid" in queryObject) && !("userId" in queryObject)) return null;
+  return "若前端会用 doc(uid) 读取该集合，请改为直接创建 `_id = uid` 的文档；基于 uid 查询再 upsert 往往会生成不同的 `_id`，导致后续 doc(uid) 读取失败。";
 }
 
 async function deleteDocuments({
