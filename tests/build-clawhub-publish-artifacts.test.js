@@ -81,6 +81,12 @@ test.each([
   expect(manifest.targets).toHaveLength(1);
   expect(manifest.targets[0].targetKey).toBe(targetKey);
   expect(manifest.targets[0].registrySlug).toBe(targetKey);
+  if (targetKey === 'ui-design') {
+    expect(manifest.targets[0].metadata.name).toBe('ui-design-guide');
+  }
+  if (targetKey === 'spec-workflow') {
+    expect(manifest.targets[0].metadata.name).toBe('spec-workflow-guide');
+  }
   expect(
     fs.existsSync(path.join(outputDir, targetKey, 'skills', targetKey, 'SKILL.md')),
   ).toBe(true);
