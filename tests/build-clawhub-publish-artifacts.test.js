@@ -1,8 +1,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { afterEach, expect, test } from 'vitest';
 import { buildClawhubPublishArtifacts } from '../scripts/build-clawhub-publish-artifacts.mjs';
+
+const TEST_FILE = fileURLToPath(import.meta.url);
+const REPO_ROOT = path.resolve(path.dirname(TEST_FILE), '..');
 
 const tempDirs = [];
 afterEach(() => {
@@ -14,7 +18,7 @@ afterEach(() => {
 function readSourceSkillName(targetKey) {
   const raw = fs.readFileSync(
     path.join(
-      process.cwd(),
+      REPO_ROOT,
       'config',
       'source',
       'skills',
