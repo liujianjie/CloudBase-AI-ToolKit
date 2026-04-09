@@ -1398,11 +1398,11 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
     {
       title: "管理云函数域资源",
       description:
-        "函数域统一写入口。通过 action 管理函数创建、代码更新、配置更新、触发器和层绑定。危险操作需要显式 confirm=true。",
+        "函数域统一写入口。通过 action 管理函数创建、代码更新、配置更新、调用函数、触发器和层绑定。危险操作需要显式 confirm=true。",
       inputSchema: {
         action: z
           .enum(MANAGE_FUNCTION_ACTIONS)
-          .describe("写操作类型，例如 createFunction、updateFunctionCode、attachLayer"),
+          .describe("写操作类型，例如 createFunction、invokeFunction、attachLayer"),
         func: CREATE_FUNCTION_SCHEMA.optional().describe("createFunction 操作的函数配置"),
         functionRootPath: z.string().optional().describe("函数根目录（父目录绝对路径）"),
         force: z.boolean().optional().describe("createFunction 时是否覆盖"),
