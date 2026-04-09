@@ -250,7 +250,7 @@ CloudBase AI ToolKit 的对外 Skill（例如对外发布的 Skill 仓库、IDE 
 
 ## GitHub Actions Workflows
 
-项目提供了两个 GitHub Actions workflow 用于自动化配置同步和构建：
+项目提供了多个 GitHub Actions workflow，用于自动化配置同步、构建和 issue 处理：
 
 ### Build Example Zips
 
@@ -315,6 +315,35 @@ CloudBase AI ToolKit 的对外 Skill（例如对外发布的 Skill 仓库、IDE 
 - 需要配置 `CLOUDBASE_EXAMPLES_TOKEN` secret（Personal Access Token）用于访问 cloudbase-examples 仓库
 - 如果目标分支不存在，workflow 会自动创建
 - 创建 PAT 时需要勾选 `repo` 权限
+
+### Issue Auto Processor
+
+**Workflow**: `.github/workflows/issue-auto-processor-simple.yml`
+
+用于让 AI 基于 CodeBuddy CLI 自动分析或修复 GitHub issue，并在需要时创建修复 PR。
+
+**前置配置**：
+- repository secret：`CODEBUDDY_AUTH_TOKEN` 或 `CODEBUDDY_API_KEY`
+- 如果使用中国版 `CODEBUDDY_API_KEY`，建议额外配置 repository variable：`CODEBUDDY_INTERNET_ENVIRONMENT=internal`
+- 仓库 Actions 需允许 `GITHUB_TOKEN` 具有 `contents` / `issues` / `pull-requests` 写权限，并允许 GitHub Actions 创建 PR
+
+**触发方式**：
+- 定时：每 4 小时扫描一次符合条件的 open issue
+- 手动：在 Actions 页面运行 workflow，并传入 `issue_number`
+- 评论命令：在 issue 下评论 `/cloudbase fix`、`/cloudbase continue`、`/cloudbase skip`
+
+**评论命令说明**：
+- 只有 `OWNER` / `MEMBER` / `COLLABORATOR` 可以触发
+- `issue_comment` 触发依赖 workflow 文件已存在于默认分支；在 PR 分支验证阶段，请先使用 `workflow_dispatch`
+- `/cloudbase fix`：强制按修复路径处理当前 issue
+- `/cloudbase continue`：重新读取当前 issue 的 title、body、labels 和全部 comments 后继续分析或修复
+- `/cloudbase skip`：为当前 issue 打上 `no-ai`，停止自动处理
+
+**处理边界**：
+- 自动任务默认只处理创建满 4 小时、且未标记 `ai-processed` / `ai-processing` / `no-ai` 的 open issue
+- 每次执行都会基于完整 issue 线程重建上下文，不依赖跨 CI run 的隐藏 session 持久化
+- AI 输出为空时会直接标记失败，不会发布空评论
+- 只有实际产生代码 diff 时才会创建修复 PR
 
 ## 行为准则
 

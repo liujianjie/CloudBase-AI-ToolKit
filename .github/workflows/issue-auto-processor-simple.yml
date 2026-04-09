@@ -239,6 +239,10 @@ jobs:
             node scripts/issue-auto-processor.cjs build-analysis-prompt /tmp/issue.json > /tmp/codebuddy-prompt.txt
           }
 
+          detect_bug_issue() {
+            node scripts/issue-auto-processor.cjs is-bug /tmp/issue.json
+          }
+
           extract_result_text() {
             node scripts/issue-auto-processor.cjs extract-result
           }
@@ -363,7 +367,7 @@ jobs:
             requested_action=$(jq -r '.requestedAction // ""' /tmp/issue.json)
             command=$(jq -r '.command // ""' /tmp/issue.json)
             command_comment_author=$(jq -r '.commandCommentAuthor // ""' /tmp/issue.json)
-            is_bug=$(jq -r '((.labels // []) | map(ascii_downcase) | any(. == "bug" or . == "error" or . == "crash" or . == "broken")) or (((.title + " " + (.body // "")) | ascii_downcase) | test("\\b(bug|error|crash|broken|fail|not working)\\b"))' /tmp/issue.json)
+            is_bug=$(detect_bug_issue)
 
             echo "Processing issue #$number: $title"
 
@@ -418,15 +422,49 @@ jobs:
               fi
 
               git add -A
-              git commit -m "fix(issue-auto): 🤖 attempt fix for issue #$number"
-              git push origin "$branch" --force
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+              set +e
+              git commit -m "fix(issue-auto): 🤖 attempt fix for issue #$number"
+              exit_code=$?
+              set -e
+              if [ $exit_code -ne 0 ]; then
+                fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created a branch diff, but git commit failed before a PR could be opened. Please inspect the workflow logs before retrying.'
+                return 0
+              fi
+
+              set +e
+              git push origin "$branch" --force
+              exit_code=$?
+              set -e
+              if [ $exit_code -ne 0 ]; then
+                fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created a commit, but pushing the fix branch failed before a PR could be opened. Please inspect the workflow logs before retrying.'
+                return 0
+              fi
+
+              set +e
               pr_url=$(gh pr list --head "$branch" --state open --json url --jq '.[0].url')
+              exit_code=$?
+              set -e
+              if [ $exit_code -ne 0 ]; then
+                fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation pushed a fix branch, but failed while checking for an existing PR. Please inspect the workflow logs before retrying.'
+                return 0
+              fi
+
               if [ -z "$pr_url" ]; then
                 FILE_CONTENT=$(printf '%s\n\n%s\n\n%s\n\n%s\n\n%s\n' '## 🤖 Automated fix attempt' "Fixes #$number" "Source issue: $issue_url" '### Summary' "$result_text")
                 export FILE_CONTENT
                 write_file_from_env /tmp/pr-body.md
+
+                set +e
                 pr_url=$(gh pr create --base main --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md)
+                exit_code=$?
+                set -e
+                if [ $exit_code -ne 0 ] || ! has_nonempty_text "$pr_url"; then
+                  fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL. Please inspect the workflow logs before retrying.'
+                  return 0
+                fi
               fi
 
               write_issue_comment_file '## 🤖 AI Fix Attempt' "I created a PR for this bug: $pr_url\n\nPlease review the generated changes before merging." ''
