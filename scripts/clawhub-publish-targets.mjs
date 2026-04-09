@@ -32,7 +32,8 @@ export const CLAWHUB_PUBLISH_TARGETS = {
   "ui-design": {
     key: "ui-design",
     type: "local-skill",
-    registrySlug: "ui-design",
+    registrySlug: "ui-design-guide",
+    publishName: "ui-design-guide",
     displayName: "UI 设计 / UI Design",
     sourceDir: path.join(projectRoot, "config", "source", "skills", "ui-design"),
     sourceDescription: "config/source/skills/ui-design",
@@ -54,7 +55,8 @@ export const CLAWHUB_PUBLISH_TARGETS = {
   "spec-workflow": {
     key: "spec-workflow",
     type: "local-skill",
-    registrySlug: "spec-workflow",
+    registrySlug: "spec-workflow-guide",
+    publishName: "spec-workflow-guide",
     displayName: "Spec 流程 / Spec Workflow",
     sourceDir: path.join(
       projectRoot,
