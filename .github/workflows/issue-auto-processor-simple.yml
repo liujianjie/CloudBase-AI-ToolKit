@@ -9,6 +9,8 @@ on:
         description: 'Issue number to process immediately (optional)'
         required: false
         type: string
+  issue_comment:
+    types: [created]
 
 concurrency:
   group: issue-auto-processor
@@ -96,29 +98,80 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            const path = require('path');
+            const { parseIssueCommentCommand } = require(path.join(process.cwd(), 'scripts', 'issue-auto-processor.cjs'));
+
             const delayHours = Number(process.env.DELAY_HOURS || '4');
             const maxIssues = Number(process.env.MAX_ISSUES_PER_RUN || '5');
             const cutoffMs = Date.now() - delayHours * 60 * 60 * 1000;
 
-            async function normalizeIssue(issue) {
+            async function fetchComments(issueNumber) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 100,
+              });
+
+              return comments.map((comment) => ({
+                id: comment.id,
+                author: comment.user?.login || 'unknown',
+                authorAssociation: comment.author_association || 'NONE',
+                body: comment.body || '',
+                createdAt: comment.created_at,
+                url: comment.html_url,
+              }));
+            }
+
+            async function normalizeIssue(issue, extra = {}) {
               return {
                 number: issue.number,
                 title: issue.title,
                 body: issue.body || '',
                 url: issue.html_url,
                 createdAt: issue.created_at,
-                labels: (issue.labels || []).map(label => typeof label === 'string' ? label : label.name)
+                labels: (issue.labels || []).map((label) => typeof label === 'string' ? label : label.name),
+                comments: await fetchComments(issue.number),
+                requestedAction: extra.requestedAction || '',
+                command: extra.command || '',
+                commandCommentAuthor: extra.commandCommentAuthor || '',
+                commandCommentUrl: extra.commandCommentUrl || '',
               };
             }
 
             let eligible = [];
             const manualIssueNumber = context.payload.inputs?.issue_number?.trim();
 
-            if (manualIssueNumber) {
+            if (context.eventName === 'issue_comment') {
+              const issuePayload = context.payload.issue;
+              const commentPayload = context.payload.comment;
+              const parsedCommand = parseIssueCommentCommand({
+                body: commentPayload?.body || '',
+                authorAssociation: commentPayload?.author_association || '',
+                hasPullRequest: Boolean(issuePayload?.pull_request),
+              });
+
+              if (parsedCommand) {
+                const { data: issue } = await github.rest.issues.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issuePayload.number,
+                });
+
+                if (!issue.pull_request) {
+                  eligible = [await normalizeIssue(issue, {
+                    requestedAction: parsedCommand.action,
+                    command: parsedCommand.command,
+                    commandCommentAuthor: commentPayload.user?.login || '',
+                    commandCommentUrl: commentPayload.html_url || '',
+                  })];
+                }
+              }
+            } else if (manualIssueNumber) {
               const { data: issue } = await github.rest.issues.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: Number(manualIssueNumber)
+                issue_number: Number(manualIssueNumber),
               });
 
               if (!issue.pull_request) {
@@ -131,24 +184,27 @@ jobs:
                 state: 'open',
                 sort: 'created',
                 direction: 'asc',
-                per_page: 100
+                per_page: 100,
               });
 
-              eligible = allIssues
-                .filter(issue => !issue.pull_request)
-                .filter(issue => new Date(issue.created_at).getTime() <= cutoffMs)
-                .filter(issue => {
-                  const labels = (issue.labels || []).map(label => typeof label === 'string' ? label : label.name);
+              const scheduledIssues = allIssues
+                .filter((issue) => !issue.pull_request)
+                .filter((issue) => new Date(issue.created_at).getTime() <= cutoffMs)
+                .filter((issue) => {
+                  const labels = (issue.labels || []).map((label) => typeof label === 'string' ? label : label.name);
                   return !labels.includes('ai-processed') && !labels.includes('ai-processing') && !labels.includes('no-ai');
                 })
                 .slice(0, maxIssues);
 
-              eligible = await Promise.all(eligible.map(normalizeIssue));
+              eligible = await Promise.all(scheduledIssues.map((issue) => normalizeIssue(issue)));
             }
 
             fs.writeFileSync('.issue-auto-processor-issues.json', JSON.stringify(eligible, null, 2));
             core.setOutput('count', String(eligible.length));
-            await core.summary.addHeading('Issue Auto Processor').addRaw(`Eligible issues: ${eligible.length}`).write();
+            await core.summary
+              .addHeading('Issue Auto Processor')
+              .addRaw(`Event: ${context.eventName}\nEligible issues: ${eligible.length}`)
+              .write();
 
       - name: Process issues with CodeBuddy headless mode
         if: steps.collect.outputs.count != '0'
@@ -176,52 +232,57 @@ jobs:
           }
 
           build_bug_prompt() {
-            node -e 'const fs=require("fs"); const issue=JSON.parse(fs.readFileSync("/tmp/issue.json","utf8")); process.stdout.write([
-              `You are fixing GitHub issue #${issue.number} in the CloudBase MCP repository.`,
-              "",
-              `Issue title: ${issue.title}`,
-              `Issue URL: ${issue.url}`,
-              `Labels: ${(issue.labels || []).join(", ") || "(none)"}`,
-              "",
-              "Issue body:",
-              issue.body || "No description provided.",
-              "",
-              "Requirements:",
-              "1. Investigate the issue and make the smallest credible fix.",
-              "2. Edit files in the repository if you can produce a concrete patch.",
-              "3. Do not run git commit, git push, or gh pr create. The workflow handles git operations outside of CodeBuddy.",
-              "4. Keep your final response under 1200 words.",
-              "5. End with a short section named \"Summary\" describing what you changed or why no safe patch was produced."
-            ].join("\n"));' > /tmp/codebuddy-prompt.txt
+            node scripts/issue-auto-processor.cjs build-bug-prompt /tmp/issue.json > /tmp/codebuddy-prompt.txt
           }
 
           build_analysis_prompt() {
-            node -e 'const fs=require("fs"); const issue=JSON.parse(fs.readFileSync("/tmp/issue.json","utf8")); process.stdout.write([
-              `You are analyzing GitHub issue #${issue.number} in the CloudBase MCP repository.`,
-              "",
-              `Issue title: ${issue.title}`,
-              `Issue URL: ${issue.url}`,
-              `Labels: ${(issue.labels || []).join(", ") || "(none)"}`,
-              "",
-              "Issue body:",
-              issue.body || "No description provided.",
-              "",
-              "Provide a concise, actionable response in Markdown with these sections:",
-              "1. Classification",
-              "2. Likely area",
-              "3. Suggested next step",
-              "4. Open questions (optional)",
-              "",
-              "Keep the response under 800 words."
-            ].join("\n"));' > /tmp/codebuddy-prompt.txt
+            node scripts/issue-auto-processor.cjs build-analysis-prompt /tmp/issue.json > /tmp/codebuddy-prompt.txt
           }
 
           extract_result_text() {
-            local raw_output="$1"
-            if printf '%s' "$raw_output" | jq -e . >/dev/null 2>&1; then
-              printf '%s' "$raw_output" | jq -r '.result // empty'
-            else
-              printf '%s' "$raw_output"
+            node scripts/issue-auto-processor.cjs extract-result
+          }
+
+          has_nonempty_text() {
+            [ -n "$(printf '%s' "$1" | tr -d '[:space:]')" ]
+          }
+
+          issue_has_label() {
+            local label="$1"
+            jq -e --arg label "$label" '((.labels // []) | map(ascii_downcase)) | any(. == ($label | ascii_downcase))' /tmp/issue.json >/dev/null 2>&1
+          }
+
+          update_issue_labels() {
+            local issue_number="$1"
+            shift
+            local -a args=()
+            local spec=""
+            local action=""
+            local label=""
+
+            for spec in "$@"; do
+              action="${spec%%:*}"
+              label="${spec#*:}"
+              case "$action" in
+                add)
+                  if ! issue_has_label "$label"; then
+                    args+=(--add-label "$label")
+                  fi
+                  ;;
+                remove)
+                  if issue_has_label "$label"; then
+                    args+=(--remove-label "$label")
+                  fi
+                  ;;
+                *)
+                  echo "Unknown label action: $action" >&2
+                  return 1
+                  ;;
+              esac
+            done
+
+            if [ ${#args[@]} -gt 0 ]; then
+              gh issue edit "$issue_number" "${args[@]}" >/dev/null
             fi
           }
 
@@ -242,7 +303,18 @@ jobs:
           post_file_comment() {
             local issue_number="$1"
             local file_path="$2"
-            gh issue comment "$issue_number" --body-file "$file_path"
+            gh issue comment "$issue_number" --body-file "$file_path" >/dev/null
+          }
+
+          fail_with_comment() {
+            local issue_number="$1"
+            local heading="$2"
+            local body="$3"
+            write_issue_comment_file "$heading" "$body" ''
+            post_file_comment "$issue_number" /tmp/issue-comment.md
+            update_issue_labels "$issue_number" remove:ai-processing add:ai-failed remove:ai-processed
+            cleanup_repo
+            return 0
           }
 
           process_issue() {
@@ -256,6 +328,9 @@ jobs:
             local issue_url=""
             local pr_url=""
             local is_bug="false"
+            local requested_action=""
+            local command=""
+            local command_comment_author=""
 
             cleanup_repo
             printf '%s' "$issue_json" > /tmp/issue.json
@@ -263,10 +338,27 @@ jobs:
             number=$(jq -r '.number' /tmp/issue.json)
             title=$(jq -r '.title' /tmp/issue.json)
             issue_url=$(jq -r '.url' /tmp/issue.json)
+            requested_action=$(jq -r '.requestedAction // ""' /tmp/issue.json)
+            command=$(jq -r '.command // ""' /tmp/issue.json)
+            command_comment_author=$(jq -r '.commandCommentAuthor // ""' /tmp/issue.json)
             is_bug=$(jq -r '((.labels // []) | map(ascii_downcase) | any(. == "bug" or . == "error" or . == "crash" or . == "broken")) or (((.title + " " + (.body // "")) | ascii_downcase) | test("\\b(bug|error|crash|broken|fail|not working)\\b"))' /tmp/issue.json)
 
             echo "Processing issue #$number: $title"
-            gh issue edit "$number" --add-label "ai-processing"
+
+            if [ "$requested_action" = "skip" ]; then
+              echo "Route: slash command -> skip"
+              update_issue_labels "$number" add:no-ai remove:ai-processing remove:ai-failed remove:ai-processed remove:ai-fix
+              write_issue_comment_file '## 🤖 CloudBase Automation Disabled' "Acknowledged \`$command\` from @$command_comment_author. Automatic processing is now disabled for this issue until a maintainer explicitly re-runs it." ''
+              post_file_comment "$number" /tmp/issue-comment.md
+              cleanup_repo
+              return 0
+            fi
+
+            if [ "$requested_action" = "fix" ]; then
+              is_bug="true"
+            fi
+
+            update_issue_labels "$number" remove:no-ai remove:ai-failed add:ai-processing
 
             if [ "$is_bug" = "true" ]; then
               echo "Route: bug -> attempt fix"
@@ -279,20 +371,26 @@ jobs:
               exit_code=$?
               set -e
 
-              result_text=$(extract_result_text "$raw_output")
+              result_text=$(printf '%s' "$raw_output" | extract_result_text || true)
 
               if [ $exit_code -ne 0 ]; then
-                write_issue_comment_file '## 🤖 AI Fix Attempt Failed' "CodeBuddy exited with status $exit_code before producing a usable patch.\n\nAutomation output:\n\n\`\`\`\n$result_text\n\`\`\`" ''
-                post_file_comment "$number" /tmp/issue-comment.md
-                gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed"
-                cleanup_repo
+                local failure_detail="CodeBuddy exited with status $exit_code before producing a usable patch."
+                if has_nonempty_text "$result_text"; then
+                  failure_detail=$(printf '%s\n\nAutomation output:\n\n```\n%s\n```' "$failure_detail" "$result_text")
+                fi
+                fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' "$failure_detail"
+                return 0
+              fi
+
+              if ! has_nonempty_text "$result_text" && git diff --quiet; then
+                fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation ran, but the AI response was empty or could not be parsed into a usable fix summary. Please inspect the workflow logs before retrying.'
                 return 0
               fi
 
               if git diff --quiet; then
                 write_issue_comment_file '## 🤖 AI Bug Analysis' "AI reviewed this bug but did not produce a safe patch.\n\n$result_text" ''
                 post_file_comment "$number" /tmp/issue-comment.md
-                gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed"
+                update_issue_labels "$number" remove:ai-processing add:ai-failed remove:ai-processed
                 cleanup_repo
                 return 0
               fi
@@ -311,7 +409,7 @@ jobs:
 
               write_issue_comment_file '## 🤖 AI Fix Attempt' "I created a PR for this bug: $pr_url\n\nPlease review the generated changes before merging." ''
               post_file_comment "$number" /tmp/issue-comment.md
-              gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-processed" --add-label "ai-fix"
+              update_issue_labels "$number" remove:ai-processing add:ai-processed add:ai-fix remove:ai-failed
               cleanup_repo
               return 0
             fi
@@ -324,19 +422,25 @@ jobs:
             exit_code=$?
             set -e
 
-            result_text=$(extract_result_text "$raw_output")
+            result_text=$(printf '%s' "$raw_output" | extract_result_text || true)
 
             if [ $exit_code -ne 0 ]; then
-              write_issue_comment_file '## 🤖 AI Analysis Failed' "CodeBuddy exited with status $exit_code before producing a comment.\n\n\`\`\`\n$result_text\n\`\`\`" ''
-              post_file_comment "$number" /tmp/issue-comment.md
-              gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed"
-              cleanup_repo
+              local failure_detail="CodeBuddy exited with status $exit_code before producing a comment."
+              if has_nonempty_text "$result_text"; then
+                failure_detail=$(printf '%s\n\n```\n%s\n```' "$failure_detail" "$result_text")
+              fi
+              fail_with_comment "$number" '## 🤖 AI Analysis Failed' "$failure_detail"
+              return 0
+            fi
+
+            if ! has_nonempty_text "$result_text"; then
+              fail_with_comment "$number" '## 🤖 AI Analysis Failed' 'Automation ran, but the AI response was empty or could not be parsed into a usable comment. Please inspect the workflow logs before retrying.'
               return 0
             fi
 
             write_issue_comment_file '## 🤖 AI Analysis' "$result_text" 'Generated automatically by CodeBuddy CLI headless mode.'
             post_file_comment "$number" /tmp/issue-comment.md
-            gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-processed"
+            update_issue_labels "$number" remove:ai-processing add:ai-processed remove:ai-failed
             cleanup_repo
           }
 
@@ -346,7 +450,8 @@ jobs:
               title=$(printf '%s' "$issue" | jq -r '.title')
               echo "Unexpected failure while processing issue #$number: $title"
               cleanup_repo
-              gh issue edit "$number" --remove-label "ai-processing" --add-label "ai-failed" || true
+              printf '%s' "$issue" > /tmp/issue.json
+              update_issue_labels "$number" remove:ai-processing add:ai-failed remove:ai-processed || true
               write_issue_comment_file '## 🤖 AI Automation Error' 'The issue auto processor hit an unexpected workflow error before completion. Please inspect the workflow logs for details.' ''
               post_file_comment "$number" /tmp/issue-comment.md || true
             fi
