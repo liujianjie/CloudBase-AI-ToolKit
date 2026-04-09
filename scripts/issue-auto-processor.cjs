@@ -6,6 +6,12 @@ const ALLOWED_COMMENT_AUTHOR_ASSOCIATIONS = new Set([
   'COLLABORATOR',
 ]);
 
+const BUG_LABEL_KEYWORDS = ['bug', 'error', 'crash', 'broken', 'failure', 'incident'];
+const BUG_TEXT_PATTERNS = [
+  /\b(bug|error|errors|crash|crashes|broken|breaks|fail|fails|failed|failing|not working)\b/i,
+  /报错|错误|异常|失败|崩溃|无法|不能|不生效|有问题|未生效|失效/,
+];
+
 function normalizeMultilineText(value) {
   if (typeof value !== 'string') {
     return '';
@@ -187,6 +193,24 @@ function formatIssueComments(comments = []) {
     .join('\n\n');
 }
 
+function isBugIssue(issue = {}) {
+  const labels = Array.isArray(issue.labels) ? issue.labels : [];
+  const lowerLabels = labels
+    .map((label) => (typeof label === 'string' ? label : ''))
+    .map((label) => label.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (lowerLabels.some((label) => BUG_LABEL_KEYWORDS.includes(label))) {
+    return true;
+  }
+
+  const combinedText = [issue.title, issue.body]
+    .map((value) => (typeof value === 'string' ? value : ''))
+    .join('\n');
+
+  return BUG_TEXT_PATTERNS.some((pattern) => pattern.test(combinedText));
+}
+
 function buildSharedPrompt(issue = {}) {
   const labels = Array.isArray(issue.labels) && issue.labels.length > 0
     ? issue.labels.join(', ')
@@ -286,6 +310,11 @@ function runCli() {
     return;
   }
 
+  if (command === 'is-bug') {
+    process.stdout.write(isBugIssue(issue) ? 'true' : 'false');
+    return;
+  }
+
   throw new Error(`Unsupported command: ${command}`);
 }
 
@@ -298,5 +327,6 @@ module.exports = {
   buildAnalysisPrompt,
   buildBugPrompt,
   extractResultText,
+  isBugIssue,
   parseIssueCommentCommand,
 };

@@ -4,7 +4,12 @@ import { fileURLToPath } from 'url';
 import { expect, test } from 'vitest';
 import issueAutoProcessorHelpers from '../scripts/issue-auto-processor.cjs';
 
-const { extractResultText, parseIssueCommentCommand, buildAnalysisPrompt } = issueAutoProcessorHelpers;
+const {
+  extractResultText,
+  parseIssueCommentCommand,
+  buildAnalysisPrompt,
+  isBugIssue,
+} = issueAutoProcessorHelpers;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -93,11 +98,43 @@ test('buildAnalysisPrompt includes issue comments for continue runs', () => {
   expect(prompt).toContain('Generated automatically by CodeBuddy CLI headless mode.');
 });
 
-test('workflow listens for issue comments and keeps label state in sync during reruns', () => {
+test('isBugIssue matches Chinese error descriptions without requiring English keywords', () => {
+  expect(
+    isBugIssue({
+      title: 'MCP工具错误: writeNoSqlDatabaseStructure',
+      body: '调用工具时直接报错，无法创建集合。',
+      labels: [],
+    }),
+  ).toBe(true);
+});
+
+test('workflow hardens fix path with git identity and PR creation guards', () => {
   const raw = fs.readFileSync(WORKFLOW_FILE, 'utf8');
 
   expect(raw).toContain('issue_comment:');
   expect(raw).toContain('parseIssueCommentCommand');
   expect(raw).toContain('requestedAction');
   expect(raw).toContain('sync_issue_json_label');
+  expect(raw).toContain('git config user.name "github-actions[bot]"');
+  expect(raw).toContain('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
+  expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created a branch diff, but git commit failed before a PR could be opened. Please inspect the workflow logs before retrying.'");
+  expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL. Please inspect the workflow logs before retrying.'");
+});
+
+test('workflow creates fix branches from the default branch baseline', () => {
+  const raw = fs.readFileSync(WORKFLOW_FILE, 'utf8');
+
+  expect(raw).toContain('DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}');
+  expect(raw).toContain('git fetch origin "$DEFAULT_BRANCH"');
+  expect(raw).toContain('git switch -C "$branch" "origin/$DEFAULT_BRANCH"');
+  expect(raw).toContain('gh pr create --base "$DEFAULT_BRANCH" --head "$branch"');
+});
+
+test('workflow isolates batch iteration from CLI stdin consumption', () => {
+  const raw = fs.readFileSync(WORKFLOW_FILE, 'utf8');
+
+  expect(raw).toContain('mapfile -t issues < <(jq -c ".[]" .issue-auto-processor-issues.json)');
+  expect(raw).toContain('for issue in "${issues[@]}"; do');
+  expect(raw).toContain('codebuddy -p "$(cat /tmp/codebuddy-prompt.txt)" -y --output-format json --permission-mode acceptEdits </dev/null 2>&1');
+  expect(raw).not.toContain('done < <(jq -c ".[]" .issue-auto-processor-issues.json)');
 });
