@@ -494,6 +494,36 @@ describe("app auth tools", () => {
     });
   });
 
+  it("queryAppAuth(action=getStaticDomain) should fall back to StaticDomain when CdnDomain is blank", async () => {
+    mockTcbCall.mockResolvedValueOnce({
+      RequestId: "req-static-fallback",
+      Data: [
+        {
+          EnvId: "env-test",
+          CdnDomain: "   ",
+          StaticDomain: "env-test.static.tcloudbaseapp.com",
+          Status: "online",
+        },
+      ],
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getStaticDomain" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      cdnDomain: "env-test.static.tcloudbaseapp.com",
+      staticDomain: "env-test.static.tcloudbaseapp.com",
+      staticStores: [
+        expect.objectContaining({
+          CdnDomain: "   ",
+          StaticDomain: "env-test.static.tcloudbaseapp.com",
+        }),
+      ],
+    });
+  });
+
   it("queryAppAuth(action=getPublishableKey) should force publish_key lookup and return a short payload", async () => {
     const result = await tools.queryAppAuth.handler({ action: "getPublishableKey" });
     const payload = JSON.parse(result.content[0].text);

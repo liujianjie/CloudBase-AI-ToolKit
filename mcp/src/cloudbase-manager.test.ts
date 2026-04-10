@@ -121,11 +121,21 @@ describe("cloudbase manager auth gate", () => {
     await expect(getEnvId()).resolves.toBe("env-1");
   });
 
-  it("should default to ap-shanghai when envId is provided without region", async () => {
+  it("should resolve actual env region when envId is provided without region", async () => {
+    process.env.TCB_REGION = "ap-shanghai";
     mockPeekLoginState.mockResolvedValue({
       secretId: "sid",
       secretKey: "skey",
       token: "token",
+    });
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [
+        {
+          EnvId: "env-explicit",
+          Alias: "prod",
+          Region: "ap-guangzhou",
+        },
+      ],
     });
 
     const { getCloudBaseManager } = await import("./cloudbase-manager.js");
@@ -147,10 +157,14 @@ describe("cloudbase manager auth gate", () => {
         secretKey: "skey",
         token: "token",
         envId: "env-explicit",
-        region: "ap-shanghai",
+        region: "ap-guangzhou",
       }),
     );
-    expect(mockCommonServiceCall).not.toHaveBeenCalled();
+    expect(mockCommonServiceCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Action: "DescribeEnvs",
+      }),
+    );
   });
 
   it("should honor explicit region without resolving env candidates", async () => {

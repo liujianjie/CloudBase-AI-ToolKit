@@ -508,7 +508,7 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
         // envId priority: explicit option > envManager cache > loginState.envId
         const resolvedEnvId = finalEnvId || loginEnvId;
         let region = fallbackRegion;
-        if (resolvedEnvId && !cloudBaseOptions?.envId && !cloudBaseOptions?.region) {
+        if (resolvedEnvId && !cloudBaseOptions?.region) {
             try {
                 const envCandidates = await listAvailableEnvCandidates({ loginState });
                 const matchedEnv = envCandidates.find((candidate) => candidate.envId === resolvedEnvId);

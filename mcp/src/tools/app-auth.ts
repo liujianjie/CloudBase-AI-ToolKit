@@ -171,6 +171,19 @@ function extractStaticStores(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(stores) ? (stores as Array<Record<string, unknown>>) : [];
 }
 
+function getNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function resolveStaticStoreDomain(store: Record<string, unknown> | undefined): string | null {
+  return getNonEmptyString(store?.CdnDomain) ?? getNonEmptyString(store?.StaticDomain) ?? null;
+}
+
 function extractApiKeyList(value: unknown): Array<Record<string, unknown>> {
   const payload = normalizePlainObject(value, "apiKeyResult");
   const items = payload?.ApiKeyList ?? payload?.Data ?? [];
@@ -399,10 +412,7 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             });
             logCloudBaseResult(server.logger, result);
             const stores = extractStaticStores(result);
-            const first = stores[0];
-            const primaryDomain =
-              (typeof first?.CdnDomain === "string" ? first.CdnDomain : undefined) ??
-              null;
+            const primaryDomain = resolveStaticStoreDomain(stores[0]);
 
             return {
               success: true,
