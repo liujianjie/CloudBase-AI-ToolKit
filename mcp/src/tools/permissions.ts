@@ -531,12 +531,13 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
     {
       title: "管理权限与用户配置",
       description:
-        "权限域统一写入口。支持修改资源权限、角色管理、成员与策略增删、应用用户 CRUD。`createUser` / `updateUser` 是环境侧应用用户管理能力，适合测试账号、管理员或预置用户，不应替代浏览器里的 Web SDK 注册表单；前端用户名密码注册应使用 `auth.signUp({ username, password })`，登录应使用 `auth.signInWithPassword({ username, password })`。",
+        "权限域统一写入口。支持修改资源权限、角色管理、成员与策略增删、应用用户 CRUD。`createUser` / `updateUser` 是环境侧应用用户管理能力，适合测试账号、管理员或预置用户，不应替代浏览器里的 Web SDK 注册表单；前端用户名密码注册应使用 `auth.signUp({ username, password })`，登录应使用 `auth.signInWithPassword({ username, password })`。注意：`securityRule` 的详细语义取决于 `resourceType`；`doc._openid`、`auth.openid`、查询条件子集校验，以及 `create` / `update` / `delete` JSON 模板仅适用于 `resourceType=\"noSqlDatabase\"` 的文档数据库安全规则。配置 `function` 或 `storage` 时，请参考各自官方安全规则文档，而不是复用 NoSQL 模板。",
       inputSchema: {
         action: z.enum(MANAGE_PERMISSION_ACTIONS),
         resourceType: z
           .enum(["noSqlDatabase", "sqlDatabase", "function", "storage"])
-          .optional(),
+          .optional()
+          .describe("目标资源类型。`securityRule` 的具体语义依赖这个值；`noSqlDatabase` 使用集合安全规则，`function` 与 `storage` 也有各自独立的安全规则语义，不要套用 NoSQL 规则语法。"),
         resourceId: z.string().optional(),
         permission: z
           .enum(["READONLY", "PRIVATE", "ADMINWRITE", "ADMINONLY", "CUSTOM"])
@@ -545,10 +546,10 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
           .string()
           .optional()
           .describe(
-            "CUSTOM 权限的安全规则，JSON 字符串，键为 read/create/update/delete，值为表达式。" +
-              "重要：create 规则验证写入数据，此时文档尚不存在，不能使用 doc.*；" +
-              "read/update/delete 规则可使用 doc.* 引用已有文档字段。" +
-              '示例：{"read":"auth.uid != null","create":"auth.uid != null && auth.loginType != \"ANONYMOUS\"","update":"auth.uid != null && doc._openid == auth.openid","delete":"auth.uid != null && doc._openid == auth.openid"}',
+            "资源类型特定的规则内容，详细语义依赖 `resourceType`。当 `resourceType=\"noSqlDatabase\"` 且 `permission=\"CUSTOM\"` 时，应传文档数据库安全规则 JSON（文档型数据库规则：`https://docs.cloudbase.net/database/security-rules`）；键通常为 `read` / `create` / `update` / `delete`，值为表达式。" +
+              "重要：`create` 规则验证写入数据，此时文档尚不存在，不能使用 `doc.*`；`read` / `update` / `delete` 规则可使用 `doc.*` 引用已有文档字段。" +
+              "不要把 `doc._openid`、`auth.openid`、查询条件子集校验或 `create` / `update` / `delete` 模板误用于 `function`、`storage` 或 `sqlDatabase`。" +
+              '如需配置 `function` 或 `storage`，请改查官方安全规则文档：云函数 `https://docs.cloudbase.net/cloud-function/security-rules`，云存储 `https://docs.cloudbase.net/storage/security-rules`。示例：{"read":"auth.uid != null","create":"auth.uid != null && auth.loginType != "ANONYMOUS"","update":"auth.uid != null && doc._openid == auth.openid","delete":"auth.uid != null && doc._openid == auth.openid"}',
           ),
         roleId: z.string().optional(),
         roleIds: z.array(z.string()).optional(),
