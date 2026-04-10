@@ -1995,7 +1995,7 @@
           },
           "clientId": {
             "type": "string",
-            "description": "DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）"
+            "description": "OAuth client_id / DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）"
           }
         },
         "required": [

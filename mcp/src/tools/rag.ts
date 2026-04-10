@@ -92,8 +92,51 @@ interface DownloadResult {
   openAPIDocs: OpenAPIInfo[];
 }
 
+interface ResolveSkillSearchRootsOptions {
+  cliEntryPath?: string;
+  homeDir?: string;
+  fallbackSkillsRoot?: string;
+}
+
 // 共享的下载 Promise，防止并发重复下载
 let resourceDownloadPromise: Promise<DownloadResult> | null = null;
+
+async function filterExistingDirs(pathsToCheck: Array<string | undefined>): Promise<string[]> {
+  const resolved: string[] = [];
+  for (const candidate of pathsToCheck) {
+    if (!candidate || resolved.includes(candidate)) {
+      continue;
+    }
+    try {
+      const stat = await fs.stat(candidate);
+      if (stat.isDirectory()) {
+        resolved.push(candidate);
+      }
+    } catch {
+      // Ignore missing candidates and keep checking fallbacks.
+    }
+  }
+  return resolved;
+}
+
+export async function resolveSkillSearchRoots(
+  options: ResolveSkillSearchRootsOptions = {},
+): Promise<string[]> {
+  const cliEntryPath = options.cliEntryPath ?? process.argv[1];
+  const homeDir = options.homeDir ?? os.homedir();
+  const repoRoot = cliEntryPath
+    ? path.resolve(path.dirname(cliEntryPath), "..", "..")
+    : undefined;
+
+  return filterExistingDirs([
+    repoRoot
+      ? path.join(repoRoot, ".generated", "compat-config", ".codebuddy", "skills")
+      : undefined,
+    repoRoot ? path.join(repoRoot, "config", "source", "skills") : undefined,
+    options.fallbackSkillsRoot,
+    path.join(homeDir, ".cloudbase-mcp", "web-template", ".claude", "skills"),
+  ]);
+}
 
 // 检查缓存是否可用（未过期）
 async function canUseCache(): Promise<boolean> {
@@ -552,15 +595,28 @@ export async function registerRagTools(server: ExtendedMcpServer) {
 
   let openapis: OpenAPIInfo[] = [];
   let skills: SkillInfo[] = [];
+  let fallbackSkillsRoot: string | undefined;
 
   try {
     const { webTemplateDir, openAPIDocs } = await downloadResources();
     openapis = openAPIDocs;
-    skills = await collectSkillDescriptions(
-      path.join(webTemplateDir, ".claude", "skills"),
-    );
+    fallbackSkillsRoot = path.join(webTemplateDir, ".claude", "skills");
   } catch (error) {
     warn("[downloadResources] Failed to download resources", {
+      error,
+    });
+  }
+
+  try {
+    const skillRoots = await resolveSkillSearchRoots({
+      fallbackSkillsRoot,
+    });
+    const preferredSkillRoot = skillRoots[0];
+    if (preferredSkillRoot) {
+      skills = await collectSkillDescriptions(preferredSkillRoot);
+    }
+  } catch (error) {
+    warn("[registerRagTools] Failed to resolve local skill roots", {
       error,
     });
   }

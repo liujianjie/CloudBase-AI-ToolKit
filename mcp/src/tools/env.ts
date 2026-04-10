@@ -147,6 +147,49 @@ function buildEnvCandidatePayload(
   };
 }
 
+function buildLocalDevDomainHint() {
+  return {
+    format: "host:port",
+    useActualOrigin: true,
+    requiredValue: "当前浏览器实际访问 origin 对应的 host:port",
+    deriveFrom: ["浏览器地址栏中的当前 origin", "本地 dev server 实际启动输出"],
+    note:
+      "如果你的前端运行在自定义域名或本地开发端口上，请把当前浏览器实际访问地址对应的 host:port 加入安全域名。不要依赖一组固定默认端口，也不要假设已有 localhost/127.0.0.1 条目已经覆盖当前运行端口。",
+  };
+}
+
+function summarizeConfiguredLocalDevEntries(
+  domains: Array<{ Domain?: unknown }>,
+) {
+  const localEntries = domains
+    .map((domain) => String(domain?.Domain ?? "").trim())
+    .filter((domain) => domain.startsWith("127.0.0.1:") || domain.startsWith("localhost:"));
+
+  return {
+    hasAnyConfiguredLocalEntry: localEntries.length > 0,
+    configuredEntries: localEntries,
+  };
+}
+
+function simplifyEnvDomains(domains: unknown) {
+  if (!Array.isArray(domains)) {
+    return domains;
+  }
+
+  return domains.map((domain) => {
+    if (!domain || typeof domain !== "object") {
+      return domain;
+    }
+
+    const source = domain as Record<string, unknown>;
+    return {
+      ...(source.Domain !== undefined ? { Domain: source.Domain } : {}),
+      ...(source.Status !== undefined ? { Status: source.Status } : {}),
+      ...(source.Type !== undefined ? { Type: source.Type } : {}),
+    };
+  });
+}
+
 function formatDeviceAuthHint(deviceAuthInfo?: DeviceFlowAuthInfo): string {
   if (!deviceAuthInfo) {
     return "";
@@ -1293,6 +1336,39 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             const cloudbaseDomains = await getManager();
             result = await cloudbaseDomains.env.getEnvAuthDomains();
             logCloudBaseResult(server.logger, result);
+            if (result && typeof result === "object" && !Array.isArray(result)) {
+              const domainsResult = result as unknown as Record<string, unknown>;
+              const localDevHint = buildLocalDevDomainHint();
+              const simplifiedDomains = simplifyEnvDomains(domainsResult.Domains);
+              const localDevSummary = summarizeConfiguredLocalDevEntries(
+                Array.isArray(simplifiedDomains)
+                  ? (simplifiedDomains as Array<{ Domain?: unknown }>)
+                  : [],
+              );
+              result = {
+                ...domainsResult,
+                Domains: simplifiedDomains,
+                localDevHint,
+                localDevStatus: {
+                  requiresExactCurrentOrigin: true,
+                  browserUploadReady: false,
+                  coverageConfirmed: false,
+                  doNotAssumeConfiguredEntriesAreSufficient: true,
+                  canAutoDetermineCurrentOrigin: false,
+                  hasAnyConfiguredLocalEntry: localDevSummary.hasAnyConfiguredLocalEntry,
+                  configuredEntries: localDevSummary.configuredEntries,
+                  note:
+                    "此查询不会自动知道你当前浏览器实际使用的自定义域名或本地端口。即使已经存在一些 localhost/127.0.0.1 条目，也不能据此认定浏览器上传已就绪。若浏览器 Web 应用需要直接上传文件到 CloudBase，请先确认并添加当前访问地址对应的 host:port，再依赖 app.uploadFile()。",
+                },
+                next_step_template: {
+                  tool: "envDomainManagement",
+                  action: "create",
+                  domains: ["<actual-browser-host>:<actual-browser-port>"],
+                  note:
+                    "请把占位符替换为当前浏览器实际访问 origin 对应的 host:port，再执行添加。",
+                },
+              };
+            }
             break;
 
           case "hosting": {
@@ -1378,7 +1454,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
     {
       title: "环境域名管理",
       description:
-        "管理云开发环境的安全域名，支持添加和删除操作。（原工具名：createEnvDomain/deleteEnvDomain，为兼容旧AI规则可继续使用这些名称）",
+        "管理云开发环境的安全域名，支持添加和删除操作。（原工具名：createEnvDomain/deleteEnvDomain，为兼容旧AI规则可继续使用这些名称）当浏览器 Web 应用需要从本地 Vite / dev server 或自定义域名直接访问 CloudBase 资源时，应先用 envQuery(action=domains) 检查当前实际浏览器 origin 对应的 host:port 是否已在白名单中，再按该实际值添加。",
       inputSchema: {
         action: z
           .enum(["create", "delete"])

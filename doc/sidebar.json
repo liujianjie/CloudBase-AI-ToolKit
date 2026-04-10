@@ -150,7 +150,12 @@
       {
         "type": "link",
         "label": "更新日志",
-        "href": "https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/releases"
+        "href": "https://github.com/TencentCloudBase/CloudBase-MCP/releases"
+      },
+      {
+        "type": "link",
+        "label": "GitHub 仓库",
+        "href": "https://github.com/TencentCloudBase/CloudBase-MCP"
       }
     ]
   }

@@ -786,7 +786,7 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
 <tbody>
 <tr><td><code>action</code></td><td>string</td><td>是</td><td>可填写的值: "getLoginConfig", "listProviders", "getProvider", "getClientConfig", "getPublishableKey", "getStaticDomain"</td></tr>
 <tr><td><code>providerId</code></td><td>string</td><td></td><td>provider 标识，如 email、google</td></tr>
-<tr><td><code>clientId</code></td><td>string</td><td></td><td>DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）</td></tr>
+<tr><td><code>clientId</code></td><td>string</td><td></td><td>OAuth client_id / DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）</td></tr>
 </tbody>
 </table>
 
