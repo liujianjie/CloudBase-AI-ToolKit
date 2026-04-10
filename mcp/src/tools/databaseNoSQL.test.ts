@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtendedMcpServer } from "../server.js";
 import { registerDatabaseTools } from "./databaseNoSQL.js";
+import { resetDatabaseInstanceIdCache } from "../cloudbase-manager.js";
 
 const {
   mockGetCloudBaseManager,
@@ -9,6 +10,7 @@ const {
   mockDescribeCollection,
   mockCreateCollection,
   mockCommonServiceCall,
+  mockGetEnvInfo,
 } = vi.hoisted(() => ({
   mockGetCloudBaseManager: vi.fn(),
   mockLogCloudBaseResult: vi.fn(),
@@ -16,12 +18,18 @@ const {
   mockDescribeCollection: vi.fn(),
   mockCreateCollection: vi.fn(),
   mockCommonServiceCall: vi.fn(),
+  mockGetEnvInfo: vi.fn(),
 }));
 
-vi.mock("../cloudbase-manager.js", () => ({
-  getCloudBaseManager: mockGetCloudBaseManager,
-  logCloudBaseResult: mockLogCloudBaseResult,
-}));
+vi.mock("../cloudbase-manager.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../cloudbase-manager.js")>();
+  return {
+    ...actual,
+    getCloudBaseManager: mockGetCloudBaseManager,
+    logCloudBaseResult: mockLogCloudBaseResult,
+  };
+});
 
 function createMockServer() {
   const tools: Record<
@@ -53,6 +61,7 @@ function createMockServer() {
 describe("NoSQL database tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetDatabaseInstanceIdCache();
 
     mockCheckCollectionExists.mockResolvedValue({
       RequestId: "req-check",
@@ -65,6 +74,15 @@ describe("NoSQL database tools", () => {
     });
     mockCreateCollection.mockResolvedValue({
       RequestId: "req-create",
+    });
+    mockGetEnvInfo.mockResolvedValue({
+      EnvInfo: {
+        Databases: [
+          {
+            InstanceId: "instance-test",
+          },
+        ],
+      },
     });
     mockCommonServiceCall.mockImplementation(async ({ Action }) => {
       if (Action === "QueryRecords") {
@@ -92,15 +110,7 @@ describe("NoSQL database tools", () => {
     });
     mockGetCloudBaseManager.mockResolvedValue({
       env: {
-        getEnvInfo: vi.fn().mockResolvedValue({
-          EnvInfo: {
-            Databases: [
-              {
-                InstanceId: "instance-test",
-              },
-            ],
-          },
-        }),
+        getEnvInfo: mockGetEnvInfo,
       },
       database: {
         checkCollectionExists: mockCheckCollectionExists,
@@ -356,5 +366,69 @@ describe("NoSQL database tools", () => {
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload.data).toEqual(["raw-value"]);
+  });
+
+  it("readNoSqlDatabaseContent should reuse cached instanceId across calls", async () => {
+    const { tools } = createMockServer();
+
+    await tools.readNoSqlDatabaseContent.handler({
+      collectionName: "t_nosql_products",
+    });
+    await tools.readNoSqlDatabaseContent.handler({
+      collectionName: "t_nosql_products",
+    });
+
+    expect(mockGetEnvInfo).toHaveBeenCalledTimes(1);
+  });
+
+  it("writeNoSqlDatabaseContent should prefer explicit instanceId over getEnvInfo", async () => {
+    const { tools } = createMockServer();
+
+    await tools.writeNoSqlDatabaseContent.handler({
+      action: "insert",
+      collectionName: "t_nosql_products",
+      instanceId: "instance-override",
+      documents: [{ name: "chain_nosql_probe_001", status: "active" }],
+    });
+
+    expect(mockGetEnvInfo).not.toHaveBeenCalled();
+    expect(mockCommonServiceCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Action: "PutItem",
+        Param: expect.objectContaining({
+          Tag: "instance-override",
+        }),
+      }),
+    );
+  });
+
+  it("readNoSqlDatabaseContent should dedupe concurrent instanceId fetches", async () => {
+    mockGetEnvInfo.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                EnvInfo: {
+                  Databases: [{ InstanceId: "instance-test" }],
+                },
+              }),
+            10,
+          );
+        }),
+    );
+
+    const { tools } = createMockServer();
+
+    await Promise.all([
+      tools.readNoSqlDatabaseContent.handler({
+        collectionName: "t_nosql_products",
+      }),
+      tools.readNoSqlDatabaseContent.handler({
+        collectionName: "t_nosql_products",
+      }),
+    ]);
+
+    expect(mockGetEnvInfo).toHaveBeenCalledTimes(1);
   });
 });

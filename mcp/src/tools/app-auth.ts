@@ -11,18 +11,26 @@ const QUERY_APP_AUTH_ACTIONS = [
   "getClientConfig",
   "getPublishableKey",
   "getStaticDomain",
+  "listApiKeys",
 ] as const;
 
 const MANAGE_APP_AUTH_ACTIONS = [
   "patchLoginStrategy",
+  "addProvider",
   "updateProvider",
+  "deleteProvider",
   "updateClientConfig",
   "ensurePublishableKey",
+  "createApiKey",
+  "deleteApiKey",
   "createCustomLoginKeys",
 ] as const;
 
+const APP_AUTH_KEY_TYPES = ["publish_key", "api_key"] as const;
+
 type QueryAppAuthAction = (typeof QUERY_APP_AUTH_ACTIONS)[number];
 type ManageAppAuthAction = (typeof MANAGE_APP_AUTH_ACTIONS)[number];
+type AppAuthKeyType = (typeof APP_AUTH_KEY_TYPES)[number];
 
 const SUPABASE_LIKE_SDK_HINTS = {
   phoneOtp: "auth.signInWithOtp({ phone })",
@@ -67,6 +75,27 @@ function normalizePlainObject(
     throw new Error(`${label} 必须是对象`);
   }
   return value as Record<string, unknown>;
+}
+
+function normalizeLocalizedMessage(
+  value: unknown,
+  label: string,
+  fallback?: string,
+): Record<string, unknown> {
+  if (typeof value === "string") {
+    return { Message: value };
+  }
+
+  const normalized = normalizePlainObject(value, label);
+  if (normalized) {
+    return normalized;
+  }
+
+  if (fallback) {
+    return { Message: fallback };
+  }
+
+  throw new Error(`${label} 必须是字符串或对象`);
 }
 
 function omitKeys(
@@ -263,27 +292,8 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     }
   };
 
-  const callControlPlaneAction = async (
-    action: string,
-    params?: Record<string, unknown>,
-  ) => {
-    const cloudbase = await getManager();
-    const service = cloudbase.commonService("tcb", "2018-06-08");
-    const result = await service.call({
-      Action: action,
-      Param: params ?? {},
-    });
-    logCloudBaseResult(server.logger, result);
-    return result;
-  };
-
-  const describePublishableKey = async (envId: string) => {
-    const result = await callControlPlaneAction("DescribeApiKeyList", {
-      EnvId: envId,
-      KeyType: "publish_key",
-      PageNumber: 1,
-      PageSize: 10,
-    });
+  const describePublishableKey = async (cloudbase: Awaited<ReturnType<typeof getManager>>, envId: string) => {
+    const result = await cloudbase.env.describeApiKeyList({ KeyType: "publish_key", PageNumber: 1, PageSize: 10 });
 
     return {
       result,
@@ -296,7 +306,7 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     {
       title: "查询应用认证配置",
       description:
-        "应用侧认证配置只读入口。用于查询登录方式、provider、publishable key、client 配置和静态域名等认证准备状态。",
+        "应用侧认证配置只读入口。用于查询登录方式、provider、API key、client 配置和静态域名等认证准备状态。",
       inputSchema: {
         action: z.enum(QUERY_APP_AUTH_ACTIONS),
         providerId: z.string().optional().describe("provider 标识，如 email、google"),
@@ -304,6 +314,12 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
           .string()
           .optional()
           .describe("DescribeClient 的 Id；省略时默认使用当前环境 ID（默认客户端）"),
+        keyType: z
+          .enum(APP_AUTH_KEY_TYPES)
+          .optional()
+          .describe("API key 类型过滤，可选 publish_key 或 api_key"),
+        pageNumber: z.number().int().positive().optional().describe("API key 列表页码，从 1 开始"),
+        pageSize: z.number().int().positive().optional().describe("API key 列表每页条数"),
       },
       annotations: {
         readOnlyHint: true,
@@ -315,10 +331,16 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
       action,
       providerId,
       clientId,
+      keyType,
+      pageNumber,
+      pageSize,
     }: {
       action: QueryAppAuthAction;
       providerId?: string;
       clientId?: string;
+      keyType?: AppAuthKeyType;
+      pageNumber?: number;
+      pageSize?: number;
     }) =>
       withEnvelope(async () => {
         const envId = await getActiveEnvId(cloudBaseOptions as Record<string, unknown>);
@@ -326,7 +348,7 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
 
         switch (action) {
           case "getLoginConfig": {
-            const result = await cloudbase.env.getLoginConfigListV2();
+            const result = await cloudbase.env.getLoginConfig();
             logCloudBaseResult(server.logger, result);
             return buildSupabaseLikeAuthResponse({
               success: true,
@@ -335,9 +357,7 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             });
           }
           case "listProviders": {
-            const result = await callControlPlaneAction("GetProviders", {
-              EnvId: envId,
-            });
+            const result = await cloudbase.env.getProviders();
             return {
               success: true,
               envId,
@@ -349,9 +369,7 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               throw new Error("action=getProvider 时必须提供 providerId");
             }
 
-            const result = await callControlPlaneAction("GetProviders", {
-              EnvId: envId,
-            });
+            const result = await cloudbase.env.getProviders();
             const provider =
               extractProviders(result).find(
                 (item) => item.Id === providerId || item.id === providerId,
@@ -366,25 +384,24 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
           }
           case "getClientConfig": {
             const clientRecordId = clientId ?? envId;
-            const result = await callControlPlaneAction("DescribeClient", {
-              EnvId: envId,
-              Id: clientRecordId,
-            });
+            const result = await cloudbase.env.describeClient(clientRecordId);
             return buildClientConfigResponse(envId, clientRecordId, result);
           }
           case "getPublishableKey": {
-            const { record } = await describePublishableKey(envId);
+            const { record } = await describePublishableKey(cloudbase, envId);
             return buildPublishableKeyResponse(envId, record);
           }
           case "getStaticDomain": {
-            const result = await callControlPlaneAction("DescribeStaticStore", {
-              EnvId: envId,
+            const service = cloudbase.commonService("tcb", "2018-06-08");
+            const result = await service.call({
+              Action: "DescribeStaticStore",
+              Param: { EnvId: envId },
             });
+            logCloudBaseResult(server.logger, result);
             const stores = extractStaticStores(result);
             const first = stores[0];
             const primaryDomain =
               (typeof first?.CdnDomain === "string" ? first.CdnDomain : undefined) ??
-              (typeof first?.StaticDomain === "string" ? first.StaticDomain : undefined) ??
               null;
 
             return {
@@ -393,6 +410,29 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               cdnDomain: primaryDomain,
               staticDomain: primaryDomain,
               staticStores: stores,
+            };
+          }
+          case "listApiKeys": {
+            const currentPageNumber = pageNumber ?? 1;
+            const currentPageSize = pageSize ?? 20;
+            const result = await cloudbase.env.describeApiKeyList({
+              ...(keyType ? { KeyType: keyType } : {}),
+              PageNumber: currentPageNumber,
+              PageSize: currentPageSize,
+            });
+            logCloudBaseResult(server.logger, result);
+            const apiKeys = extractApiKeyList(result);
+
+            return {
+              success: true,
+              envId,
+              ...(keyType ? { keyType } : {}),
+              apiKeys,
+              total: typeof (result as { Total?: unknown }).Total === "number"
+                ? (result as { Total: number }).Total
+                : apiKeys.length,
+              pageNumber: currentPageNumber,
+              pageSize: currentPageSize,
             };
           }
         }
@@ -404,19 +444,31 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
     {
       title: "管理应用认证配置",
       description:
-        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，确保 publishable key 和创建自定义登录密钥。",
+        "应用侧认证配置写入口。用于修改登录方式、provider、client 配置，以及创建或删除 API key、自定义登录密钥。",
       inputSchema: {
         action: z.enum(MANAGE_APP_AUTH_ACTIONS),
         patch: z
           .record(z.any())
           .optional()
           .describe("patchLoginStrategy 使用的简化登录策略 patch，如 { usernamePassword: true }"),
-        providerId: z.string().optional().describe("provider 标识，如 email、google"),
+        providerId: z.string().optional().describe("provider 标识，如 email、google；addProvider 时也可作为自定义 provider Id"),
+        providerType: z.string().optional().describe("addProvider 时的 provider 协议类型，如 OAUTH、OIDC、EMAIL"),
+        displayName: z
+          .union([z.string(), z.record(z.any())])
+          .optional()
+          .describe("addProvider 时的展示名称，可传字符串或多语言对象"),
         clientId: z
           .string()
           .optional()
           .describe("updateClientConfig 时的客户端 Id；省略时默认使用当前环境 ID"),
         config: z.record(z.any()).optional().describe("provider / client 的配置对象"),
+        keyType: z
+          .enum(APP_AUTH_KEY_TYPES)
+          .optional()
+          .describe("createApiKey 时的 API key 类型，默认 publish_key"),
+        keyName: z.string().optional().describe("createApiKey 时的 API key 名称"),
+        expireIn: z.number().int().min(0).optional().describe("createApiKey 时的有效期，单位秒；0 表示不过期"),
+        keyId: z.string().optional().describe("deleteApiKey 时的 API key 唯一标识"),
       },
       annotations: {
         readOnlyHint: false,
@@ -430,14 +482,26 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
       action,
       patch,
       providerId,
+      providerType,
+      displayName,
       clientId,
       config,
+      keyType,
+      keyName,
+      expireIn,
+      keyId,
     }: {
       action: ManageAppAuthAction;
       patch?: Record<string, unknown>;
       providerId?: string;
+      providerType?: string;
+      displayName?: string | Record<string, unknown>;
       clientId?: string;
       config?: Record<string, unknown>;
+      keyType?: AppAuthKeyType;
+      keyName?: string;
+      expireIn?: number;
+      keyId?: string;
     }) =>
       withEnvelope(async () => {
         const envId = await getActiveEnvId(cloudBaseOptions as Record<string, unknown>);
@@ -451,16 +515,15 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               throw new Error("action=patchLoginStrategy 时必须提供 patch");
             }
 
-            const current = await cloudbase.env.getLoginConfigListV2();
+            const current = await cloudbase.env.getLoginConfig();
             const merged = {
-              EnvId: envId,
               ...extractLoginStrategyState(current),
               ...normalized,
             };
-            const result = await cloudbase.env.updateLoginConfigV2(merged as any);
+            const result = await cloudbase.env.modifyLoginConfig(merged as any);
             logCloudBaseResult(server.logger, result);
 
-            const confirmed = await cloudbase.env.getLoginConfigListV2();
+            const confirmed = await cloudbase.env.getLoginConfig();
             logCloudBaseResult(server.logger, confirmed);
 
             return buildSupabaseLikeAuthResponse({
@@ -468,6 +531,36 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               envId,
               loginMethods: buildLoginMethods(confirmed),
             });
+          }
+          case "addProvider": {
+            const normalized = omitKeys(normalizePlainObject(config, "config"), ["EnvId"]);
+            if (!providerType) {
+              throw new Error("action=addProvider 时必须提供 providerType");
+            }
+
+            const localizedDisplayName = normalizeLocalizedMessage(
+              displayName,
+              "displayName",
+              providerId ?? providerType,
+            );
+            const result = await cloudbase.env.addProvider({
+              ...(providerId ? { Id: providerId } : {}),
+              Name: localizedDisplayName as any,
+              ProviderType: providerType,
+              ...(normalized ? { Config: normalized as any } : {}),
+            } as any);
+            logCloudBaseResult(server.logger, result);
+
+            return {
+              success: true,
+              envId,
+              providerId:
+                providerId ??
+                (typeof (result as { Id?: unknown }).Id === "string"
+                  ? (result as { Id: string }).Id
+                  : null),
+              providerType,
+            };
           }
           case "updateProvider": {
             const normalized = omitKeys(normalizePlainObject(config, "config"), ["EnvId", "Id"]);
@@ -478,16 +571,27 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               throw new Error("action=updateProvider 时必须提供 config");
             }
 
-            await callControlPlaneAction("ModifyProvider", {
-              EnvId: envId,
-              Id: providerId,
-              ...normalized,
-            });
+            await cloudbase.env.modifyProvider({ Id: providerId, ...normalized });
 
             return {
               success: true,
               envId,
               providerId,
+            };
+          }
+          case "deleteProvider": {
+            if (!providerId) {
+              throw new Error("action=deleteProvider 时必须提供 providerId");
+            }
+
+            const result = await cloudbase.env.deleteProvider(providerId);
+            logCloudBaseResult(server.logger, result);
+
+            return {
+              success: true,
+              envId,
+              providerId,
+              deleted: true,
             };
           }
           case "updateClientConfig": {
@@ -497,36 +601,26 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             }
 
             const clientRecordId = clientId ?? envId;
-            await callControlPlaneAction("ModifyClient", {
-              EnvId: envId,
-              Id: clientRecordId,
-              ...normalized,
-            });
-            const confirmed = await callControlPlaneAction("DescribeClient", {
-              EnvId: envId,
-              Id: clientRecordId,
-            });
+            await cloudbase.env.modifyClient({ Id: clientRecordId, ...normalized });
+            const confirmed = await cloudbase.env.describeClient(clientRecordId);
 
             return buildClientConfigResponse(envId, clientRecordId, confirmed);
           }
           case "ensurePublishableKey": {
-            const existing = await describePublishableKey(envId);
+            const existing = await describePublishableKey(cloudbase, envId);
             if (existing.record) {
               return buildPublishableKeyResponse(envId, existing.record, { created: false });
             }
 
             let created: unknown;
             try {
-              created = await callControlPlaneAction("CreateApiKey", {
-                EnvId: envId,
-                KeyType: "publish_key",
-              });
+              created = await cloudbase.env.createApiKey({ KeyType: "publish_key" });
             } catch (error) {
               if (!isResourceInUseError(error)) {
                 throw error;
               }
 
-              const reread = await describePublishableKey(envId);
+              const reread = await describePublishableKey(cloudbase, envId);
               if (!reread.record) {
                 throw error;
               }
@@ -536,6 +630,46 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
             return buildPublishableKeyResponse(envId, normalizePlainObject(created, "createdApiKey") ?? null, {
               created: true,
             });
+          }
+          case "createApiKey": {
+            const effectiveKeyType = keyType ?? "publish_key";
+            const result = await cloudbase.env.createApiKey({
+              KeyType: effectiveKeyType,
+              ...(keyName ? { KeyName: keyName } : {}),
+              ...(typeof expireIn === "number" ? { ExpireIn: expireIn } : {}),
+            });
+            logCloudBaseResult(server.logger, result);
+
+            return {
+              success: true,
+              envId,
+              keyType: effectiveKeyType,
+              keyId: typeof result.KeyId === "string" ? result.KeyId : null,
+              keyName:
+                typeof result.Name === "string"
+                  ? result.Name
+                  : typeof (result as { KeyName?: unknown }).KeyName === "string"
+                    ? ((result as { KeyName: string }).KeyName)
+                    : keyName ?? null,
+              apiKey: typeof result.ApiKey === "string" ? result.ApiKey : null,
+              expireAt: typeof result.ExpireAt === "string" ? result.ExpireAt : null,
+              createdAt: typeof result.CreateAt === "string" ? result.CreateAt : null,
+            };
+          }
+          case "deleteApiKey": {
+            if (!keyId) {
+              throw new Error("action=deleteApiKey 时必须提供 keyId");
+            }
+
+            const result = await cloudbase.env.deleteApiKey(keyId);
+            logCloudBaseResult(server.logger, result);
+
+            return {
+              success: true,
+              envId,
+              keyId,
+              deleted: true,
+            };
           }
           case "createCustomLoginKeys": {
             const result = await cloudbase.env.createCustomLoginKeys();
