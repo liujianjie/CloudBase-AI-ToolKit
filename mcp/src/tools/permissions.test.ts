@@ -357,4 +357,29 @@ describe("permission tools", () => {
       }),
     ]);
   });
+
+  it("managePermissions(action=updateResourcePermission) should return a create-rule-doc warning when create references doc.*", async () => {
+    const result = await tools.managePermissions.handler({
+      action: "updateResourcePermission",
+      resourceType: "noSqlDatabase",
+      resourceId: "posts",
+      permission: "CUSTOM",
+      securityRule: JSON.stringify({
+        read: "auth.uid != null && doc._openid == auth.openid",
+        write: "auth.uid != null && auth.loginType != 'ANONYMOUS' && doc._openid == auth.openid",
+      }),
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.data.hints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "createRuleDocWarning",
+          summary: expect.stringContaining("create"),
+          recommendedPermission: "CUSTOM",
+          recommendedSecurityRule: expect.stringContaining("auth.loginType"),
+        }),
+      ]),
+    );
+  });
 });
