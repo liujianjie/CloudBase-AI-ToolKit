@@ -601,15 +601,14 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               ...(normalized ? { Config: normalized as any } : {}),
             } as any);
             logCloudBaseResult(server.logger, result);
+            const addProviderResult = normalizePlainObject(result, "addProviderResult") ?? {};
 
             return {
               success: true,
               envId,
               providerId:
                 providerId ??
-                (typeof (result as { Id?: unknown }).Id === "string"
-                  ? (result as { Id: string }).Id
-                  : null),
+                (typeof addProviderResult.Id === "string" ? addProviderResult.Id : null),
               providerType,
             };
           }
@@ -690,6 +689,7 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               ...(typeof expireIn === "number" ? { ExpireIn: expireIn } : {}),
             });
             logCloudBaseResult(server.logger, result);
+            const createApiKeyResult = normalizePlainObject(result, "createApiKeyResult") ?? {};
 
             return {
               success: true,
@@ -699,8 +699,8 @@ export function registerAppAuthTools(server: ExtendedMcpServer) {
               keyName:
                 typeof result.Name === "string"
                   ? result.Name
-                  : typeof (result as { KeyName?: unknown }).KeyName === "string"
-                    ? ((result as { KeyName: string }).KeyName)
+                  : typeof createApiKeyResult.KeyName === "string"
+                    ? createApiKeyResult.KeyName
                     : keyName ?? null,
               apiKey: typeof result.ApiKey === "string" ? result.ApiKey : null,
               expireAt: typeof result.ExpireAt === "string" ? result.ExpireAt : null,
