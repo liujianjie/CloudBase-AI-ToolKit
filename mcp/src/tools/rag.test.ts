@@ -1,12 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ExtendedMcpServer } from "../server.js";
 
-const { mockGetCloudBaseManager } = vi.hoisted(() => ({
+const { mockGetCloudBaseManager, mockCreateCloudBaseManagerWithOptions } = vi.hoisted(() => ({
   mockGetCloudBaseManager: vi.fn(),
+  mockCreateCloudBaseManagerWithOptions: vi.fn(),
 }));
 
 vi.mock("../cloudbase-manager.js", () => ({
   getCloudBaseManager: mockGetCloudBaseManager,
+  createCloudBaseManagerWithOptions: mockCreateCloudBaseManagerWithOptions,
 }));
 
 import { registerRagTools } from "./rag.js";
@@ -69,7 +71,7 @@ describe("rag tools", () => {
     );
   });
 
-  it("searchKnowledgeBase docs mode should call manager docs sdk", async () => {
+  it("searchKnowledgeBase docs mode should use public docs sdk without requiring login", async () => {
     const { server, tools } = createMockServer();
     const searchDocs = vi.fn().mockResolvedValue([
       {
@@ -79,7 +81,8 @@ describe("rag tools", () => {
       },
     ]);
 
-    mockGetCloudBaseManager.mockResolvedValue({
+    mockGetCloudBaseManager.mockRejectedValue(new Error("AUTH_REQUIRED"));
+    mockCreateCloudBaseManagerWithOptions.mockReturnValue({
       docs: {
         searchDocs,
       },
@@ -93,9 +96,8 @@ describe("rag tools", () => {
       query: "云函数 超时",
     });
 
-    expect(mockGetCloudBaseManager).toHaveBeenCalledWith(
-      expect.objectContaining({ requireEnvId: false }),
-    );
+    expect(mockGetCloudBaseManager).not.toHaveBeenCalled();
+    expect(mockCreateCloudBaseManagerWithOptions).toHaveBeenCalledWith({});
     expect(searchDocs).toHaveBeenCalledWith("云函数 超时");
     expect(JSON.parse(result.content[0].text)).toMatchObject({
       success: true,
@@ -114,7 +116,7 @@ describe("rag tools", () => {
   it("searchKnowledgeBase docs mode should validate action specific params", async () => {
     const { server, tools } = createMockServer();
 
-    mockGetCloudBaseManager.mockResolvedValue({
+    mockCreateCloudBaseManagerWithOptions.mockReturnValue({
       docs: {
         readDoc: vi.fn(),
       },

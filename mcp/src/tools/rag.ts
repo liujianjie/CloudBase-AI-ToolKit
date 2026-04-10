@@ -4,7 +4,7 @@ import lockfile, { Options as LockfileOptions } from "lockfile";
 import * as os from "os";
 import * as path from "path";
 import { z } from "zod";
-import { getCloudBaseManager } from "../cloudbase-manager.js";
+import { createCloudBaseManagerWithOptions } from "../cloudbase-manager.js";
 import { FALLBACK_CLAUDE_PROMPT } from "../config/claude-prompt.js";
 import { ExtendedMcpServer } from "../server.js";
 import { jsonContent } from "../utils/json-content.js";
@@ -565,11 +565,9 @@ export async function registerRagTools(server: ExtendedMcpServer) {
     });
   }
 
-  const getManager = () =>
-    getCloudBaseManager({
-      cloudBaseOptions: server.cloudBaseOptions,
-      requireEnvId: false,
-    });
+  const getDocsManager = () =>
+    (createCloudBaseManagerWithOptions(server.cloudBaseOptions ?? {}) as any)
+      ?.docs;
 
   server.registerTool?.(
     "searchKnowledgeBase",
@@ -684,8 +682,7 @@ export async function registerRagTools(server: ExtendedMcpServer) {
             throw new Error("mode=docs 时必须提供 action");
           }
 
-          const manager = await getManager();
-          const docsManager = (manager as any)?.docs;
+          const docsManager = getDocsManager();
 
           if (!docsManager) {
             throw new Error(
