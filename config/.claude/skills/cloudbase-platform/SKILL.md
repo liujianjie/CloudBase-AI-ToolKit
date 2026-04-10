@@ -47,6 +47,7 @@ Keep local `references/...` paths for files that ship with the current skill dir
 - Treating this general skill as the default entry point for all CloudBase development.
 - Staying here after the correct implementation skill is already clear.
 - Mixing platform overview with platform-specific API shapes or SDK details.
+- Using this overview skill as a detour in an existing application where the active auth, storage, and data files are already obvious.
 
 ## When to use this skill
 
@@ -68,6 +69,7 @@ Use this skill for **CloudBase platform knowledge** when you need to:
    - Web and Mini Program have completely different authentication approaches
    - Must strictly distinguish between platforms
    - Never mix authentication methods across platforms
+   - If the workspace is already an application with TODOs or prebuilt handlers, do not stay in platform overview mode. Move quickly to the concrete implementation skill and the existing files that own the flow.
 
 2. **Follow best practices**
    - Use SDK built-in authentication features (Web)
@@ -79,6 +81,7 @@ Use this skill for **CloudBase platform knowledge** when you need to:
    - Different platforms require different SDKs for data models
    - MySQL data models must use models SDK, not collection API
    - Use `envQuery` tool to get environment ID
+   - In an existing Web application with fixed structure, inspect the existing `src/lib/backend.*`, `src/lib/auth.*`, `src/lib/*service.*`, and bound page handlers before broad concept reading.
 
 4. **Use the canonical CloudBase MCP setup from the main `cloudbase` guideline**
    - This platform overview intentionally does **not** duplicate the full MCP / mcporter config block
@@ -164,8 +167,13 @@ Use this skill for **CloudBase platform knowledge** when you need to:
    Create collection → Configure security rules → Write code → Test
    ```
    - Use `managePermissions(action="updateResourcePermission")` to configure resource permissions
-   - Wait 2-5 minutes for cache to clear before testing
-   - See `no-sql-web-sdk/security-rules.md` for detailed examples
+   - If permissions were just changed, allow a short propagation window (typically 2-5 minutes) before retesting, but do not assume every failure is cache. Re-check the actual rule shape and active client write pattern first.
+   - See `no-sql-web-sdk/security-rules.md` for detailed `resourceType="noSqlDatabase"` examples only; do not treat `doc._openid`, `auth.openid`, query-subset validation, or `create` / `update` / `delete` JSON templates as generic rules for functions, storage, or SQL tables
+   - Official references:
+     - General security rules overview: `https://cloud.tencent.com/document/product/876/41802`
+     - NoSQL database security rules: `https://docs.cloudbase.net/database/security-rules`
+     - Cloud function security rules: `https://docs.cloudbase.net/cloud-function/security-rules`
+     - Storage security rules: `https://docs.cloudbase.net/storage/security-rules`
 
 Compatibility note:
 - Canonical plugin name: `permissions`

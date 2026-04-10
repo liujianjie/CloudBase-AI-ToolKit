@@ -203,6 +203,13 @@ describe("app auth tools", () => {
         anonymous: true,
         phone: false,
       },
+      webSdkHint: {
+        blocked: false,
+        register: "auth.signUp({ username, password })",
+        login: "auth.signInWithPassword({ username, password })",
+        accountInputType: "text",
+        avoidEmailHelpers: true,
+      },
     });
   });
 
@@ -250,6 +257,53 @@ describe("app auth tools", () => {
         email: true,
         anonymous: false,
         phone: false,
+      },
+      webSdkHint: {
+        blocked: false,
+        register: "auth.signUp({ username, password })",
+        login: "auth.signInWithPassword({ username, password })",
+        accountInputType: "text",
+        avoidEmailHelpers: true,
+      },
+    });
+  });
+
+  it("queryAppAuth(action=getLoginConfig) should return next_step when username login is disabled", async () => {
+    mockGetLoginConfig.mockResolvedValueOnce({
+      AnonymousLogin: true,
+      UserNameLogin: false,
+      PhoneNumberLogin: false,
+      EmailLogin: true,
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getLoginConfig" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      loginMethods: {
+        usernamePassword: false,
+        email: true,
+        anonymous: true,
+        phone: false,
+      },
+      next_step: {
+        tool: "manageAppAuth",
+        action: "patchLoginStrategy",
+        patch: {
+          usernamePassword: true,
+        },
+      },
+      sdkStyle: "supabase-like",
+      sdkHints: expectedSdkHints,
+      webSdkHint: {
+        blocked: true,
+        reason: "plain username-style identifiers require usernamePassword auth",
+        nextStep:
+          'manageAppAuth({ action: "patchLoginStrategy", patch: { usernamePassword: true } })',
+        accountInputType: "text",
+        avoidEmailHelpers: true,
       },
     });
   });
@@ -738,6 +792,37 @@ describe("app auth tools", () => {
       keyId: "publish-key-id",
       keyName: "publish_key",
       created: false,
+    });
+  });
+
+
+  it("queryAppAuth(action=getStaticDomain) should call DescribeStaticStore", async () => {
+    mockTcbCall.mockResolvedValue({
+      RequestId: "req-static",
+      Data: [
+        {
+          EnvId: "env-test",
+          CdnDomain: "env-test.cdn.tcloudbaseapp.com",
+          Status: "online",
+        },
+      ],
+    });
+
+    const result = await tools.queryAppAuth.handler({ action: "getStaticDomain" });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockTcbCall).toHaveBeenCalledWith({
+      Action: "DescribeStaticStore",
+      Param: { EnvId: "env-test" },
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      envId: "env-test",
+      cdnDomain: "env-test.cdn.tcloudbaseapp.com",
+      staticDomain: "env-test.cdn.tcloudbaseapp.com",
+      staticStores: [
+        expect.objectContaining({ CdnDomain: "env-test.cdn.tcloudbaseapp.com" }),
+      ],
     });
   });
 
