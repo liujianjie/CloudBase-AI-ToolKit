@@ -13,6 +13,8 @@ This document covers how to configure security rules for CloudBase NoSQL databas
 **Official references:**
 - General security rules overview: `https://cloud.tencent.com/document/product/876/41802`
 - NoSQL database security rules: `https://docs.cloudbase.net/database/security-rules`
+- Cloud function security rules: `https://docs.cloudbase.net/cloud-function/security-rules`
+- Storage security rules: `https://docs.cloudbase.net/storage/security-rules`
 
 ### Critical Understanding: Query Condition Requirements
 

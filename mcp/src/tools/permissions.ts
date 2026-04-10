@@ -537,7 +537,7 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
         resourceType: z
           .enum(["noSqlDatabase", "sqlDatabase", "function", "storage"])
           .optional()
-          .describe("目标资源类型。`securityRule` 的具体语义依赖这个值；`noSqlDatabase` 使用集合安全规则，其他资源类型不要套用 NoSQL 规则语法。"),
+          .describe("目标资源类型。`securityRule` 的具体语义依赖这个值；`noSqlDatabase` 使用集合安全规则，`function` 与 `storage` 也有各自独立的安全规则语义，不要套用 NoSQL 规则语法。"),
         resourceId: z.string().optional(),
         permission: z
           .enum(["READONLY", "PRIVATE", "ADMINWRITE", "ADMINONLY", "CUSTOM"])
@@ -545,16 +545,12 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
         securityRule: z
           .string()
           .optional()
-<<<<<<< HEAD
           .describe(
-            "CUSTOM 权限的安全规则，JSON 字符串，键为 read/create/update/delete，值为表达式。" +
-              "重要：create 规则验证写入数据，此时文档尚不存在，不能使用 doc.*；" +
-              "read/update/delete 规则可使用 doc.* 引用已有文档字段。" +
-              '示例：{"read":"auth.uid != null","create":"auth.uid != null && auth.loginType != \"ANONYMOUS\"","update":"auth.uid != null && doc._openid == auth.openid","delete":"auth.uid != null && doc._openid == auth.openid"}',
+            "资源类型特定的规则内容，详细语义依赖 `resourceType`。当 `resourceType=\"noSqlDatabase\"` 且 `permission=\"CUSTOM\"` 时，应传文档数据库安全规则 JSON（文档型数据库规则：`https://docs.cloudbase.net/database/security-rules`）；键通常为 `read` / `create` / `update` / `delete`，值为表达式。" +
+              "重要：`create` 规则验证写入数据，此时文档尚不存在，不能使用 `doc.*`；`read` / `update` / `delete` 规则可使用 `doc.*` 引用已有文档字段。" +
+              "不要把 `doc._openid`、`auth.openid`、查询条件子集校验或 `create` / `update` / `delete` 模板误用于 `function`、`storage` 或 `sqlDatabase`。" +
+              '如需配置 `function` 或 `storage`，请改查官方安全规则文档：云函数 `https://docs.cloudbase.net/cloud-function/security-rules`，云存储 `https://docs.cloudbase.net/storage/security-rules`。示例：{"read":"auth.uid != null","create":"auth.uid != null && auth.loginType != "ANONYMOUS"","update":"auth.uid != null && doc._openid == auth.openid","delete":"auth.uid != null && doc._openid == auth.openid"}',
           ),
-=======
-          .describe("资源类型特定的规则内容。仅当 `resourceType=\"noSqlDatabase\"` 且 `permission=\"CUSTOM\"` 时，才应传文档数据库安全规则 JSON；不要把 `doc._openid`、`auth.openid`、查询条件子集校验或 `create` / `update` / `delete` 模板误用于 `function`、`storage` 或 `sqlDatabase`。"),
->>>>>>> c103e51e (fix: scope NoSQL securityRule semantics by resource type)
         roleId: z.string().optional(),
         roleIds: z.array(z.string()).optional(),
         roleName: z.string().optional(),
