@@ -11,6 +11,7 @@ const BUG_TEXT_PATTERNS = [
   /\b(bug|error|errors|crash|crashes|broken|breaks|fail|fails|failed|failing|not working)\b/i,
   /报错|错误|异常|失败|崩溃|无法|不能|不生效|有问题|未生效|失效/,
 ];
+const GITHUB_PULL_REQUEST_URL_PATTERN = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/i;
 
 function normalizeMultilineText(value) {
   if (typeof value !== 'string') {
@@ -154,6 +155,16 @@ function extractResultText(rawOutput) {
   return normalizeMultilineText(rawOutput);
 }
 
+function extractPullRequestUrl(rawOutput) {
+  const normalized = normalizeMultilineText(rawOutput);
+  if (!normalized) {
+    return '';
+  }
+
+  const match = normalized.match(GITHUB_PULL_REQUEST_URL_PATTERN);
+  return match ? match[0] : '';
+}
+
 function parseIssueCommentCommand({ body, authorAssociation, hasPullRequest }) {
   if (hasPullRequest) {
     return null;
@@ -293,6 +304,12 @@ function runCli() {
     return;
   }
 
+  if (command === 'extract-pr-url') {
+    const rawOutput = fs.readFileSync(0, 'utf8');
+    process.stdout.write(extractPullRequestUrl(rawOutput));
+    return;
+  }
+
   const issueFile = process.argv[3];
   if (!issueFile) {
     throw new Error(`Missing issue JSON file for command: ${command}`);
@@ -327,6 +344,7 @@ module.exports = {
   buildAnalysisPrompt,
   buildBugPrompt,
   extractResultText,
+  extractPullRequestUrl,
   isBugIssue,
   parseIssueCommentCommand,
 };
