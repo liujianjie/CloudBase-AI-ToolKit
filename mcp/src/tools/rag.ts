@@ -4,12 +4,22 @@ import lockfile, { Options as LockfileOptions } from "lockfile";
 import * as os from "os";
 import * as path from "path";
 import { z } from "zod";
+import { createCloudBaseManagerWithOptions } from "../cloudbase-manager.js";
 import { FALLBACK_CLAUDE_PROMPT } from "../config/claude-prompt.js";
 import { ExtendedMcpServer } from "../server.js";
+import { jsonContent } from "../utils/json-content.js";
 import { debug, warn } from "../utils/logger.js";
 
 // 1. 枚举定义
 const KnowledgeBaseEnum = z.enum(["cloudbase", "scf", "miniprogram"]);
+const SearchKnowledgeModeEnum = z.enum(["vector", "skill", "openapi", "docs"]);
+const CloudBaseDocsActionEnum = z.enum([
+  "listModules",
+  "listModuleDocs",
+  "findByName",
+  "readDoc",
+  "searchDocs",
+]);
 // 2. 枚举到后端 id 的映射
 const KnowledgeBaseIdMap: Record<z.infer<typeof KnowledgeBaseEnum>, string> = {
   cloudbase: "ykfzskv4_ad28",
@@ -190,6 +200,42 @@ function safeStringify(obj: any) {
   } catch (e) {
     return "";
   }
+}
+
+type CloudBaseDocsAction = z.infer<typeof CloudBaseDocsActionEnum>;
+
+function buildDocsEnvelope(
+  action: CloudBaseDocsAction,
+  data: Record<string, unknown>,
+  message: string,
+) {
+  return {
+    success: true,
+    data: {
+      action,
+      ...data,
+    },
+    message,
+  };
+}
+
+function buildDocsErrorEnvelope(error: unknown) {
+  return {
+    success: false,
+    data: {},
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+function requireStringParam(
+  value: string | undefined,
+  fieldName: string,
+  action: CloudBaseDocsAction,
+) {
+  if (!value?.trim()) {
+    throw new Error(`action=${action} 时必须提供 ${fieldName}`);
+  }
+  return value.trim();
 }
 
 // OpenAPI 文档 URL 列表
@@ -575,13 +621,17 @@ export async function registerRagTools(server: ExtendedMcpServer) {
     });
   }
 
+  const getDocsManager = () =>
+    (createCloudBaseManagerWithOptions(server.cloudBaseOptions ?? {}) as any)
+      ?.docs;
+
   server.registerTool?.(
     "searchKnowledgeBase",
     {
       title: "云开发知识库检索",
-      description: `云开发知识库智能检索工具，支持向量查询 (vector)、固定技能文档 (skill) 和 OpenAPI 文档 (openapi) 查询。
+      description: `云开发知识库智能检索工具，支持向量查询 (vector)、固定技能文档 (skill)、OpenAPI 文档 (openapi) 和 CloudBase 官方文档 (docs) 查询。
 
-      强烈推荐始终优先使用固定技能文档 (skill) 或 OpenAPI 文档 (openapi) 模式进行检索，仅当固定技能文档无法覆盖你的问题时，再使用向量查询 (vector) 模式。
+      强烈推荐始终优先使用固定技能文档 (skill)、OpenAPI 文档 (openapi) 或 CloudBase 官方文档 (docs) 模式进行检索，仅当固定文档无法覆盖你的问题时，再使用向量查询 (vector) 模式。
 
       固定技能文档 (skill) 查询当前支持 ${skills.length} 个固定文档，分别是：
       ${skills
@@ -597,7 +647,7 @@ export async function registerRagTools(server: ExtendedMcpServer) {
           .map((api) => `API名：${api.name} API介绍：${api.description}`)
           .join("\n")}`,
       inputSchema: {
-        mode: z.enum(["vector", "skill", "openapi"]),
+        mode: SearchKnowledgeModeEnum,
         skillName: z
           .enum(
             skills.map((skill) =>
@@ -612,6 +662,25 @@ export async function registerRagTools(server: ExtendedMcpServer) {
           )
           .optional()
           .describe("mode=openapi 时指定。API 名称。"),
+        action: CloudBaseDocsActionEnum.optional().describe(
+          "mode=docs 时指定。CloudBase 文档操作类型：listModules=列出所有文档模块，listModuleDocs=获取指定模块的目录结构，findByName=按名称/路径/URL 智能查找，readDoc=读取指定文档 Markdown，searchDocs=全文搜索官方文档。",
+        ),
+        moduleName: z
+          .string()
+          .optional()
+          .describe("mode=docs 且 action=listModuleDocs 时指定。模块名称。"),
+        input: z
+          .string()
+          .optional()
+          .describe("mode=docs 且 action=findByName 时指定。支持模块名、文档标题、层级路径或 URL。"),
+        docPath: z
+          .string()
+          .optional()
+          .describe("mode=docs 且 action=readDoc 时指定。文档相对路径或完整 URL。"),
+        query: z
+          .string()
+          .optional()
+          .describe("mode=docs 且 action=searchDocs 时指定。全文检索关键词。"),
         threshold: z
           .number()
           .default(0.5)
@@ -649,23 +718,132 @@ export async function registerRagTools(server: ExtendedMcpServer) {
     async ({
       id,
       content,
-      options: { chunkExpand = [3, 3] } = {},
+      options,
       limit = 5,
       threshold = 0.5,
       mode,
       skillName,
       apiName,
+      action,
+      moduleName,
+      input,
+      docPath,
+      query,
     }) => {
+      const chunkExpand = options?.chunkExpand ?? [3, 3];
+      if (mode === "docs") {
+        try {
+          const resolvedAction = action;
+          if (!resolvedAction) {
+            throw new Error("mode=docs 时必须提供 action");
+          }
+
+          const docsManager = getDocsManager();
+
+          if (!docsManager) {
+            throw new Error(
+              "当前 @cloudbase/manager-node 实例不支持 app.docs，请确认版本 >= 5.0.0。",
+            );
+          }
+
+          if (resolvedAction === "listModules") {
+            const modules = await docsManager.listModules();
+            return jsonContent(
+              buildDocsEnvelope(
+                resolvedAction,
+                { modules },
+                "CloudBase 文档模块列表获取成功",
+              ),
+            );
+          }
+
+          if (resolvedAction === "listModuleDocs") {
+            const resolvedModuleName = requireStringParam(
+              moduleName,
+              "moduleName",
+              resolvedAction,
+            );
+            const docs = await docsManager.listModuleDocs(resolvedModuleName);
+            return jsonContent(
+              buildDocsEnvelope(
+                resolvedAction,
+                { moduleName: resolvedModuleName, docs },
+                "CloudBase 模块文档目录获取成功",
+              ),
+            );
+          }
+
+          if (resolvedAction === "findByName") {
+            const resolvedInput = requireStringParam(
+              input,
+              "input",
+              resolvedAction,
+            );
+            const result = await docsManager.findByName(resolvedInput);
+            return jsonContent(
+              buildDocsEnvelope(
+                resolvedAction,
+                { input: resolvedInput, result },
+                "CloudBase 文档查找成功",
+              ),
+            );
+          }
+
+          if (resolvedAction === "readDoc") {
+            const resolvedDocPath = requireStringParam(
+              docPath,
+              "docPath",
+              resolvedAction,
+            );
+            const markdown = await docsManager.readDoc(resolvedDocPath);
+            return jsonContent(
+              buildDocsEnvelope(
+                resolvedAction,
+                { docPath: resolvedDocPath, content: markdown },
+                "CloudBase 文档读取成功",
+              ),
+            );
+          }
+
+          const resolvedQuery = requireStringParam(
+            query,
+            "query",
+            resolvedAction,
+          );
+          const results = await docsManager.searchDocs(resolvedQuery);
+          return jsonContent(
+            buildDocsEnvelope(
+              resolvedAction,
+              { query: resolvedQuery, results },
+              "CloudBase 文档搜索成功",
+            ),
+          );
+        } catch (error) {
+          return jsonContent(buildDocsErrorEnvelope(error));
+        }
+      }
+
       if (mode === "skill") {
-        const absolutePath = skills.find((skill) =>
-          skill.absolutePath.includes(skillName!),
-        )!.absolutePath;
+        const skill = skills.find((item) =>
+          item.absolutePath.includes(skillName!),
+        );
+
+        if (!skill) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Skill document "${skillName}" not found. Available skill docs: ${skills.map((item) => path.basename(path.dirname(item.absolutePath))).join(", ") || "none"}`,
+              },
+            ],
+          };
+        }
 
         return {
           content: [
             {
               type: "text",
-              text: `The skill doc's absolute path is: ${absolutePath}. ${(await fs.readFile(absolutePath)).toString()}`,
+              text: `The skill doc's absolute path is: ${skill.absolutePath}. ${(await fs.readFile(skill.absolutePath)).toString()}`,
             },
           ],
         };
@@ -678,7 +856,7 @@ export async function registerRagTools(server: ExtendedMcpServer) {
             content: [
               {
                 type: "text",
-                text: `OpenAPI document "${apiName}" not found. Available APIs: ${openapis.map((a) => a.name).join(", ")}`,
+                text: `OpenAPI document "${apiName}" not found. Available APIs: ${openapis.map((a) => a.name).join(", ") || "none"}`,
               },
             ],
           };
