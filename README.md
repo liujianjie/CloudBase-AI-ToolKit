@@ -408,7 +408,6 @@ CodeBuddy 已内置 CloudBase MCP，无需配置即可使用。
 - [开发指南](https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/development)
 - [插件系统](https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/plugins)
 - [常见问题](https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/faq)
-- [Issue 自动处理器](doc/issue-auto-processor.md) - 🤖 AI 驱动的 GitHub Issue 自动化处理
 
 ### 最新文章
 
@@ -497,7 +496,7 @@ CodeBuddy 已内置 CloudBase MCP，无需配置即可使用。
 
 <!-- Links -->
 [docs]: https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/
-[changelog]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/releases
+[changelog]: https://github.com/TencentCloudBase/CloudBase-MCP/releases
 [github-issues-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/issues
 [github-stars-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/stargazers
 [github-forks-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/network/members

@@ -447,7 +447,7 @@ CodeBuddy 已内置 CloudBase MCP，无需配置即可使用。
 
 <!-- Links -->
 [docs]: https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/
-[changelog]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/releases
+[changelog]: https://github.com/TencentCloudBase/CloudBase-MCP/releases
 [github-issues-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/issues
 [github-stars-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/stargazers
 [github-forks-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/network/members
