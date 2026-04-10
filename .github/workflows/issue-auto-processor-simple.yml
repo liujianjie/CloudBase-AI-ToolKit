@@ -193,7 +193,7 @@ jobs:
                 .filter((issue) => new Date(issue.created_at).getTime() <= cutoffMs)
                 .filter((issue) => {
                   const labels = (issue.labels || []).map((label) => typeof label === 'string' ? label : label.name);
-                  return !labels.includes('ai-processed') && !labels.includes('ai-processing') && !labels.includes('no-ai');
+                  return !labels.includes('ai-processed') && !labels.includes('ai-processing') && !labels.includes('ai-failed') && !labels.includes('no-ai');
                 })
                 .slice(0, maxIssues);
 
@@ -354,6 +354,7 @@ jobs:
             local title=""
             local issue_url=""
             local pr_url=""
+            local pr_output=""
             local is_bug="false"
             local requested_action=""
             local command=""
@@ -460,16 +461,19 @@ jobs:
                 write_file_from_env /tmp/pr-body.md
 
                 set +e
-                pr_url=$(gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md)
+                pr_output=$(gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md 2>&1)
                 exit_code=$?
                 set -e
+                pr_url=$(printf '%s' "$pr_output" | node scripts/issue-auto-processor.cjs extract-pr-url)
                 if [ $exit_code -ne 0 ] || ! has_nonempty_text "$pr_url"; then
                   fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL. Please inspect the workflow logs before retrying.'
                   return 0
                 fi
               fi
 
-              write_issue_comment_file '## 🤖 AI Fix Attempt' "I created a PR for this bug: $pr_url\n\nPlease review the generated changes before merging." ''
+              local comment_body=""
+              comment_body=$(printf 'I created a PR for this bug: %s\n\nPlease review the generated changes before merging.' "$pr_url")
+              write_issue_comment_file '## 🤖 AI Fix Attempt' "$comment_body" ''
               post_file_comment "$number" /tmp/issue-comment.md
               update_issue_labels "$number" remove:ai-processing add:ai-processed add:ai-fix remove:ai-failed
               cleanup_repo

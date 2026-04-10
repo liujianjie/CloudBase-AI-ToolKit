@@ -6,6 +6,7 @@ import issueAutoProcessorHelpers from '../scripts/issue-auto-processor.cjs';
 
 const {
   extractResultText,
+  extractPullRequestUrl,
   parseIssueCommentCommand,
   buildAnalysisPrompt,
   isBugIssue,
@@ -39,6 +40,24 @@ test('extractResultText returns latest assistant text from array payload', () =>
 
 test('extractResultText falls back to plain text output', () => {
   expect(extractResultText('plain text output')).toBe('plain text output');
+});
+
+test('extractPullRequestUrl returns the PR URL from plain gh output', () => {
+  expect(
+    extractPullRequestUrl('https://github.com/TencentCloudBase/CloudBase-MCP/pull/499'),
+  ).toBe('https://github.com/TencentCloudBase/CloudBase-MCP/pull/499');
+});
+
+test('extractPullRequestUrl finds the first PR URL in noisy gh output', () => {
+  const output = [
+    'warning: something noisy on stderr',
+    'https://github.com/TencentCloudBase/CloudBase-MCP/pull/499',
+    'created pull request successfully',
+  ].join('\n');
+
+  expect(extractPullRequestUrl(output)).toBe(
+    'https://github.com/TencentCloudBase/CloudBase-MCP/pull/499',
+  );
 });
 
 test('parseIssueCommentCommand only accepts maintainer slash commands', () => {
@@ -119,6 +138,9 @@ test('workflow hardens fix path with git identity and PR creation guards', () =>
   expect(raw).toContain('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
   expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created a branch diff, but git commit failed before a PR could be opened. Please inspect the workflow logs before retrying.'");
   expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL. Please inspect the workflow logs before retrying.'");
+  expect(raw).toContain('pr_output=$(gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md 2>&1)');
+  expect(raw).toContain("pr_url=$(printf '%s' \"$pr_output\" | node scripts/issue-auto-processor.cjs extract-pr-url)");
+  expect(raw).not.toContain('I created a PR for this bug: $pr_url\\n\\nPlease review the generated changes before merging.');
 });
 
 test('workflow creates fix branches from the default branch baseline', () => {
@@ -128,6 +150,12 @@ test('workflow creates fix branches from the default branch baseline', () => {
   expect(raw).toContain('git fetch origin "$DEFAULT_BRANCH"');
   expect(raw).toContain('git switch -C "$branch" "origin/$DEFAULT_BRANCH"');
   expect(raw).toContain('gh pr create --base "$DEFAULT_BRANCH" --head "$branch"');
+});
+
+test('workflow scheduled collection does not retry ai-failed issues automatically', () => {
+  const raw = fs.readFileSync(WORKFLOW_FILE, 'utf8');
+
+  expect(raw).toContain("!labels.includes('ai-failed')");
 });
 
 test('workflow isolates batch iteration from CLI stdin consumption', () => {
