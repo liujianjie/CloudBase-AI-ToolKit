@@ -461,7 +461,7 @@ Prompt templates (all images without text, pure geometric shapes and icons):
 
 <!-- Links -->
 [docs]: https://docs.cloudbase.net/ai/cloudbase-ai-toolkit/
-[changelog]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/releases
+[changelog]: https://github.com/TencentCloudBase/CloudBase-MCP/releases
 [github-issues-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/issues
 [github-stars-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/stargazers
 [github-forks-link]: https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/network/members
