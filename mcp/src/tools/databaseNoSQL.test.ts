@@ -248,14 +248,13 @@ describe("NoSQL database tools", () => {
     const meta = tools.writeNoSqlDatabaseContent.meta;
 
     expect(meta.description).toContain("MongoDB updateOne/updateMany");
-    expect(meta.description).toContain("$set/$inc/$push");
+    expect(meta.description).toContain("`$set`、`$inc`、`$push`");
     expect(meta.description).toContain("`_id` 就是该 `uid`");
-    expect(meta.inputSchema.update.description).toContain(
-      "{ \"$set\": { \"status\": \"pending\" } }",
-    );
-    expect(meta.inputSchema.update.description).toContain(
-      "{ \"status\": \"pending\" }",
-    );
+    expect(meta.description).toContain("`address.city`");
+    expect(meta.inputSchema.update.description).toContain("MgoUpdate");
+    expect(meta.inputSchema.update.description).toContain("`$set`");
+    expect(meta.inputSchema.update.description).toContain("`status`");
+    expect(meta.inputSchema.update.description).toContain("`address.city`");
   });
 
   it("writeNoSqlDatabaseContent should warn when auth-linked role docs are upserted by uid query", async () => {

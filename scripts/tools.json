@@ -386,7 +386,7 @@
     },
     {
       "name": "writeNoSqlDatabaseContent",
-      "description": "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 $set/$inc/$push 等更新操作符；如果直接传 { field: value } 这类普通对象，底层会把它当作替换内容，存在覆盖整条文档的风险。更新嵌套对象中的某个字段时必须使用点号路径（如 { \"$set\": { \"address.city\": \"shenzhen\" } }），若写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } } 则整个 address 对象会被替换，同级其他字段将丢失。若集合中的角色/档案文档会在前端通过 `db.collection(...).doc(uid)` 读取，请确保文档 `_id` 就是该 `uid`；不要用 `query={\"uid\":\"...\"}` + `upsert=true` 去更新 `users` / `profiles`，否则经常会生成一个不同的 `_id`，导致后续 `doc(uid)` 读取命中不到。",
+      "description": "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 `$set`、`$inc`、`$push` 等更新操作符；如果直接传“字段到值的普通对象”这类内容，底层会把它当作替换内容，存在覆盖整条文档的风险。更新嵌套对象中的某个字段时必须使用点号路径，例如把 `address.city` 设为 `shenzhen`；如果把整个 `address` 对象作为 `$set` 的值传入，则整个 `address` 对象会被替换，同级其他字段将丢失。若集合中的角色/档案文档会在前端通过 `db.collection(...).doc(uid)` 读取，请确保文档 `_id` 就是该 `uid`；不要用按 `uid` 条件查询再配合 `upsert=true` 的方式去更新 `users` / `profiles`，否则经常会生成一个不同的 `_id`，导致后续 `doc(uid)` 读取命中不到。",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -440,7 +440,7 @@
                 "type": "string"
               }
             ],
-            "description": "更新内容(对象或字符串,推荐对象)(update 操作必填)。按 MongoDB 更新语义传入 MgoUpdate：部分更新请使用 $set/$inc/$unset/$push 等操作符，例如 { \"$set\": { \"status\": \"pending\" } }；不要直接传 { \"status\": \"pending\" }，否则可能替换整条文档。更新嵌套字段时必须用点号路径，如 { \"$set\": { \"address.city\": \"shenzhen\" } }，不要写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } }（会替换整个 address 对象）。"
+            "description": "更新内容(对象或字符串,推荐对象)(update 操作必填)。按 MongoDB 更新语义传入 MgoUpdate：部分更新请使用 `$set`、`$inc`、`$unset`、`$push` 等操作符，例如使用 `$set` 更新 `status`；不要直接传“字段到值的普通对象”，否则可能替换整条文档。更新嵌套字段时必须使用点号路径，例如通过 `$set` 更新 `address.city`；不要把整个 `address` 对象作为 `$set` 的值传入，否则会替换整个 `address` 对象。"
           },
           "isMulti": {
             "type": "boolean",
