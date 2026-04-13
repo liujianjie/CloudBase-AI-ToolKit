@@ -30,7 +30,6 @@ import {
   buildJsonToolResult,
   toolPayloadErrorToResult,
 } from "../utils/tool-result.js";
-import { getClaudePrompt } from "./rag.js";
 import {
   checkAndCreateFreeEnv,
   checkAndInitTcbService,
@@ -627,22 +626,6 @@ async function enrichEnvInfoWithBilling(params: {
       envId: targetEnvId,
     });
     return params.result;
-  }
-}
-
-async function getGuidePrompt(server: ExtendedMcpServer): Promise<string> {
-  if (
-    getCurrentIde(server) === "CodeBuddy" ||
-    process.env.CLOUDBASE_GUIDE_PROMPT === "false"
-  ) {
-    return "";
-  }
-
-  try {
-    return await getClaudePrompt();
-  } catch (promptError) {
-    debug("Failed to get CLAUDE prompt", { error: promptError });
-    return "";
   }
 }
 
@@ -1405,23 +1388,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             throw new Error(`不支持的查询类型: ${action}`);
         }
 
-        let responseText = JSON.stringify(result, null, 2);
-
-        // For info action, append CLAUDE.md prompt content (skip for CodeBuddy IDE)
-        const currentIde = server.ide || process.env.INTEGRATION_IDE;
-        if (action === "info" && currentIde !== "CodeBuddy" && process.env.CLOUDBASE_GUIDE_PROMPT !== "false") {
-          try {
-            const promptContent = await getClaudePrompt();
-            if (promptContent) {
-              responseText += `\n\n⚠️ 重要提示：后续所有云开发相关的开发工作必须严格遵循以下开发规范和最佳实践：\n\n${promptContent}`;
-            }
-          } catch (promptError) {
-            debug("Failed to get CLAUDE prompt in envQuery", {
-              error: promptError,
-            });
-            // Continue without prompt if fetch fails
-          }
-        }
+        const responseText = JSON.stringify(result, null, 2);
 
         return {
           content: [
