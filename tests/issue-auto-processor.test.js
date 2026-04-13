@@ -136,10 +136,17 @@ test('workflow hardens fix path with git identity and PR creation guards', () =>
   expect(raw).toContain('sync_issue_json_label');
   expect(raw).toContain('git config user.name "github-actions[bot]"');
   expect(raw).toContain('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
-  expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created a branch diff, but git commit failed before a PR could be opened. Please inspect the workflow logs before retrying.'");
-  expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL. Please inspect the workflow logs before retrying.'");
+  expect(raw).toContain('truncate_text_for_pr_body() {');
+  expect(raw).toContain('lookup_open_pr_url() {');
+  expect(raw).toContain('write_pr_body_file() {');
+  expect(raw).toContain("summary=$(printf '%s' \"$result_text\" | truncate_text_for_pr_body 12000)");
+  expect(raw).toContain("pr_url=$(lookup_open_pr_url \"$branch\")");
+  expect(raw).toContain("pr_url=$(printf '%s' \"$pr_output\" | node scripts/issue-auto-processor.cjs extract-pr-url || true)");
+  expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation failed before a valid PR URL could be resolved. Please inspect the workflow logs before retrying.'");
+  expect(raw).toContain("fail_with_comment \"$number\" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL and no open PR was found for the branch. Please inspect the workflow logs before retrying.'");
   expect(raw).toContain('pr_output=$(gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md 2>&1)');
-  expect(raw).toContain("pr_url=$(printf '%s' \"$pr_output\" | node scripts/issue-auto-processor.cjs extract-pr-url)");
+  expect(raw).not.toContain('write_file_from_env');
+  expect(raw).not.toContain('export FILE_CONTENT');
   expect(raw).not.toContain('I created a PR for this bug: $pr_url\\n\\nPlease review the generated changes before merging.');
 });
 
