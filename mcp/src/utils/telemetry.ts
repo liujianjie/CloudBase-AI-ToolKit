@@ -297,7 +297,7 @@ export const reportToolCall =  async (params: {
         toolName: params.toolName,
         success: params.success ? 'true' : 'false',
         requestId: params.requestId,
-        duration: params.duration,
+        duration: params.duration !== undefined ? String(params.duration) : undefined,
         error: params.error ? params.error.substring(0, 200) : undefined ,// 限制错误信息长度
         envId: envId || 'unknown',
         nodeVersion,
@@ -370,8 +370,8 @@ export const reportToolkitLifecycle = async (params: {
     // 报告 Toolkit 生命周期事件
     const eventData: { [key: string]: any } = {
         event: params.event,
-        duration: params.duration,
-        exitCode: params.exitCode,
+        duration: params.duration !== undefined ? String(params.duration) : undefined,
+        exitCode: params.exitCode !== undefined ? String(params.exitCode) : undefined,
         error: params.error ? params.error.substring(0, 200) : undefined, // 限制错误信息长度
         envId: envId || 'unknown',
         nodeVersion,

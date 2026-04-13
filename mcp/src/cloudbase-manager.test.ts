@@ -121,6 +121,121 @@ describe("cloudbase manager auth gate", () => {
     await expect(getEnvId()).resolves.toBe("env-1");
   });
 
+  it("should resolve actual env region when envId is provided without region", async () => {
+    process.env.TCB_REGION = "ap-shanghai";
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+    });
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [
+        {
+          EnvId: "env-explicit",
+          Alias: "prod",
+          Region: "ap-guangzhou",
+        },
+      ],
+    });
+
+    const { getCloudBaseManager } = await import("./cloudbase-manager.js");
+
+    await expect(
+      getCloudBaseManager({
+        cloudBaseOptions: {
+          envId: "env-explicit",
+        },
+      }),
+    ).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "sid",
+        secretKey: "skey",
+        token: "token",
+        envId: "env-explicit",
+        region: "ap-guangzhou",
+      }),
+    );
+    expect(mockCommonServiceCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        Action: "DescribeEnvs",
+      }),
+    );
+  });
+
+  it("should honor explicit region without resolving env candidates", async () => {
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+    });
+
+    const { getCloudBaseManager } = await import("./cloudbase-manager.js");
+
+    await expect(
+      getCloudBaseManager({
+        cloudBaseOptions: {
+          envId: "env-explicit",
+          region: "ap-guangzhou",
+        },
+      }),
+    ).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "sid",
+        secretKey: "skey",
+        token: "token",
+        envId: "env-explicit",
+        region: "ap-guangzhou",
+      }),
+    );
+    expect(mockCommonServiceCall).not.toHaveBeenCalled();
+  });
+
+  it("should prefer actual env region over fallback region when login envId is already known", async () => {
+    process.env.TCB_REGION = "ap-shanghai";
+    mockPeekLoginState.mockResolvedValue({
+      secretId: "sid",
+      secretKey: "skey",
+      token: "token",
+      envId: "env-guangzhou",
+    });
+    mockCommonServiceCall.mockResolvedValue({
+      EnvList: [
+        {
+          EnvId: "env-guangzhou",
+          Alias: "prod",
+          Region: "ap-guangzhou",
+        },
+      ],
+    });
+
+    const { getCloudBaseManager } = await import("./cloudbase-manager.js");
+
+    await expect(getCloudBaseManager()).resolves.toMatchObject({
+      commonService: expect.any(Function),
+      env: expect.any(Object),
+    });
+
+    expect(mockCloudBaseCtor).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        secretId: "sid",
+        secretKey: "skey",
+        token: "token",
+        envId: "env-guangzhou",
+        region: "ap-guangzhou",
+      }),
+    );
+  });
+
   it("should fail fast with ENV_REQUIRED when login exists but multiple envs", async () => {
     mockPeekLoginState.mockResolvedValue({
       secretId: "sid",

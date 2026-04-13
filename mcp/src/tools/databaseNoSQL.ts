@@ -1,11 +1,14 @@
 import CloudBase from "@cloudbase/manager-node";
 import { z } from "zod";
 import {
+  getDatabaseInstanceId,
   getCloudBaseManager,
+  invalidateDatabaseInstanceIdCache,
   logCloudBaseResult,
 } from "../cloudbase-manager.js";
 import { ExtendedMcpServer } from "../server.js";
 import { Logger } from "../types.js";
+import { debug } from "../utils/logger.js";
 
 const CATEGORY = "NoSQL database";
 const COLLECTION_READY_TIMEOUT_MS = 10000;
@@ -14,16 +17,6 @@ const COLLECTION_READY_POLL_INTERVAL_MS = 500;
 /** Convert object values to JSON strings for API calls */
 const toJSONString = (v: any): any =>
   typeof v === "object" && v !== null ? JSON.stringify(v) : v;
-
-// 获取数据库实例ID
-async function getDatabaseInstanceId(getManager: () => Promise<any>) {
-  const cloudbase = await getManager();
-  const { EnvInfo } = await cloudbase.env.getEnvInfo();
-  if (!EnvInfo?.Databases?.[0]?.InstanceId) {
-    throw new Error("无法获取数据库实例ID");
-  }
-  return EnvInfo.Databases[0].InstanceId;
-}
 
 function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -125,6 +118,116 @@ function withCollectionName<T extends Record<string, unknown>>(
     collection: collectionName,
     collectionName,
   };
+}
+
+function logNoSqlLatency(
+  toolName: string,
+  phase: string,
+  details: Record<string, unknown>,
+) {
+  debug("[nosql-latency]", {
+    toolName,
+    phase,
+    ...details,
+  });
+}
+
+function isInvalidInstanceIdError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /(instance.?id|tag).*(invalid|错误|不存在|not exist|not found)|invalid.*(instance.?id|tag)/i.test(
+    message,
+  );
+}
+
+async function resolveNoSqlInstanceId(options: {
+  toolName: string;
+  cloudbase: CloudBase;
+  cloudBaseOptions?: ExtendedMcpServer["cloudBaseOptions"];
+  instanceIdOverride?: string;
+  collectionName: string;
+}) {
+  const startedAt = Date.now();
+  const resolved = await getDatabaseInstanceId({
+    instanceId: options.instanceIdOverride,
+    cloudBaseOptions: options.cloudBaseOptions,
+    cloudbase: options.cloudbase,
+  });
+
+  logNoSqlLatency(options.toolName, "resolveInstanceId", {
+    collectionName: options.collectionName,
+    durationMs: Date.now() - startedAt,
+    instanceIdSource: resolved.source,
+    cacheKey: resolved.cacheKey,
+  });
+
+  return resolved;
+}
+
+async function callNoSqlContentApi(options: {
+  toolName: string;
+  action: string;
+  collectionName: string;
+  cloudbase: CloudBase;
+  cloudBaseOptions?: ExtendedMcpServer["cloudBaseOptions"];
+  instanceIdOverride?: string;
+  param: Record<string, unknown>;
+}) {
+  const resolvedInstance = await resolveNoSqlInstanceId({
+    toolName: options.toolName,
+    cloudbase: options.cloudbase,
+    cloudBaseOptions: options.cloudBaseOptions,
+    instanceIdOverride: options.instanceIdOverride,
+    collectionName: options.collectionName,
+  });
+
+  const startedAt = Date.now();
+
+  try {
+    const result = await options.cloudbase
+      .commonService("tcb", "2018-06-08")
+      .call({
+        Action: options.action,
+        Param: {
+          ...options.param,
+          TableName: options.collectionName,
+          Tag: resolvedInstance.instanceId,
+        },
+      });
+
+    logNoSqlLatency(options.toolName, "cloudApiCall", {
+      collectionName: options.collectionName,
+      action: options.action,
+      durationMs: Date.now() - startedAt,
+      instanceIdSource: resolvedInstance.source,
+      requestId: result?.RequestId,
+    });
+
+    return result;
+  } catch (error) {
+    logNoSqlLatency(options.toolName, "cloudApiError", {
+      collectionName: options.collectionName,
+      action: options.action,
+      durationMs: Date.now() - startedAt,
+      instanceIdSource: resolvedInstance.source,
+      message: error instanceof Error ? error.message : String(error),
+    });
+
+    if (
+      !options.instanceIdOverride &&
+      resolvedInstance.cacheKey &&
+      isInvalidInstanceIdError(error)
+    ) {
+      invalidateDatabaseInstanceIdCache({
+        cacheKey: resolvedInstance.cacheKey,
+      });
+      logNoSqlLatency(options.toolName, "invalidateInstanceIdCache", {
+        collectionName: options.collectionName,
+        cacheKey: resolvedInstance.cacheKey,
+      });
+    }
+
+    throw error;
+  }
 }
 
 async function waitForCollectionReady({
@@ -570,6 +673,10 @@ deleteCollection: 删除集合`),
       description: "查询并获取 NoSQL 数据库数据记录",
       inputSchema: {
         collectionName: z.string().describe("集合名称"),
+        instanceId: z
+          .string()
+          .optional()
+          .describe("可选：显式指定数据库实例ID；未传时会自动解析并缓存"),
         query: z
           .union([z.object({}).passthrough(), z.string()])
           .optional()
@@ -603,24 +710,38 @@ deleteCollection: 删除集合`),
         category: CATEGORY,
       },
     },
-    async ({ collectionName, query, projection, sort, limit, offset }) => {
+    async ({ collectionName, instanceId, query, projection, sort, limit, offset }) => {
+      const managerStartedAt = Date.now();
       const cloudbase = await getManager();
-      const instanceId = await getDatabaseInstanceId(getManager);
+      logNoSqlLatency("readNoSqlDatabaseContent", "getManager", {
+        collectionName,
+        durationMs: Date.now() - managerStartedAt,
+      });
+
       const normalizedSort = normalizeSortInput(sort);
-      const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-        Action: "QueryRecords",
-        Param: {
-          TableName: collectionName,
+      const result = await callNoSqlContentApi({
+        toolName: "readNoSqlDatabaseContent",
+        action: "QueryRecords",
+        collectionName,
+        cloudbase,
+        cloudBaseOptions,
+        instanceIdOverride: instanceId,
+        param: {
           MgoQuery: toJSONString(query),
           MgoProjection: toJSONString(projection),
           MgoSort: normalizedSort,
           MgoLimit: limit ?? 100,
           MgoOffset: offset,
-          Tag: instanceId,
         },
       });
       logCloudBaseResult(server.logger, result);
+      const parseStartedAt = Date.now();
       const documents = normalizeNoSqlDocuments(result.Data);
+      logNoSqlLatency("readNoSqlDatabaseContent", "parseResult", {
+        collectionName,
+        durationMs: Date.now() - parseStartedAt,
+        documentCount: documents.length,
+      });
       return {
         content: [
           {
@@ -652,7 +773,7 @@ deleteCollection: 删除集合`),
     {
       title: "修改 NoSQL 数据库数据记录",
       description:
-        "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 $set/$inc/$push 等更新操作符；如果直接传 { field: value } 这类普通对象，底层会把它当作替换内容，存在覆盖整条文档的风险。更新嵌套对象中的某个字段时必须使用点号路径（如 { \"$set\": { \"address.city\": \"shenzhen\" } }），若写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } } 则整个 address 对象会被替换，同级其他字段将丢失。若集合中的角色/档案文档会在前端通过 `db.collection(...).doc(uid)` 读取，请确保文档 `_id` 就是该 `uid`；不要用 `query={\"uid\":\"...\"}` + `upsert=true` 去更新 `users` / `profiles`，否则经常会生成一个不同的 `_id`，导致后续 `doc(uid)` 读取命中不到。",
+        "修改 NoSQL 数据库数据记录。可按 MongoDB updateOne/updateMany 的心智模型理解：部分更新必须使用 `$set`、`$inc`、`$push` 等更新操作符；如果直接传“字段到值的普通对象”这类内容，底层会把它当作替换内容，存在覆盖整条文档的风险。更新嵌套对象中的某个字段时必须使用点号路径，例如把 `address.city` 设为 `shenzhen`；如果把整个 `address` 对象作为 `$set` 的值传入，则整个 `address` 对象会被替换，同级其他字段将丢失。若集合中的角色/档案文档会在前端通过 `db.collection(...).doc(uid)` 读取，请确保文档 `_id` 就是该 `uid`；不要用按 `uid` 条件查询再配合 `upsert=true` 的方式去更新 `users` / `profiles`，否则经常会生成一个不同的 `_id`，导致后续 `doc(uid)` 读取命中不到。",
       inputSchema: {
         action: z
           .enum(["insert", "update", "delete"])
@@ -660,6 +781,10 @@ deleteCollection: 删除集合`),
             `insert: 插入数据（新增文档）\nupdate: 更新数据\ndelete: 删除数据`,
           ),
         collectionName: z.string().describe("集合名称"),
+        instanceId: z
+          .string()
+          .optional()
+          .describe("可选：显式指定数据库实例ID；未传时会自动解析并缓存"),
         documents: z
           .array(z.object({}).passthrough())
           .optional()
@@ -672,7 +797,7 @@ deleteCollection: 删除集合`),
           .union([z.object({}).passthrough(), z.string()])
           .optional()
           .describe(
-            "更新内容(对象或字符串,推荐对象)(update 操作必填)。按 MongoDB 更新语义传入 MgoUpdate：部分更新请使用 $set/$inc/$unset/$push 等操作符，例如 { \"$set\": { \"status\": \"pending\" } }；不要直接传 { \"status\": \"pending\" }，否则可能替换整条文档。更新嵌套字段时必须用点号路径，如 { \"$set\": { \"address.city\": \"shenzhen\" } }，不要写成 { \"$set\": { \"address\": { \"city\": \"shenzhen\" } } }（会替换整个 address 对象）。",
+            "更新内容(对象或字符串,推荐对象)(update 操作必填)。按 MongoDB 更新语义传入 MgoUpdate：部分更新请使用 `$set`、`$inc`、`$unset`、`$push` 等操作符，例如使用 `$set` 更新 `status`；不要直接传“字段到值的普通对象”，否则可能替换整条文档。更新嵌套字段时必须使用点号路径，例如通过 `$set` 更新 `address.city`；不要把整个 `address` 对象作为 `$set` 的值传入，否则会替换整个 `address` 对象。",
           ),
         isMulti: z
           .boolean()
@@ -694,6 +819,7 @@ deleteCollection: 删除集合`),
     async ({
       action,
       collectionName,
+      instanceId,
       documents,
       query,
       update,
@@ -706,9 +832,11 @@ deleteCollection: 删除集合`),
         }
         const text = await insertDocuments({
           collectionName,
+          instanceId,
           documents,
           getManager,
           logger,
+          cloudBaseOptions,
         });
         return {
           content: [
@@ -728,12 +856,14 @@ deleteCollection: 删除集合`),
         }
         const text = await updateDocuments({
           collectionName,
+          instanceId,
           query,
           update,
           isMulti,
           upsert,
           getManager,
           logger,
+          cloudBaseOptions,
         });
         return {
           content: [
@@ -750,10 +880,12 @@ deleteCollection: 删除集合`),
         }
         const text = await deleteDocuments({
           collectionName,
+          instanceId,
           query,
           isMulti,
           getManager,
           logger,
+          cloudBaseOptions,
         });
         return {
           content: [
@@ -772,24 +904,37 @@ deleteCollection: 删除集合`),
 
 async function insertDocuments({
   collectionName,
+  instanceId,
   documents,
   getManager,
   logger,
+  cloudBaseOptions,
 }: {
   collectionName: string;
+  instanceId?: string;
   documents: object[];
   getManager: () => Promise<CloudBase>;
   logger?: Logger;
+  cloudBaseOptions?: ExtendedMcpServer["cloudBaseOptions"];
 }) {
+  const managerStartedAt = Date.now();
   const cloudbase = await getManager();
-  const instanceId = await getDatabaseInstanceId(getManager);
+  logNoSqlLatency("writeNoSqlDatabaseContent", "getManager", {
+    collectionName,
+    action: "insert",
+    durationMs: Date.now() - managerStartedAt,
+  });
+
   const docsAsStrings = documents.map((doc) => JSON.stringify(doc));
-  const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-    Action: "PutItem",
-    Param: {
-      TableName: collectionName,
+  const result = await callNoSqlContentApi({
+    toolName: "writeNoSqlDatabaseContent",
+    action: "PutItem",
+    collectionName,
+    cloudbase,
+    cloudBaseOptions,
+    instanceIdOverride: instanceId,
+    param: {
       MgoDocs: docsAsStrings,
-      Tag: instanceId,
     },
   });
   logCloudBaseResult(logger, result);
@@ -810,37 +955,50 @@ async function insertDocuments({
 
 async function updateDocuments({
   collectionName,
+  instanceId,
   query,
   update,
   isMulti,
   upsert,
   getManager,
   logger,
+  cloudBaseOptions,
 }: {
   collectionName: string;
+  instanceId?: string;
   query: object | string;
   update: object | string;
   isMulti?: boolean;
   upsert?: boolean;
   getManager: () => Promise<CloudBase>;
   logger?: Logger;
+  cloudBaseOptions?: ExtendedMcpServer["cloudBaseOptions"];
 }) {
+  const managerStartedAt = Date.now();
   const cloudbase = await getManager();
-  const instanceId = await getDatabaseInstanceId(getManager);
+  logNoSqlLatency("writeNoSqlDatabaseContent", "getManager", {
+    collectionName,
+    action: "update",
+    durationMs: Date.now() - managerStartedAt,
+  });
+
   const authLinkedDocWarning = buildAuthLinkedDocWarning({
     collectionName,
     query,
     upsert,
   });
-  const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-    Action: "UpdateItem",
-    Param: {
-      TableName: collectionName,
+  const result = await callNoSqlContentApi({
+    toolName: "writeNoSqlDatabaseContent",
+    action: "UpdateItem",
+    collectionName,
+    cloudbase,
+    cloudBaseOptions,
+    instanceIdOverride: instanceId,
+    param: {
       MgoQuery: toJSONString(query),
       MgoUpdate: toJSONString(update),
       MgoIsMulti: isMulti,
       MgoUpsert: upsert,
-      Tag: instanceId,
     },
   });
   logCloudBaseResult(logger, result);
@@ -894,26 +1052,39 @@ function buildAuthLinkedDocWarning({
 
 async function deleteDocuments({
   collectionName,
+  instanceId,
   query,
   isMulti,
   getManager,
   logger,
+  cloudBaseOptions,
 }: {
   collectionName: string;
+  instanceId?: string;
   query: object | string;
   isMulti?: boolean;
   getManager: () => Promise<CloudBase>;
   logger?: Logger;
+  cloudBaseOptions?: ExtendedMcpServer["cloudBaseOptions"];
 }) {
+  const managerStartedAt = Date.now();
   const cloudbase = await getManager();
-  const instanceId = await getDatabaseInstanceId(getManager);
-  const result = await cloudbase.commonService("tcb", "2018-06-08").call({
-    Action: "DeleteItem",
-    Param: {
-      TableName: collectionName,
+  logNoSqlLatency("writeNoSqlDatabaseContent", "getManager", {
+    collectionName,
+    action: "delete",
+    durationMs: Date.now() - managerStartedAt,
+  });
+
+  const result = await callNoSqlContentApi({
+    toolName: "writeNoSqlDatabaseContent",
+    action: "DeleteItem",
+    collectionName,
+    cloudbase,
+    cloudBaseOptions,
+    instanceIdOverride: instanceId,
+    param: {
       MgoQuery: toJSONString(query),
       MgoIsMulti: isMulti,
-      Tag: instanceId,
     },
   });
   logCloudBaseResult(logger, result);

@@ -191,13 +191,43 @@ const VPC_SCHEMA = z.object({
   subnetId: z.string(),
 });
 
+const SEVEN_FIELD_CRON_REGEX = /^\s*\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s*$/;
+
+export function validateTimerCron(config: string): string {
+  const trimmed = config.trim();
+  const fields = trimmed.split(/\s+/);
+  if (fields.length === 5) {
+    throw new Error(
+      `timer 触发器的 cron 表达式必须使用 7 段格式（秒 分 时 日 月 星期 年），不支持标准 5 段格式。` +
+        `\n收到 5 段: "${trimmed}"` +
+        `\n正确示例: "0 */5 * * * * *"（每 5 分钟执行），"0 0 2 1 * * *"（每月 1 号 2 点）`,
+    );
+  }
+  if (fields.length < 7) {
+    throw new Error(
+      `timer 触发器的 cron 表达式必须使用 7 段格式（秒 分 时 日 月 星期 年），当前只有 ${fields.length} 段。` +
+        `\n正确示例: "0 */5 * * * * *"（每 5 分钟执行），"0 0 2 1 * * *"（每月 1 号 2 点）`,
+    );
+  }
+  return trimmed;
+}
+
 const TRIGGER_SCHEMA = z.object({
   name: z.string().describe("触发器名称"),
   type: z.enum(SUPPORTED_TRIGGER_TYPES).describe("触发器类型"),
   config: z
     .string()
     .describe(
-      "触发器配置，timer 使用 7 段 cron：second minute hour day month week year",
+      "触发器配置。timer 必须使用 CloudBase 7 段 cron 格式：秒 分 时 日 月 星期 年。" +
+        "⚠️ 不支持标准 5 段 cron（如 */5 * * * * 是错误的）。" +
+        "正确示例：0 */5 * * * * *（每5分钟）、0 0 2 1 * * *（每月1号2点）、0 30 9 * * * *（每天9:30）",
+    )
+    .refine(
+      (val) => SEVEN_FIELD_CRON_REGEX.test(val),
+      {
+        message:
+          "timer 触发器的 cron 表达式必须使用 7 段格式（秒 分 时 日 月 星期 年），不支持 5 段格式。正确示例：0 */5 * * * * *",
+      },
     ),
 });
 
@@ -1114,6 +1144,12 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       if (!input.triggers?.length) {
         throw new Error("createFunctionTrigger 操作时，triggers 参数是必需的");
       }
+      // Validate timer cron format before sending to CloudBase
+      for (const trigger of input.triggers) {
+        if (trigger.type === "timer") {
+          validateTimerCron(trigger.config);
+        }
+      }
       const cloudbase = await getManager();
       const result = await cloudbase.functions.createFunctionTriggers(
         input.functionName,
@@ -1404,7 +1440,12 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
           .enum(MANAGE_FUNCTION_ACTIONS)
           .describe("写操作类型，例如 createFunction、invokeFunction、attachLayer"),
         func: CREATE_FUNCTION_SCHEMA.optional().describe("createFunction 操作的函数配置"),
-        functionRootPath: z.string().optional().describe("函数根目录（父目录绝对路径）"),
+        functionRootPath: z.string().optional().describe(
+          "函数根目录（父目录绝对路径）。" +
+          "本地应按 cloudfunctions/<functionName>/index.js 布局，" +
+          "此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。" +
+          "SDK 会自动拼接函数名子目录。",
+        ),
         force: z.boolean().optional().describe("createFunction 时是否覆盖"),
         functionName: z.string().optional().describe("函数名称。大多数 action 使用该字段作为统一目标"),
         zipFile: z.string().optional().describe("代码包的 base64 编码"),

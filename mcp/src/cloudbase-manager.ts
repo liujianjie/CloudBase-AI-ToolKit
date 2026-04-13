@@ -43,7 +43,7 @@ function createManagerFromLoginState(loginState: any, region?: string): CloudBas
         envId: loginState.envId,
         token: loginState.token,
         proxy: process.env.http_proxy,
-        region,
+        region: region ?? process.env.TCB_REGION ?? 'ap-shanghai',
     });
 }
 
@@ -67,7 +67,7 @@ export async function listAvailableEnvCandidates(options?: {
         if (!loginState?.secretId || !loginState?.secretKey) {
             return [];
         }
-        const region = cloudBaseOptions?.region ?? process.env.TCB_REGION ?? undefined;
+        const region = cloudBaseOptions?.region ?? process.env.TCB_REGION ?? 'ap-shanghai';
         cloudbase = createManagerFromLoginState(loginState, region);
     }
 
@@ -303,6 +303,109 @@ export interface GetManagerOptions {
     authStrategy?: 'fail_fast' | 'ensure';
 }
 
+type DatabaseInstanceIdResolution = {
+    instanceId: string;
+    source: 'input' | 'cache' | 'envInfo';
+    cacheKey?: string;
+};
+
+type DatabaseInstanceIdCacheEntry = {
+    instanceId?: string;
+    inflightPromise?: Promise<string>;
+};
+
+const databaseInstanceIdCache = new Map<string, DatabaseInstanceIdCacheEntry>();
+
+function buildDatabaseInstanceIdCacheKey(options?: {
+    envId?: string;
+    region?: string;
+    cloudBaseOptions?: CloudBaseOptions;
+}) {
+    const envId = options?.envId ?? options?.cloudBaseOptions?.envId ?? process.env.CLOUDBASE_ENV_ID ?? 'unknown';
+    const region = options?.region ?? options?.cloudBaseOptions?.region ?? process.env.TCB_REGION ?? 'ap-shanghai';
+    return `${region}:${envId}`;
+}
+
+export function resetDatabaseInstanceIdCache() {
+    databaseInstanceIdCache.clear();
+}
+
+export function invalidateDatabaseInstanceIdCache(options?: {
+    cacheKey?: string;
+    envId?: string;
+    region?: string;
+    cloudBaseOptions?: CloudBaseOptions;
+}) {
+    const cacheKey = options?.cacheKey ?? buildDatabaseInstanceIdCacheKey(options);
+    databaseInstanceIdCache.delete(cacheKey);
+}
+
+export async function getDatabaseInstanceId(options?: {
+    instanceId?: string;
+    cloudBaseOptions?: CloudBaseOptions;
+    cloudbase?: CloudBase;
+}): Promise<DatabaseInstanceIdResolution> {
+    if (options?.instanceId) {
+        return {
+            instanceId: options.instanceId,
+            source: 'input',
+        };
+    }
+
+    const envId = await getEnvId(options?.cloudBaseOptions);
+    const cacheKey = buildDatabaseInstanceIdCacheKey({
+        envId,
+        cloudBaseOptions: options?.cloudBaseOptions,
+    });
+
+    const cachedEntry = databaseInstanceIdCache.get(cacheKey);
+    if (cachedEntry?.instanceId) {
+        return {
+            instanceId: cachedEntry.instanceId,
+            source: 'cache',
+            cacheKey,
+        };
+    }
+
+    if (cachedEntry?.inflightPromise) {
+        const instanceId = await cachedEntry.inflightPromise;
+        return {
+            instanceId,
+            source: 'cache',
+            cacheKey,
+        };
+    }
+
+    const inflightPromise = (async () => {
+        const cloudbase =
+            options?.cloudbase ?? (await getCloudBaseManager({ cloudBaseOptions: options?.cloudBaseOptions }));
+        const { EnvInfo } = await cloudbase.env.getEnvInfo();
+        if (!EnvInfo?.Databases?.[0]?.InstanceId) {
+            throw new Error("无法获取数据库实例ID");
+        }
+        return EnvInfo.Databases[0].InstanceId;
+    })();
+
+    databaseInstanceIdCache.set(cacheKey, {
+        inflightPromise,
+    });
+
+    try {
+        const instanceId = await inflightPromise;
+        databaseInstanceIdCache.set(cacheKey, {
+            instanceId,
+        });
+        return {
+            instanceId,
+            source: 'envInfo',
+            cacheKey,
+        };
+    } catch (error) {
+        databaseInstanceIdCache.delete(cacheKey);
+        throw error;
+    }
+}
+
 /**
  * 每次都实时获取最新的 token/secretId/secretKey
  */
@@ -349,8 +452,8 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
     }
 
     try {
-        // Get region from environment variable for auth URL
-        const fallbackRegion = cloudBaseOptions?.region ?? process.env.TCB_REGION;
+        // Region priority: explicit option > env var > ap-shanghai default
+        const fallbackRegion = cloudBaseOptions?.region ?? process.env.TCB_REGION ?? 'ap-shanghai';
         const loginState = authStrategy === 'ensure'
             ? await getLoginState({ region: fallbackRegion })
             : await peekLoginState();
@@ -402,23 +505,18 @@ export async function getCloudBaseManager(options: GetManagerOptions = {}): Prom
             }
         }
 
-        // envId priority: envManager.cachedEnvId > envManager.getEnvId() > loginState.envId > undefined
-        // Note: envManager.cachedEnvId has highest priority as it reflects user's latest environment switch
-        // Region priority: envCandidates[].region (actual env region) > process.env.TCB_REGION > undefined
-        // Resolving the environment's own region avoids INVALID_REGION errors when TCB_REGION
-        // is set to a different region than the target environment.
+        // envId priority: explicit option > envManager cache > loginState.envId
         const resolvedEnvId = finalEnvId || loginEnvId;
         let region = fallbackRegion;
         if (resolvedEnvId && !cloudBaseOptions?.region) {
             try {
                 const envCandidates = await listAvailableEnvCandidates({ loginState });
-                const matchedEnv = envCandidates.find(c => c.envId === resolvedEnvId);
+                const matchedEnv = envCandidates.find((candidate) => candidate.envId === resolvedEnvId);
                 if (matchedEnv?.region) {
                     region = matchedEnv.region;
                     debug('使用环境实际 region:', { envId: resolvedEnvId, region });
                 }
             } catch {
-                // If env listing fails, fall back to TCB_REGION / undefined
                 debug('无法获取环境列表，使用 fallback region');
             }
         }
@@ -453,8 +551,8 @@ export function createCloudBaseManagerWithOptions(cloudBaseOptions: CloudBaseOpt
         hasToken: !!cloudBaseOptions.token,
     });
 
-    // Region priority: cloudBaseOptions.region > process.env.TCB_REGION > undefined (use SDK default)
-    const region = cloudBaseOptions.region ?? process.env.TCB_REGION ?? undefined;
+    // Region priority: explicit option > env var > ap-shanghai default
+    const region = cloudBaseOptions.region ?? process.env.TCB_REGION ?? 'ap-shanghai';
     const manager = new CloudBase({
         ...cloudBaseOptions,
         proxy: cloudBaseOptions.proxy || process.env.http_proxy,

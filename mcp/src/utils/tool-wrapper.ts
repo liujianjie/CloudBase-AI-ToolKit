@@ -127,6 +127,7 @@ function createWrappedHandler(name: string, handler: any, server: ExtendedMcpSer
             const result = await handler(args);
 
             success = true;
+            requestId = extractRequestIdFromToolResult(result);
             const duration = Date.now() - startTime;
             debug(`工具执行成功: ${name}`, { duration });
             if (!isTestEnvironment) {
@@ -199,6 +200,7 @@ function createWrappedHandler(name: string, handler: any, server: ExtendedMcpSer
                 reportToolCall({
                     toolName: name,
                     success,
+                    requestId,
                     duration,
                     error: errorMessage,
                     inputParams: sanitizeArgs(args), // 添加入参上报
@@ -211,6 +213,43 @@ function createWrappedHandler(name: string, handler: any, server: ExtendedMcpSer
             }
         }
     };
+}
+
+function extractRequestIdFromToolResult(result: any): string | undefined {
+    if (!result || typeof result !== 'object') {
+        return undefined;
+    }
+
+    if (typeof result.requestId === 'string' && result.requestId.length > 0) {
+        return result.requestId;
+    }
+
+    if (typeof result.RequestId === 'string' && result.RequestId.length > 0) {
+        return result.RequestId;
+    }
+
+    const content = Array.isArray((result as any).content) ? (result as any).content : [];
+    for (const item of content) {
+        if (!item || item.type !== 'text' || typeof item.text !== 'string') {
+            continue;
+        }
+
+        try {
+            const parsed = JSON.parse(item.text);
+            if (parsed && typeof parsed === 'object') {
+                if (typeof parsed.requestId === 'string' && parsed.requestId.length > 0) {
+                    return parsed.requestId;
+                }
+                if (typeof parsed.RequestId === 'string' && parsed.RequestId.length > 0) {
+                    return parsed.RequestId;
+                }
+            }
+        } catch {
+            // Ignore non-JSON text payloads.
+        }
+    }
+
+    return undefined;
 }
 
 /**

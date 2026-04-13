@@ -9,8 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const GITHUB_PAGE_URL = 'https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/blob/main/scripts/tools.json';
 
-function readToolsJson() {
-  const toolsJsonPath = path.join(__dirname, 'tools.json');
+export function readToolsJson(toolsJsonPath = path.join(__dirname, 'tools.json')) {
   if (!fs.existsSync(toolsJsonPath)) {
     throw new Error(`tools.json not found at ${toolsJsonPath}. Please run scripts/generate-tools-json.mjs first.`);
   }
@@ -18,7 +17,7 @@ function readToolsJson() {
   return JSON.parse(raw);
 }
 
-function escapeMd(text = '') {
+export function escapeMd(text = '') {
   return String(text)
     .replace(/[\r\n]+/g, '<br/>')
     .replace(/&/g, '&amp;')
@@ -113,7 +112,7 @@ function renderToolDetails(tool) {
   const lines = [];
   lines.push(`### \`${tool.name}\``);
   if (tool.description) {
-    lines.push(tool.description.trim());
+    lines.push(escapeMd(tool.description.trim()));
   }
   const schema = tool.inputSchema || {};
   if (schema && schema.type === 'object' && schema.properties && Object.keys(schema.properties).length > 0) {
@@ -169,7 +168,7 @@ function renderToolDetails(tool) {
   return lines.join('\n');
 }
 
-function renderDoc(toolsJson) {
+export function renderDoc(toolsJson) {
   const { tools = [] } = toolsJson;
   const lines = [];
   lines.push('# MCP 工具');
@@ -216,17 +215,30 @@ function renderDoc(toolsJson) {
   return lines.join('\n');
 }
 
-function main() {
-  const toolsJson = readToolsJson();
+export function generateToolsDoc({
+  toolsJsonPath = path.join(__dirname, 'tools.json'),
+  outputPath = path.join(__dirname, '..', 'doc', 'mcp-tools.md'),
+} = {}) {
+  const toolsJson = readToolsJson(toolsJsonPath);
   const markdown = renderDoc(toolsJson);
-  const outputPath = path.join(__dirname, '..', 'doc', 'mcp-tools.md');
   fs.writeFileSync(outputPath, markdown, 'utf8');
+  return {
+    outputPath,
+    markdown,
+    toolCount: Array.isArray(toolsJson.tools) ? toolsJson.tools.length : 0,
+  };
+}
+
+function main() {
+  const { outputPath } = generateToolsDoc();
   console.log(`✅ 文档已生成: ${outputPath}`);
 }
 
-try {
-  main();
-} catch (e) {
-  console.error('❌ 生成文档失败:', e && e.message ? e.message : e);
-  process.exit(1);
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  try {
+    main();
+  } catch (e) {
+    console.error('❌ 生成文档失败:', e && e.message ? e.message : e);
+    process.exit(1);
+  }
 }
