@@ -229,15 +229,7 @@ jobs:
 
           truncate_text_for_pr_body() {
             local max_chars="${1:-12000}"
-            python - "$max_chars" <<'PY'
-import sys
-
-limit = int(sys.argv[1])
-text = sys.stdin.read()
-if len(text) > limit:
-    text = text[:limit].rstrip() + "\n\n_[truncated by automation to keep PR creation stable]_"
-sys.stdout.write(text)
-PY
+            python3 -c 'import sys; limit = int(sys.argv[1]); text = sys.stdin.read(); sys.stdout.write(text if len(text) <= limit else text[:limit].rstrip() + "\n\n_[truncated by automation to keep PR creation stable]_")' "$max_chars"
           }
 
           lookup_open_pr_url() {

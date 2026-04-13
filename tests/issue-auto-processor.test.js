@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { expect, test } from 'vitest';
+import { loadYamlModule } from '../scripts/lib/load-yaml-module.mjs';
 import issueAutoProcessorHelpers from '../scripts/issue-auto-processor.cjs';
 
 const {
@@ -21,6 +22,16 @@ const WORKFLOW_FILE = path.join(
   'workflows',
   'issue-auto-processor-simple.yml',
 );
+
+const yaml = await loadYamlModule(ROOT_DIR);
+
+test('issue auto processor workflow remains valid YAML', () => {
+  const raw = fs.readFileSync(WORKFLOW_FILE, 'utf8');
+  const parsed = yaml.load(raw);
+
+  expect(parsed).toBeTruthy();
+  expect(parsed.jobs['process-issues'].steps.length).toBeGreaterThan(0);
+});
 
 test('extractResultText returns result from top-level object payload', () => {
   const raw = JSON.stringify({ result: 'Structured response' });
@@ -137,6 +148,7 @@ test('workflow hardens fix path with git identity and PR creation guards', () =>
   expect(raw).toContain('git config user.name "github-actions[bot]"');
   expect(raw).toContain('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
   expect(raw).toContain('truncate_text_for_pr_body() {');
+  expect(raw).toContain('python3 -c');
   expect(raw).toContain('lookup_open_pr_url() {');
   expect(raw).toContain('write_pr_body_file() {');
   expect(raw).toContain("summary=$(printf '%s' \"$result_text\" | truncate_text_for_pr_body 12000)");
