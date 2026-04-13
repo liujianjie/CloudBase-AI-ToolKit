@@ -1,7 +1,7 @@
 ---
 name: cloudbase-all-in-one
 description: Unified CloudBase execution guide for all-in-one skill installs. Use this as the first entry point for CloudBase app tasks, especially existing applications that already contain TODOs, fixed pages, and active handlers.
-version: 2.16.1
+version: 2.16.2
 alwaysApply: true
 ---
 
@@ -34,6 +34,11 @@ alwaysApply: true
 - Browser-side document database CRUD -> `./no-sql-web-sdk/SKILL.md`
 - Browser-side file upload -> `./cloud-storage-web/SKILL.md`
 - Platform overview only when capability selection is still unclear -> `./cloudbase-platform/SKILL.md`
+
+### High-yield guardrails
+
+- If the same path fails 2-3 times, stop retrying and reroute. Check platform skill, auth domain, runtime, and permission model before editing more code.
+- Always specify `EnvId` explicitly in code, configuration, and command examples when initializing CloudBase clients or manager operations. Do not rely on the current CLI-selected environment or implicit defaults.
 
 ### Do NOT use this as
 
