@@ -853,7 +853,7 @@
                     },
                     "config": {
                       "type": "string",
-                      "description": "触发器配置，timer 使用 7 段 cron：second minute hour day month week year"
+                      "description": "触发器配置。timer 必须使用 CloudBase 7 段 cron 格式：秒 分 时 日 月 星期 年。⚠️ 不支持标准 5 段 cron（如 */5 * * * * 是错误的）。正确示例：0 */5 * * * * *（每5分钟）、0 0 2 1 * * *（每月1号2点）、0 30 9 * * * *（每天9:30）"
                     }
                   },
                   "required": [
@@ -916,7 +916,7 @@
           },
           "functionRootPath": {
             "type": "string",
-            "description": "函数根目录（父目录绝对路径）"
+            "description": "函数根目录（父目录绝对路径）。本地应按 cloudfunctions/<functionName>/index.js 布局，此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。SDK 会自动拼接函数名子目录。"
           },
           "force": {
             "type": "boolean",
