@@ -5,7 +5,6 @@ import * as os from "os";
 import * as path from "path";
 import { z } from "zod";
 import { createCloudBaseManagerWithOptions } from "../cloudbase-manager.js";
-import { FALLBACK_CLAUDE_PROMPT } from "../config/claude-prompt.js";
 import { ExtendedMcpServer } from "../server.js";
 import { jsonContent } from "../utils/json-content.js";
 import { debug, warn } from "../utils/logger.js";
@@ -449,37 +448,6 @@ async function downloadResources(): Promise<DownloadResult> {
   });
 
   return resourceDownloadPromise;
-}
-
-// Get CLAUDE.md prompt content
-// Priority: 1. From downloaded template, 2. Fallback to embedded constant
-export async function getClaudePrompt(): Promise<string> {
-  try {
-    // Try to get from downloaded template
-    const extractDir = await downloadWebTemplate();
-    const claudePath = path.join(extractDir, "CLAUDE.md");
-
-    try {
-      const content = await fs.readFile(claudePath, "utf8");
-      return content;
-    } catch (error) {
-      // CLAUDE.md not found in template, use fallback
-      warn(
-        "[getClaudePrompt] CLAUDE.md not found in template, using fallback",
-        {
-          error,
-          path: claudePath,
-        },
-      );
-      return FALLBACK_CLAUDE_PROMPT;
-    }
-  } catch (error) {
-    // Template download failed, use fallback
-    warn("[getClaudePrompt] Template download failed, using fallback", {
-      error,
-    });
-    return FALLBACK_CLAUDE_PROMPT;
-  }
 }
 
 export async function registerRagTools(server: ExtendedMcpServer) {
