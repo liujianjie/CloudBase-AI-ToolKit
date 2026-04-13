@@ -120,11 +120,12 @@ Closes #<issue-number>" \
   --base main
 ```
 
-Push to both remotes per project convention:
+Push to GitHub by default per current project convention:
 ```bash
 git push github fix/<slug>-<N>
-git push cnb fix/<slug>-<N> --force
 ```
+
+Only push to other remotes when the user explicitly asks for it.
 
 ### Step 7 — Clean up worktree
 
