@@ -392,7 +392,7 @@ classDiagram
 <tr><td><code>functionRootPath</code></td><td>string</td><td></td><td>函数根目录（父目录绝对路径）</td></tr>
 <tr><td><code>force</code></td><td>boolean</td><td></td><td>createFunction 时是否覆盖</td></tr>
 <tr><td><code>functionName</code></td><td>string</td><td></td><td>函数名称。大多数 action 使用该字段作为统一目标</td></tr>
-<tr><td><code>zipFile</code></td><td>string</td><td></td><td>代码包的 base64 编码</td></tr>
+<tr><td><code>zipFile</code></td><td>string</td><td></td><td>仅兼容特殊场景：预先准备好的代码包 base64 编码。普通 createFunction/updateFunctionCode 默认不要先压缩 zip，优先使用 functionRootPath。</td></tr>
 <tr><td><code>handler</code></td><td>string</td><td></td><td>函数入口</td></tr>
 <tr><td><code>timeout</code></td><td>number</td><td></td><td>配置更新时的超时时间</td></tr>
 <tr><td><code>envVariables</code></td><td>object</td><td></td><td>配置更新时要合并的环境变量</td></tr>
