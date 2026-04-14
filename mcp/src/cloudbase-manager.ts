@@ -1,5 +1,6 @@
 import CloudBase from "@cloudbase/manager-node";
 import {
+    buildDeviceAuthChallengePayload,
     getAuthProgressState,
     peekLoginState,
     getLoginState,
@@ -112,13 +113,7 @@ async function throwPendingAuthError() {
         ok: false,
         code: "AUTH_PENDING",
         message: authState.lastError || "设备码授权进行中，请先完成登录后再重试当前工具。",
-        auth_challenge: authState.authChallenge
-            ? {
-                user_code: authState.authChallenge.user_code,
-                verification_uri: authState.authChallenge.verification_uri,
-                expires_in: authState.authChallenge.expires_in,
-            }
-            : undefined,
+        auth_challenge: buildDeviceAuthChallengePayload(authState.authChallenge),
         next_step: buildAuthNextStep("status", {
             suggestedArgs: {
                 action: "status",
