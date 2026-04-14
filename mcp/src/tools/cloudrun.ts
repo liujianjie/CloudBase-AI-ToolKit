@@ -325,7 +325,7 @@ export function registerCloudRunTools(server: ExtendedMcpServer) {
 
             let latestDeploy: any = null;
             let deployRecordsWarning: string | undefined;
-            let message = `Retrieved details for service '${serverName}'`;
+            let message: string;
 
             try {
               const deployRecords: any = await cloudrunService.getDeployRecords({ serverName });
