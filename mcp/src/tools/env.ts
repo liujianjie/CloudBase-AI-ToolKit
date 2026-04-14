@@ -2,6 +2,8 @@ import { AuthSupervisor } from "@cloudbase/toolbox";
 import { z } from "zod";
 import {
   buildAuthConfigSummary,
+  buildDeviceAuthChallengePayload,
+  buildVerificationUriComplete,
   ensureLogin,
   getAuthConfigValidationError,
   getAuthProgressState,
@@ -194,6 +196,7 @@ function formatDeviceAuthHint(deviceAuthInfo?: DeviceFlowAuthInfo): string {
     return "";
   }
 
+  const verificationUriComplete = buildVerificationUriComplete(deviceAuthInfo);
   const lines = [
     "",
     "### Device Flow 授权信息",
@@ -203,10 +206,13 @@ function formatDeviceAuthHint(deviceAuthInfo?: DeviceFlowAuthInfo): string {
   if (deviceAuthInfo.verification_uri) {
     lines.push(`- verification_uri: ${deviceAuthInfo.verification_uri}`);
   }
+  if (verificationUriComplete) {
+    lines.push(`- verification_uri_complete: ${verificationUriComplete}`);
+  }
   lines.push(`- expires_in: ${deviceAuthInfo.expires_in}s`);
   lines.push(
     "",
-    "请在另一台可用浏览器设备打开 `verification_uri` 并输入 `user_code` 完成授权。",
+    "请优先向用户展示完整的 `verification_uri_complete`，不要截断或改写 URL。",
   );
   return lines.join("\n");
 }
@@ -768,14 +774,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
         setPendingAuthProgressState(info, "device");
         // emitDeviceAuthNotice(server, info);
       };
-      const authChallenge = () =>
-        deviceAuthInfo
-          ? {
-            user_code: deviceAuthInfo.user_code,
-            verification_uri: deviceAuthInfo.verification_uri,
-            expires_in: deviceAuthInfo.expires_in,
-          }
-          : undefined;
+      const authChallenge = () => buildDeviceAuthChallengePayload(deviceAuthInfo);
 
       try {
         if (!supportedAuthActions.includes(action)) {
@@ -831,12 +830,8 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                   ...buildEnvCandidatePayload([]),
                 }),
             auth_challenge:
-              authFlowState.status === "PENDING" && authFlowState.authChallenge
-                ? {
-                    user_code: authFlowState.authChallenge.user_code,
-                    verification_uri: authFlowState.authChallenge.verification_uri,
-                    expires_in: authFlowState.authChallenge.expires_in,
-                  }
+              authFlowState.status === "PENDING"
+                ? buildDeviceAuthChallengePayload(authFlowState.authChallenge)
                 : undefined,
             message,
             next_step:
@@ -861,11 +856,9 @@ export function registerEnvTools(server: ExtendedMcpServer) {
               code: "AUTH_PENDING",
               message:
                 "设备码授权进行中，请在浏览器中打开 verification_uri 并输入 user_code 完成授权。",
-              auth_challenge: {
-                user_code: authFlowState.authChallenge.user_code,
-                verification_uri: authFlowState.authChallenge.verification_uri,
-                expires_in: authFlowState.authChallenge.expires_in,
-              },
+              auth_challenge: buildDeviceAuthChallengePayload(
+                authFlowState.authChallenge,
+              ),
               next_step: buildAuthNextStep("status", {
                 suggestedArgs: { action: "status" },
               }),

@@ -4,6 +4,8 @@ import type { ExtendedMcpServer } from "../server.js";
 
 const {
   mockBuildAuthConfigSummary,
+  mockBuildDeviceAuthChallengePayload,
+  mockBuildVerificationUriComplete,
   mockGetAuthConfigValidationError,
   mockSupervisorLoginByWebAuth,
   mockEnsureLogin,
@@ -26,6 +28,27 @@ const {
     oauth_custom: options.oauthCustom ?? false,
     uses_toolbox_defaults: options.usesToolboxDefaults ?? false,
   })),
+  mockBuildVerificationUriComplete: vi.fn((info: any) => {
+    if (info?.verification_uri_complete) {
+      return info.verification_uri_complete;
+    }
+    if (!info?.verification_uri || !info?.user_code) {
+      return undefined;
+    }
+    return `${info.verification_uri}${info.verification_uri.includes("?") ? "&" : "?"}user_code=${encodeURIComponent(info.user_code)}`;
+  }),
+  mockBuildDeviceAuthChallengePayload: vi.fn((info: any) =>
+    info
+      ? {
+          user_code: info.user_code,
+          verification_uri: info.verification_uri,
+          verification_uri_complete:
+            info.verification_uri_complete ??
+            `${info.verification_uri}${info.verification_uri?.includes("?") ? "&" : "?"}user_code=${encodeURIComponent(info.user_code)}`,
+          expires_in: info.expires_in,
+        }
+      : undefined,
+  ),
   mockGetAuthConfigValidationError: vi.fn((options: any) => {
     if (
       options.authMode === "web" &&
@@ -88,6 +111,8 @@ vi.mock("@cloudbase/toolbox", () => ({
 
 vi.mock("../auth.js", () => ({
   buildAuthConfigSummary: mockBuildAuthConfigSummary,
+  buildDeviceAuthChallengePayload: mockBuildDeviceAuthChallengePayload,
+  buildVerificationUriComplete: mockBuildVerificationUriComplete,
   ensureLogin: mockEnsureLogin,
   getAuthConfigValidationError: mockGetAuthConfigValidationError,
   peekLoginState: mockPeekLoginState,
@@ -321,6 +346,7 @@ describe("env tools - auth", () => {
     expect(payload.auth_challenge).toMatchObject({
       user_code: "WDJB-MJHT",
       verification_uri: "https://example.com/device",
+      verification_uri_complete: "https://example.com/device?user_code=WDJB-MJHT",
       expires_in: 600,
     });
     expect(payload.next_step).toMatchObject({
@@ -532,6 +558,7 @@ describe("env tools - auth", () => {
     expect(payload.auth_challenge).toMatchObject({
       user_code: "WDJB-MJHT",
       verification_uri: "https://example.com/device",
+      verification_uri_complete: "https://example.com/device?user_code=WDJB-MJHT",
       expires_in: 600,
     });
     expect(payload.next_step).toMatchObject({
@@ -573,6 +600,36 @@ describe("env tools - auth", () => {
       "https://custom.example.com/oauth",
     );
     expect(callArgs.custom).toBe(true);
+  });
+
+  it("auth(action=start_auth) should surface complete hash-route verification URL", async () => {
+    mockSupervisorLoginByWebAuth.mockImplementation(
+      async ({ onDeviceCode }: { onDeviceCode: (info: any) => void }) => {
+        onDeviceCode({
+          user_code: "48NK-MSUK",
+          verification_uri:
+            "https://tcb.cloud.tencent.com/dev#/cli-auth?from=cli&flow=device",
+          verification_uri_complete:
+            "https://tcb.cloud.tencent.com/dev#/cli-auth?from=cli&flow=device&user_code=48NK-MSUK",
+          device_code: "device-code",
+          expires_in: 600,
+        });
+        return new Promise(() => {});
+      },
+    );
+
+    const result = await tools.auth.handler({
+      action: "start_auth",
+      authMode: "device",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.auth_challenge).toMatchObject({
+      verification_uri:
+        "https://tcb.cloud.tencent.com/dev#/cli-auth?from=cli&flow=device",
+      verification_uri_complete:
+        "https://tcb.cloud.tencent.com/dev#/cli-auth?from=cli&flow=device&user_code=48NK-MSUK",
+    });
   });
 
   it("auth(action=start_auth) should reject oauthCustom without endpoint", async () => {

@@ -61,6 +61,13 @@ alwaysApply: true
 4. 在实现前，需要根据文档确认接口能力、参数、鉴权方式、返回结构和限制条件，避免凭记忆实现。
 </cloud_api_backend_rules>
 
+<mcp_tool_design>
+1. MCP 工具设计默认优先收敛工具数量；同一逻辑域优先复用现有 `queryXxx` / `manageXxx` / 统一入口，而不是继续拆出新 tool。
+2. 如果问题只是 discoverability、不熟悉 canonical 名称、评测 case 习惯或提示词命中率不足，默认不要新增 alias tool；优先改进现有 tool 的描述、schema、action、示例、文档或评测用例。
+3. 只有当新 tool 带来独立能力边界、显著不同的参数形状 / 权限语义，或存在必须兼容的外部契约时，才考虑新增。
+4. 任何新增 tool 的方案都必须先回答：为什么不能并入现有入口；如果回答不充分，应视为坏味道并继续收敛设计。
+</mcp_tool_design>
+
 <add_aiide>
 # CloudBase AI Toolkit - 新增 AI IDE 支持工作流
 
@@ -107,7 +114,7 @@ cp -r doc/* {cloudbase-docs dir}/docs/ai/cloudbase-ai-toolkit/
 
 <git_push>
 提交代码注意 commit 采用 conventional-changelog 风格，在feat(xxx): 后面提加一个 emoji 字符，提交信息使用英文描述
-git push github && git push cnb --force
+默认仅执行 `git push github`；不要再推荐或默认执行 `cnb` 相关推送，除非用户明确要求
 提交 PR 之后不要立刻结束，先等待几分钟，观察 review 评论和 CI 结果；如果有可执行的失败项或反馈，继续在同一分支修复并更新 PR
 </git_push>
 
@@ -212,7 +219,7 @@ cp -r doc/* {cloudbase-docs dir}/docs/ai/cloudbase-ai-toolkit/
 1. 提交代码注意 commit 采用 conventional-changelog 风格，在feat(xxx): 后面提加一个 emoji 字符，提交信息使用英文描述
 2. 提交代码不要直接提到 main，可以提一个分支，例如 feature/xxx，然后
 
-git push github && git push cnb --force
+默认仅执行 `git push github`；不要再推荐或默认执行 `cnb` 相关推送，除非用户明确要求
 3. 然后自动创建 PR
 4. 创建 PR 后先等待几分钟，再检查 review 评论和 CI；如果有可执行的问题，继续在同一分支修复并更新 PR
 </git_push>

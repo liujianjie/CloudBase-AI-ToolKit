@@ -227,9 +227,14 @@ jobs:
             git switch --detach "$BASE_REF" >/dev/null 2>&1 || true
           }
 
-          write_file_from_env() {
-            local target_path="$1"
-            FILE_PATH="$target_path" python -c 'import os; open(os.environ["FILE_PATH"], "w", encoding="utf-8").write(os.environ["FILE_CONTENT"])'
+          truncate_text_for_pr_body() {
+            local max_chars="${1:-12000}"
+            python3 -c 'import sys; limit = int(sys.argv[1]); text = sys.stdin.read(); sys.stdout.write(text if len(text) <= limit else text[:limit].rstrip() + "\n\n_[truncated by automation to keep PR creation stable]_")' "$max_chars"
+          }
+
+          lookup_open_pr_url() {
+            local branch="$1"
+            gh pr list --head "$branch" --state open --json url --jq '.[0].url'
           }
 
           build_bug_prompt() {
@@ -317,14 +322,28 @@ jobs:
             local heading="$1"
             local body="$2"
             local footer="$3"
-            FILE_CONTENT=$(printf '%s\n\n%s' "$heading" "$body")
-            if [ -n "$footer" ]; then
-              FILE_CONTENT=$(printf '%s\n\n---\n%s\n' "$FILE_CONTENT" "$footer")
-            else
-              FILE_CONTENT=$(printf '%s\n' "$FILE_CONTENT")
-            fi
-            export FILE_CONTENT
-            write_file_from_env /tmp/issue-comment.md
+            {
+              printf '%s\n\n%s' "$heading" "$body"
+              if [ -n "$footer" ]; then
+                printf '\n\n---\n%s\n' "$footer"
+              else
+                printf '\n'
+              fi
+            } > /tmp/issue-comment.md
+          }
+
+          write_pr_body_file() {
+            local issue_number="$1"
+            local issue_url="$2"
+            local result_text="$3"
+            local summary=""
+            summary=$(printf '%s' "$result_text" | truncate_text_for_pr_body 12000)
+            {
+              printf '%s\n\n' '## 🤖 Automated fix attempt'
+              printf 'Fixes #%s\n\n' "$issue_number"
+              printf 'Source issue: %s\n\n' "$issue_url"
+              printf '### Summary\n%s\n' "$summary"
+            } > /tmp/pr-body.md
           }
 
           post_file_comment() {
@@ -355,6 +374,7 @@ jobs:
             local issue_url=""
             local pr_url=""
             local pr_output=""
+            local pr_lookup_exit_code=0
             local is_bug="false"
             local requested_action=""
             local command=""
@@ -447,7 +467,7 @@ jobs:
               fi
 
               set +e
-              pr_url=$(gh pr list --head "$branch" --state open --json url --jq '.[0].url')
+              pr_url=$(lookup_open_pr_url "$branch")
               exit_code=$?
               set -e
               if [ $exit_code -ne 0 ]; then
@@ -456,17 +476,29 @@ jobs:
               fi
 
               if [ -z "$pr_url" ]; then
-                FILE_CONTENT=$(printf '%s\n\n%s\n\n%s\n\n%s\n\n%s\n' '## 🤖 Automated fix attempt' "Fixes #$number" "Source issue: $issue_url" '### Summary' "$result_text")
-                export FILE_CONTENT
-                write_file_from_env /tmp/pr-body.md
+                write_pr_body_file "$number" "$issue_url" "$result_text"
 
                 set +e
                 pr_output=$(gh pr create --base "$DEFAULT_BRANCH" --head "$branch" --title "fix: 🤖 attempt fix for issue #$number" --body-file /tmp/pr-body.md 2>&1)
                 exit_code=$?
                 set -e
-                pr_url=$(printf '%s' "$pr_output" | node scripts/issue-auto-processor.cjs extract-pr-url)
-                if [ $exit_code -ne 0 ] || ! has_nonempty_text "$pr_url"; then
-                  fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL. Please inspect the workflow logs before retrying.'
+                pr_url=$(printf '%s' "$pr_output" | node scripts/issue-auto-processor.cjs extract-pr-url || true)
+
+                if ! has_nonempty_text "$pr_url"; then
+                  set +e
+                  pr_url=$(lookup_open_pr_url "$branch")
+                  pr_lookup_exit_code=$?
+                  set -e
+                fi
+
+                if ! has_nonempty_text "$pr_url"; then
+                  if [ $exit_code -ne 0 ]; then
+                    fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation failed before a valid PR URL could be resolved. Please inspect the workflow logs before retrying.'
+                  elif [ $pr_lookup_exit_code -ne 0 ]; then
+                    fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but the workflow could not verify the PR URL after creation. Please inspect the workflow logs before retrying.'
+                  else
+                    fail_with_comment "$number" '## 🤖 AI Fix Attempt Failed' 'Automation created and pushed a fix branch, but PR creation did not return a valid URL and no open PR was found for the branch. Please inspect the workflow logs before retrying.'
+                  fi
                   return 0
                 fi
               fi

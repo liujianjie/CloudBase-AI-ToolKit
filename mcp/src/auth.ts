@@ -32,6 +32,7 @@ export interface EnsureLoginOptions extends AuthOptions {
 export interface DeviceFlowAuthInfo {
   user_code: string;
   verification_uri?: string;
+  verification_uri_complete?: string;
   device_code: string;
   expires_in: number;
 }
@@ -64,6 +65,68 @@ function normalizeOptionalString(value?: string | null) {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function buildVerificationUriComplete(
+  deviceAuthInfo?: Pick<
+    DeviceFlowAuthInfo,
+    "verification_uri" | "verification_uri_complete" | "user_code"
+  >,
+) {
+  const explicitComplete = normalizeOptionalString(
+    deviceAuthInfo?.verification_uri_complete,
+  );
+  if (explicitComplete) {
+    return explicitComplete;
+  }
+
+  const verificationUri = normalizeOptionalString(deviceAuthInfo?.verification_uri);
+  const userCode = normalizeOptionalString(deviceAuthInfo?.user_code);
+  if (!verificationUri || !userCode) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(verificationUri);
+    const hash = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
+
+    if (hash) {
+      const [hashPath, hashQuery = ""] = hash.split("?");
+      const hashParams = new URLSearchParams(hashQuery);
+      if (!hashParams.has("user_code")) {
+        hashParams.set("user_code", userCode);
+      }
+      url.hash = hashParams.toString()
+        ? `#${hashPath}?${hashParams.toString()}`
+        : `#${hashPath}`;
+      return url.toString();
+    }
+
+    if (!url.searchParams.has("user_code")) {
+      url.searchParams.set("user_code", userCode);
+    }
+    return url.toString();
+  } catch {
+    if (verificationUri.includes("user_code=")) {
+      return verificationUri;
+    }
+
+    const separator = verificationUri.includes("?") ? "&" : "?";
+    return `${verificationUri}${separator}user_code=${encodeURIComponent(userCode)}`;
+  }
+}
+
+export function buildDeviceAuthChallengePayload(deviceAuthInfo?: DeviceFlowAuthInfo) {
+  if (!deviceAuthInfo) {
+    return undefined;
+  }
+
+  return {
+    user_code: deviceAuthInfo.user_code,
+    verification_uri: deviceAuthInfo.verification_uri,
+    verification_uri_complete: buildVerificationUriComplete(deviceAuthInfo),
+    expires_in: deviceAuthInfo.expires_in,
+  };
 }
 
 function normalizeAuthMode(value?: string | null): AuthFlowMode | undefined {

@@ -397,9 +397,9 @@ When an app has issues, AI automatically views logs, analyzes errors, and genera
 | **Official Documentation** | [View Documentation](https://docs.cloudbase.net/) | Complete CloudBase documentation |
 | **Issue Feedback** | [Submit Issue](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/issues) | Bug reports and feature requests |
 
-## Star History
+## Project Activity
 
-[![Star History Chart](https://api.star-history.com/svg?repos=TencentCloudBase/CloudBase-AI-ToolKit&type=Timeline)](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit)
+![Repo Activity](https://repobeats.axiom.co/api/embed/6cd6ed00da4384e43b24805c197f584626946dda.svg "Repobeats analytics image")
 
 ## Contributors
 

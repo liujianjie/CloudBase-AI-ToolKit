@@ -382,14 +382,14 @@ classDiagram
 <tr><td><code>func.triggers</code></td><td>array of object</td><td></td><td>触发器配置数组</td></tr>
 <tr><td><code>func.triggers[].name</code></td><td>string</td><td>是</td><td>触发器名称</td></tr>
 <tr><td><code>func.triggers[].type</code></td><td>string</td><td>是</td><td>触发器类型 可填写的值: "timer"</td></tr>
-<tr><td><code>func.triggers[].config</code></td><td>string</td><td>是</td><td>触发器配置，timer 使用 7 段 cron：second minute hour day month week year</td></tr>
+<tr><td><code>func.triggers[].config</code></td><td>string</td><td>是</td><td>触发器配置。timer 必须使用 CloudBase 7 段 cron 格式：秒 分 时 日 月 星期 年。⚠️ 不支持标准 5 段 cron（如 */5 * * * * 是错误的）。正确示例：0 */5 * * * * *（每5分钟）、0 0 2 1 * * *（每月1号2点）、0 30 9 * * * *（每天9:30）</td></tr>
 <tr><td><code>func.handler</code></td><td>string</td><td></td><td>函数入口</td></tr>
 <tr><td><code>func.ignore</code></td><td>string \| array of string</td><td></td><td>忽略文件</td></tr>
 <tr><td><code>func.isWaitInstall</code></td><td>boolean</td><td></td><td>是否等待依赖安装</td></tr>
 <tr><td><code>func.layers</code></td><td>array of object</td><td></td><td>Layer 配置</td></tr>
 <tr><td><code>func.layers[].name</code></td><td>string</td><td>是</td><td></td></tr>
 <tr><td><code>func.layers[].version</code></td><td>number</td><td>是</td><td></td></tr>
-<tr><td><code>functionRootPath</code></td><td>string</td><td></td><td>函数根目录（父目录绝对路径）</td></tr>
+<tr><td><code>functionRootPath</code></td><td>string</td><td></td><td>函数根目录（父目录绝对路径）。本地应按 cloudfunctions/&lt;functionName&gt;/index.js 布局，此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。SDK 会自动拼接函数名子目录。</td></tr>
 <tr><td><code>force</code></td><td>boolean</td><td></td><td>createFunction 时是否覆盖</td></tr>
 <tr><td><code>functionName</code></td><td>string</td><td></td><td>函数名称。大多数 action 使用该字段作为统一目标</td></tr>
 <tr><td><code>zipFile</code></td><td>string</td><td></td><td>仅兼容特殊场景：预先准备好的代码包 base64 编码。普通 createFunction/updateFunctionCode 默认不要先压缩 zip，优先使用 functionRootPath。</td></tr>
