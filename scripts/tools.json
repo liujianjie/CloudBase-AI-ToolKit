@@ -916,7 +916,7 @@
           },
           "functionRootPath": {
             "type": "string",
-            "description": "函数根目录（父目录绝对路径）。本地应按 cloudfunctions/<functionName>/index.js 布局，此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。SDK 会自动拼接函数名子目录。"
+            "description": "创建或更新函数代码时默认推荐的本地目录方式。函数根目录（父目录绝对路径）。本地应按 cloudfunctions/<functionName>/index.js 布局，此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。SDK 会自动拼接函数名子目录，无需预先压缩 zip 或 base64 编码。"
           },
           "force": {
             "type": "boolean",
