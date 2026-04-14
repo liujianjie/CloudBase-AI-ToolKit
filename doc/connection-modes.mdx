@@ -102,12 +102,19 @@ TCB_AUTH_OAUTH_ENDPOINT=https://auth.your-domain.com/oauth
 - **环境 ID**：在 [云开发控制台](https://tcb.cloud.tencent.com/dev) 查看。
 - **SecretId / SecretKey**：在 [腾讯云 API 密钥](https://console.cloud.tencent.com/cam/capi) 创建或查看。
 
-### 通过 URL 控制启用的插件（仅托管模式）
+### 通过 URL 控制插件启用范围（仅托管模式）
 
-在 `url` 中通过 query 参数 `disable_plugins` 可禁用指定插件，例如禁用 `rag` 和 `env`：
+在 `url` 中可通过 query 参数控制插件启用范围：
+
+- `enable_plugins`：仅启用指定插件，多个插件使用逗号分隔，例如只启用 `env` 和 `database`
+- `disable_plugins`：从默认插件集合中禁用指定插件，多个插件使用逗号分隔，例如禁用 `rag` 和 `env`
 
 ```
-https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag&disable_plugins=env
+# 只启用指定插件
+https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&enable_plugins=env,database
+
+# 禁用指定插件
+https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag,env
 ```
 
 当前可配置的插件名：`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`。
