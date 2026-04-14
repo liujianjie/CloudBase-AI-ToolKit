@@ -39,16 +39,16 @@ graph TD
 
 ## 接口设计
 
-### 新增工具：modifyDataModel
+### 新增工具：createDataModel
 
 ```typescript
-interface ModifyDataModelParams {
+interface CreateDataModelParams {
   mermaidDiagram: string;      // Mermaid classDiagram代码
-  action?: 'create' | 'update'; // 操作类型，默认create
+  action?: 'create';           // 操作类型，默认create
   publish?: boolean;           // 是否立即发布，默认false  
 }
 
-interface ModifyDataModelResponse {
+interface CreateDataModelResponse {
   success: boolean;
   taskId?: string;             // 异步任务ID
   models?: string[];           // 处理的模型名称列表
