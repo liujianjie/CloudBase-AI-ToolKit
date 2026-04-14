@@ -987,13 +987,13 @@ export function registerDataModelTools(server: ExtendedMcpServer) {
     }
   );
 
-  // createDataModel - 数据模型创建工具
+  // modifyDataModel - 数据模型写工具（兼容名称，当前仅支持创建）
   server.registerTool?.(
-    "createDataModel",
+    "modifyDataModel",
     {
-      title: "创建数据模型",
+      title: "修改数据模型（当前仅支持创建）",
       description:
-        "基于Mermaid classDiagram创建数据模型。当前仅支持创建新模型，不支持更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。",
+        "基于Mermaid classDiagram创建数据模型。为保持兼容性，工具名仍为 modifyDataModel；当前仅支持创建新模型，不支持更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。",
       inputSchema: {
         mermaidDiagram: z.string()
           .describe(`Mermaid classDiagram代码，描述数据模型结构。

@@ -22,7 +22,7 @@
 
 ## 阶段二：核心功能实现
 
-- [ ] 4. createDataModel工具实现
+- [ ] 4. modifyDataModel工具实现（当前仅支持 create）
   - 实现Mermaid到JSON Schema的转换逻辑
   - 实现createBackendSchemaParams处理函数
   - 集成BatchCreateDataModelList API调用
@@ -31,7 +31,7 @@
   - _需求: 需求2_
 
 - [ ] 5. 异步任务监控集成
-  - 在createDataModel工具内集成任务状态监控
+  - 在modifyDataModel工具内集成任务状态监控
   - 实现自动轮询直至任务完成或超时
   - 添加超时和重试机制
   - 完善状态信息的格式化输出
@@ -130,7 +130,7 @@
 - 开发环境配置完成
 
 ### 里程碑2：核心功能实现（阶段二结束）
-- createDataModel工具和manageDataModel增强功能实现完成
+- modifyDataModel工具（当前仅支持 create）和manageDataModel增强功能实现完成
 - 基本的错误处理和验证就绪
 - 核心API调用流程验证通过
 
@@ -152,7 +152,7 @@
 ## 风险点和应对策略
 
 ### 高风险任务
-1. **任务4：createDataModel工具实现**
+1. **任务4：modifyDataModel工具实现（当前仅支持 create）**
    - 风险：@cloudbase/cals库API不稳定
    - 应对：充分的API测试和容错处理
 

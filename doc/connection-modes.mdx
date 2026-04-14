@@ -117,7 +117,7 @@ https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&enable_plugins=env,d
 https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag,env
 ```
 
-当前可配置的插件名：`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `rag`, `cloudrun`, `gateway`, `download`, `security-rule`, `invite-code`, `capi`。
+当前可配置的插件名以 `mcp/src/server.ts` 为准，建议优先使用 canonical 名称：`env`, `database`, `functions`, `hosting`, `storage`, `setup`, `rag`, `download`, `gateway`, `cloudrun`, `app-auth`, `permissions`, `logs`, `agents`, `invite-code`, `capi`, `apps`。
 
 ### 托管模式环境变量说明
 
@@ -129,39 +129,32 @@ https://tcb-api.cloud.tencent.com/mcp/v1?env_id=YOUR_ENV_ID&disable_plugins=rag,
 
 ## 支持的插件
 
-| 插件名 | 说明 |
-|--------|------|
-| `env` | 环境：登录/登出、环境查询、安全域名管理 |
-| `database` | 数据库：NoSQL / SQL 结构及数据读写、数据模型 |
-| `functions` | 云函数：列表、创建、更新、调用、日志、触发器、HTTP 访问 |
-| `hosting` | 静态托管：上传/删除/搜索文件、域名管理 |
-| `storage` | 云存储：查询、上传/下载/删除文件 |
-| `setup` | 配置与规则：下载模板、IDE 规则与配置文件 |
-| `rag` | 知识库与联网：知识库检索、网页搜索 |
-| `download` | 下载：项目模板、远程文件到本地 |
-| `gateway` | 网关：云函数 HTTP 访问 |
-| `security-rule` | 安全规则：NoSQL/SQL/云函数/存储桶的读写规则 |
-| `invite-code` | 邀请码：AI 编程激励激活 |
-| `cloudrun` | 云托管：服务查询、初始化/部署/删除等 |
-| `capi` | 云 API：通用腾讯云 API 调用 |
+当前插件名称、默认启用集合与兼容别名以 `mcp/src/server.ts` 为准。下表列出当前支持的 canonical 名称：
 
-未配置时默认启用以上全部插件；可通过环境变量或 URL 参数禁用部分插件，见上文本地模式与托管模式说明。
+| 插件名 | 默认启用 | 说明 |
+|--------|----------|------|
+| `env` | 是 | 环境登录、环境查询、安全域名管理 |
+| `database` | 是 | NoSQL / SQL / 数据模型 |
+| `functions` | 是 | 云函数查询、创建、更新、调用 |
+| `hosting` | 是 | 静态托管与域名管理 |
+| `storage` | 是 | 云存储文件管理 |
+| `setup` | 是 | 模板、IDE 规则与配置下载 |
+| `rag` | 是 | 知识库检索与网页搜索 |
+| `download` | 是 | 下载远程文件到本地 |
+| `gateway` | 是 | 云函数访问入口与路由管理 |
+| `cloudrun` | 是 | 云托管服务初始化、部署与管理 |
+| `app-auth` | 是 | 应用侧认证配置 |
+| `permissions` | 是 | 权限、角色与安全规则 |
+| `logs` | 是 | 日志服务状态与日志检索 |
+| `agents` | 是 | Agent 查询与管理 |
+| `invite-code` | 是 | AI 编程激励激活 |
+| `capi` | 是 | 通用云 API 调用 |
+| `apps` | 否 | CloudApp 应用与版本管理 |
+
+其中 `permissions` 兼容旧别名 `security-rule`、`security-rules`、`access-control`、`secret-rule`、`secret-rules`、`users`；`app-auth` 兼容旧别名 `auth-config`。新文档与新示例请优先使用 canonical 名称。
+
+未配置时默认启用上表中“默认启用”为“是”的插件；可通过环境变量或 URL 参数控制插件范围。`enable_plugins` / `disable_plugins` 以及 `CLOUDBASE_MCP_PLUGINS_ENABLED` / `CLOUDBASE_MCP_PLUGINS_DISABLED` 的多值格式均为**逗号分隔**。
 
 ## 支持的工具
 
-当前提供约 32 个 MCP 工具，按插件分布如下。完整参数与说明见 [MCP 工具](/ai/cloudbase-ai-toolkit/mcp-tools)。
-
-| 插件 | 工具名 |
-|------|--------|
-| env | `auth`, `envQuery`, `envDomainManagement` |
-| database | `readNoSqlDatabaseStructure`, `writeNoSqlDatabaseStructure`, `readNoSqlDatabaseContent`, `writeNoSqlDatabaseContent`, `executeReadOnlySQL`, `executeWriteSQL`, `manageDataModel`, `createDataModel` |
-| functions | `queryFunctions`, `manageFunctions` |
-| hosting | `uploadFiles`, `deleteFiles`, `findFiles`, `domainManagement` |
-| storage | `queryStorage`, `manageStorage` |
-| setup | `downloadTemplate`, `downloadRemoteFile` |
-| rag | `searchWeb`, `searchKnowledgeBase` |
-| gateway | `queryGateway`, `manageGateway` |
-| cloudrun | `queryCloudRun`, `manageCloudRun` |
-| security-rule | `readSecurityRule`, `writeSecurityRule` |
-| invite-code | `activateInviteCode` |
-| capi | `callCloudApi` |
+工具数量与名称会随版本演进而变化。完整参数与说明请见 [MCP 工具](/ai/cloudbase-ai-toolkit/mcp-tools)；如需确认某个工具或插件是否真实存在，请优先以 `mcp/src/server.ts` 与 `mcp/src/tools/*.ts` 中的注册结果为准。

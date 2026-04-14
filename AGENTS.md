@@ -254,3 +254,19 @@ cp -r doc/* {cloudbase-docs dir}/docs/ai/cloudbase-ai-toolkit/
      - `node scripts/diff-compat-config.mjs`
      - `node scripts/sync-config.mjs`
 </skills_and_rules_maintenance>
+
+<doc_freshness_rules>
+插件系统与接入说明相关文档的维护遵循以下规则：
+
+1. 插件清单单一真源
+   - `mcp/src/server.ts` 中的 `DEFAULT_PLUGINS`、`AVAILABLE_PLUGINS`、`PLUGIN_ALIASES` 是插件名、默认启用集合与兼容别名的唯一真源
+   - 修改插件名、默认集合或别名时，必须同步检查 `doc/plugins.md`、`doc/connection-modes.mdx`、`README.md`、`mcp/README.md`
+
+2. URL 参数与环境变量成对校验
+   - 同一能力如果同时暴露环境变量与 URL 参数（例如 `CLOUDBASE_MCP_PLUGINS_ENABLED` / `CLOUDBASE_MCP_PLUGINS_DISABLED` 与 `enable_plugins` / `disable_plugins`），标题、说明、示例和多值格式必须保持一致
+   - 多值默认统一使用逗号分隔，不要再写重复 query key 的示例
+
+3. canonical 名称与文档链接校验
+   - 文档中的插件 canonical 名必须能在 `AVAILABLE_PLUGINS` 中解析；旧名称只允许出现在“兼容别名”说明中，不应继续作为主名称书写
+   - 文档链接必须指向真实存在的仓库文件或站点路由；涉及工具数量时，优先使用不易过期的描述，避免写死数字
+</doc_freshness_rules>

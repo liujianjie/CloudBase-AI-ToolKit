@@ -3,12 +3,25 @@ import { ToolPayloadError } from "./utils/tool-result.js";
 
 const mockCloudBaseCtor = vi.fn();
 const mockAuthGetProgressState = vi.fn();
+const mockBuildDeviceAuthChallengePayload = vi.fn((info: any) =>
+  info
+    ? {
+        user_code: info.user_code,
+        verification_uri: info.verification_uri,
+        verification_uri_complete:
+          info.verification_uri_complete ??
+          `${info.verification_uri}${info.verification_uri?.includes("?") ? "&" : "?"}user_code=${encodeURIComponent(info.user_code)}`,
+        expires_in: info.expires_in,
+      }
+    : undefined,
+);
 const mockPeekLoginState = vi.fn();
 const mockEnsureLogin = vi.fn();
 const mockCommonServiceCall = vi.fn();
 const mockListEnvs = vi.fn();
 
 vi.mock("./auth.js", () => ({
+  buildDeviceAuthChallengePayload: mockBuildDeviceAuthChallengePayload,
   getAuthProgressState: mockAuthGetProgressState,
   peekLoginState: mockPeekLoginState,
   getLoginState: mockEnsureLogin,
@@ -79,6 +92,7 @@ describe("cloudbase manager auth gate", () => {
         code: "AUTH_PENDING",
         auth_challenge: expect.objectContaining({
           user_code: "WDJB-MJHT",
+          verification_uri_complete: "https://example.com/device?user_code=WDJB-MJHT",
         }),
         next_step: expect.objectContaining({
           tool: "auth",

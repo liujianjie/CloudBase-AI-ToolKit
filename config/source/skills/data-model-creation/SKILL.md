@@ -22,7 +22,7 @@ Keep local `references/...` paths for files that ship with the current skill dir
 
 - The user explicitly wants Mermaid `classDiagram` modeling.
 - The task needs complex multi-entity relational design, visual ER-style output, or generated data-model structure rather than direct SQL.
-- You need to create or update CloudBase data models through the dedicated modeling tools.
+- You need to create CloudBase data models through the dedicated modeling tools, or you need to inspect an existing model before planning follow-up changes.
 
 ### Read before writing code if
 
@@ -88,7 +88,7 @@ This skill is an **advanced modeling path**, not the default path for database w
 
 3. **Use the right tools**
    - Read/list existing models -> `manageDataModel(action="list"|"get"|"docs")`
-   - Create a new model -> `createDataModel`
+   - Create a new model -> `modifyDataModel` (compatibility name; create-only)
 
 4. **Publish carefully**
    - Prefer creating with unpublished or draft-like intent first.
@@ -170,7 +170,7 @@ Use this before creating related models, checking naming consistency, or assessi
 
 ### Create model
 
-Use `createDataModel` with:
+Use `modifyDataModel` with:
 
 - a complete `mermaidDiagram`
 - `action="create"` when you want to create new models
