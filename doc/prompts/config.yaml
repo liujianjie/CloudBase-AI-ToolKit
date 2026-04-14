@@ -169,13 +169,14 @@ rules:
   
   - id: miniprogram-development
     title: 应用集成：微信小程序
-    description: 微信小程序开发规则和 CloudBase 集成
-    shortDescription: 小程序开发与集成
+    description: 微信小程序开发、tabBar 配置与 CloudBase 集成
+    shortDescription: 小程序开发、tabBar、CloudBase
     category: frontend
     order: 2
     prompts:
       - "帮我创建一个微信小程序项目并集成 CloudBase"
       - "实现小程序与 CloudBase 的完整集成"
+      - "去掉微信小程序 tabBar 图标并消除文字上方空白"
   
   - id: ui-design
     title: 应用集成：UI 设计
