@@ -123,6 +123,8 @@ describe('CloudRun Plugin Tests', () => {
       const schema = queryCloudRunTool.inputSchema;
       expect(schema).toBeDefined();
       expect(schema.action).toBeDefined();
+      expect(JSON.stringify(schema)).toContain('getDeployLog');
+      expect(JSON.stringify(schema)).toContain('buildId');
       
       console.log('✅ queryCloudRun tool has correct schema structure');
       
