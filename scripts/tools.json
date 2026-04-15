@@ -617,7 +617,7 @@
     },
     {
       "name": "modifyDataModel",
-      "description": "基于Mermaid classDiagram创建或更新数据模型。支持创建新模型和更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。",
+      "description": "基于Mermaid classDiagram创建数据模型。为保持兼容性，工具名仍为 modifyDataModel；当前仅支持创建新模型，不支持更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。",
       "inputSchema": {
         "type": "object",
         "properties": {

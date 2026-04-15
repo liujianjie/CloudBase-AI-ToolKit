@@ -21,7 +21,7 @@
 <tr><td><code>querySqlDatabase</code></td><td>Query SQL database information. Supports read-only SQL execution, MySQL provisioning result lookup, MySQL task status lookup, and current instance context discovery.</td></tr>
 <tr><td><code>manageSqlDatabase</code></td><td>Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, write SQL/DDL execution, and schema initialization. IMPORTANT: MySQL must be provisioned first (action=provisionMySQL with confirm=true) before any runStatement or initializeSchema call. If MySQL is not yet provisioned, the tool will return MYSQL_NOT_CREATED with a nextAction to provision first.</td></tr>
 <tr><td><code>manageDataModel</code></td><td>数据模型查询工具，支持查询和列表数据模型（只读操作）。通过 action 参数区分操作类型：list=获取模型列表（不含Schema，可选 names 参数过滤），get=查询单个模型详情（含Schema字段列表、格式、关联关系等，需要提供 name 参数），docs=生成SDK使用文档（需要提供 name 参数）</td></tr>
-<tr><td><code>modifyDataModel</code></td><td>基于Mermaid classDiagram创建或更新数据模型。支持创建新模型和更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。</td></tr>
+<tr><td><code>modifyDataModel</code></td><td>基于Mermaid classDiagram创建数据模型。为保持兼容性，工具名仍为 modifyDataModel；当前仅支持创建新模型，不支持更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。</td></tr>
 <tr><td><code>queryFunctions</code></td><td>函数域统一只读入口。通过更自解释的 action 查询函数列表、函数详情、日志、层、触发器和代码下载地址。</td></tr>
 <tr><td><code>manageFunctions</code></td><td>函数域统一写入口。通过 action 管理函数创建、代码更新、配置更新、调用函数、触发器和层绑定。危险操作需要显式 confirm=true。</td></tr>
 <tr><td><code>uploadFiles</code></td><td>上传文件到静态网站托管，仅用于 Web 站点部署，不用于云存储对象上传。部署前请先完成构建；如果站点会部署到子路径，请检查构建配置中的 publicPath、base、assetPrefix 等是否使用相对路径，避免静态资源加载失败。若需要上传 COS 云存储文件，请使用 manageStorage。对于本地评测、现有脚手架补全或仅需本地开发服务器验证的任务，通常不需要调用此工具，除非用户明确要求部署站点。</td></tr>
@@ -269,7 +269,7 @@ Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, w
 ---
 
 ### `modifyDataModel`
-基于Mermaid classDiagram创建或更新数据模型。支持创建新模型和更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。
+基于Mermaid classDiagram创建数据模型。为保持兼容性，工具名仍为 modifyDataModel；当前仅支持创建新模型，不支持更新现有模型结构。内置异步任务监控，自动轮询直至完成或超时。
 
 #### 参数
 
@@ -392,7 +392,7 @@ classDiagram
 <tr><td><code>functionRootPath</code></td><td>string</td><td></td><td>创建或更新函数代码时默认推荐的本地目录方式。函数根目录（父目录绝对路径）。本地应按 cloudfunctions/&lt;functionName&gt;/index.js 布局，此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。SDK 会自动拼接函数名子目录，无需预先压缩 zip 或 base64 编码。</td></tr>
 <tr><td><code>force</code></td><td>boolean</td><td></td><td>createFunction 时是否覆盖</td></tr>
 <tr><td><code>functionName</code></td><td>string</td><td></td><td>函数名称。大多数 action 使用该字段作为统一目标</td></tr>
-<tr><td><code>zipFile</code></td><td>string</td><td></td><td>仅兼容特殊场景：预先准备好的代码包 base64 编码。普通 createFunction/updateFunctionCode 默认不要先压缩 zip，优先使用 functionRootPath。</td></tr>
+<tr><td><code>zipFile</code></td><td>string</td><td></td><td>代码包的 base64 编码</td></tr>
 <tr><td><code>handler</code></td><td>string</td><td></td><td>函数入口</td></tr>
 <tr><td><code>timeout</code></td><td>number</td><td></td><td>配置更新时的超时时间</td></tr>
 <tr><td><code>envVariables</code></td><td>object</td><td></td><td>配置更新时要合并的环境变量</td></tr>
