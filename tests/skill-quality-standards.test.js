@@ -65,6 +65,23 @@ describe('skill quality standards', () => {
     expect(raw).toMatch(/cost/i);
   });
 
+  test('cloud-functions http reference stays compatible with Express 5 wildcard syntax', () => {
+    const raw = readFile(
+      'config',
+      'source',
+      'skills',
+      'cloud-functions',
+      'references',
+      'http-functions.md',
+    );
+
+    expect(raw).not.toContain('app.all("*")');
+    expect(raw).not.toContain("app.all('/*')");
+    expect(raw).toContain('app.all("/{*splat}", (req, res) => {');
+    expect(raw).toMatch(/Express 5 note:/);
+    expect(raw).toMatch(/path-to-regexp/);
+  });
+
   test('cloudbase-agent does not force global activation by default', () => {
     const raw = readSourceSkill('cloudbase-agent');
 
