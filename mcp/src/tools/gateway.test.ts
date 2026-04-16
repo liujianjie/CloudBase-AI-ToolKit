@@ -162,7 +162,7 @@ describe("gateway tools", () => {
     expect(payload).toMatchObject({
       success: true,
       message:
-        "已为目标 helloFn 创建网关访问路径。注意：路由配置传播通常需要等待 30 秒到 3 分钟，请勿立即访问。",
+        "已为目标 helloFn 创建网关访问路径。注意：路由配置传播通常需要等待 30 秒到 3 分钟，请勿立即访问。该操作只创建网关入口，不会自动放开函数安全规则；若需要匿名或浏览器直接访问，请继续检查函数资源权限。",
       data: {
         action: "createAccess",
         targetType: "function",
@@ -174,6 +174,17 @@ describe("gateway tools", () => {
           tool: "queryGateway",
           action: "getAccess",
           reason: "等待 30 秒到 3 分钟后再确认访问入口是否已生效",
+        }),
+        expect.objectContaining({
+          tool: "queryPermissions",
+          action: "getResourcePermission",
+          reason:
+            "确认函数安全规则是否允许预期访问方；网关 auth=false 不等于函数已允许匿名访问",
+        }),
+        expect.objectContaining({
+          tool: "managePermissions",
+          action: "updateResourcePermission",
+          reason: "只有在确认需要匿名或浏览器直连访问时，才按实际安全要求更新函数权限",
         }),
       ],
     });

@@ -358,12 +358,22 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
           path: accessPath,
           raw: result,
         },
-        `已为目标 ${input.targetName} 创建网关访问路径。注意：路由配置传播通常需要等待 30 秒到 3 分钟，请勿立即访问。`,
+        `已为目标 ${input.targetName} 创建网关访问路径。注意：路由配置传播通常需要等待 30 秒到 3 分钟，请勿立即访问。该操作只创建网关入口，不会自动放开函数安全规则；若需要匿名或浏览器直接访问，请继续检查函数资源权限。`,
         [
           {
             tool: "queryGateway",
             action: "getAccess",
             reason: "等待 30 秒到 3 分钟后再确认访问入口是否已生效",
+          },
+          {
+            tool: "queryPermissions",
+            action: "getResourcePermission",
+            reason: "确认函数安全规则是否允许预期访问方；网关 auth=false 不等于函数已允许匿名访问",
+          },
+          {
+            tool: "managePermissions",
+            action: "updateResourcePermission",
+            reason: "只有在确认需要匿名或浏览器直连访问时，才按实际安全要求更新函数权限",
           },
         ],
       );
@@ -563,7 +573,7 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
     {
       title: "管理网关域资源",
       description:
-        "网关域统一写入口。通过 action 创建目标访问入口，后续承接更通用的网关配置能力。",
+        "网关域统一写入口。通过 action 创建目标访问入口，后续承接更通用的网关配置能力。注意 createAccess 只创建网关入口，不会自动修改函数资源权限。",
       inputSchema: {
         action: z.enum(MANAGE_GATEWAY_ACTIONS).describe("写操作类型，例如 createAccess"),
         targetType: z
@@ -571,9 +581,18 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
           .optional()
           .describe("目标资源类型。当前支持 function，后续可扩展"),
         targetName: z.string().optional().describe("目标资源名称"),
-        path: z.string().optional().describe("访问路径，默认 /{targetName}"),
-        type: z.enum(["Event", "HTTP"]).optional().describe("目标函数的本身类型（非接入形式）。如果被访问的函数是 Event 型（默认），此处必须传 Event；只有当被访问函数在创建时就是 HTTP 函数时才传 HTTP。"),
-        auth: z.boolean().optional().describe("是否开启鉴权"),
+        path: z
+          .string()
+          .optional()
+          .describe("访问路径，默认 /{targetName}。该参数只创建网关入口，不会自动放开函数资源权限。"),
+        type: z
+          .enum(["Event", "HTTP"])
+          .optional()
+          .describe("目标函数的本身类型（非接入形式）。如果被访问的函数是 Event 型（默认），此处必须传 Event；只有当被访问函数在创建时就是 HTTP 函数时才传 HTTP。"),
+        auth: z
+          .boolean()
+          .optional()
+          .describe("是否开启网关路径鉴权。该开关仅控制网关入口本身，不会修改函数资源权限；若需匿名或浏览器直连访问，还需检查并按需调整函数安全规则。"),
         route: z
           .object({
             routeId: z.string().optional(),
