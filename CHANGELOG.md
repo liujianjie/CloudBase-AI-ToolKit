@@ -4,9 +4,11 @@ All notable changes to this project will be documented in this file. Follow the 
 
 ## [1.7.0](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/compare/v1.6.0...v1.7.0) (2025-06-10)
 
+
 ### 其他
 
 * update doc ([bd49e04](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/bd49e0488b5ebcd16dd5d9c19a9ca801b1b0942c))
+
 
 ### 新功能
 
@@ -14,6 +16,7 @@ All notable changes to this project will be documented in this file. Follow the 
 * 增加规则 交互式反馈规则：在需求不明确时主动与用户对话澄清，优先使用自动化工具完成配置。执行高风险操作前必须获得用户确认。环境管理通过login/logout工具完成，交互对话使用interactiveDialog工具处理需求澄清和风险确认。简单修改无需确认，关键节点（如部署、数据删除）需交互，保持消息简洁并用emoji标记状态。 ([c234e9a](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/c234e9a065fc23181125cacafcee0a6d75773762))
 
 ## [1.6.0](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/compare/v1.5.0...v1.6.0) (2025-06-06)
+
 
 ### 其他
 
@@ -24,6 +27,7 @@ All notable changes to this project will be documented in this file. Follow the 
 * update mcp log ([9aa03c8](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/9aa03c8e1d41d90846aba144378c381d2d7f81ed))
 * update rules for envId not found ([0bbd874](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/0bbd87466606c69e48f092870a820cab94f95b8f))
 
+
 ### 新功能
 
 * add rules for cross db query ([de52863](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/de52863f5546f2af667a1477189bcdef7dbb80fe))
@@ -33,13 +37,16 @@ All notable changes to this project will be documented in this file. Follow the 
 
 ## [1.5.0](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/compare/v1.4.0...v1.5.0) (2025-06-04)
 
+
 ### 修复
 
 * function install Deps ([fffd16a](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/fffd16a120642d35dd115539301c05b12ffdbf9e))
 
+
 ### 新功能
 
 * 支持文心快码 Comate ([1df3806](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/1df38060221373fdd41f817c3bffe11412ac4ebd))
+
 
 ### 其他
 
@@ -49,11 +56,13 @@ All notable changes to this project will be documented in this file. Follow the 
 
 ## [1.4.0](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/compare/v1.1.0...v1.4.0) (2025-05-30)
 
+
 ### 其他
 
 * fix docs ([9b998fe](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/9b998fed7abfb0b8a9eccf8350c03bbfa2ca7d7a))
 * update doc ([af460bd](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/af460bdf2d29c65c8f9ba661cf591c3e2e4cbdd2))
 * update download link ([718a065](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/718a065c055940bd3ee85f1e0afb8819afece901))
+
 
 ### 新功能
 
@@ -65,6 +74,7 @@ All notable changes to this project will be documented in this file. Follow the 
 
 ## 1.3.0 (2025-05-28)
 
+
 ### 新功能
 
 * 优化小程序规则 ([b3d8873](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/b3d8873ba2c6540f65f9fdf5ff8b088214743e0d))
@@ -73,11 +83,13 @@ All notable changes to this project will be documented in this file. Follow the 
 * support web auth ([375c70e](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/375c70ec4d665cf32e4273cbc930d3f84e05dbec))
 * update config,support web auth ([870f3d4](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/870f3d4c363970646b0e823587185cefea83bfbc))
 
+
 ### 修复
 
 * **mcp:** 修复 logout 出参的问题 ([3a4e0a4](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/3a4e0a446e73259fc167c82468f0a096bdad235b))
 * update function deploy rules ([2892b07](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/2892b07ddf07fe081ea5c6fe1db5b01c32962722))
 * windsurf error ([500dfd7](https://github.com/TencentCloudBase/CloudBase-AI-ToolKit/commit/500dfd7556dca558ec42d58e38bfdfdaee0bd96b))
+
 
 ### 其他
 
