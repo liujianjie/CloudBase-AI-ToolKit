@@ -11,6 +11,17 @@ inclusion: always
 
 This file is a compatibility projection of the CloudBase routing contract. Keep its semantics aligned with the CloudBase source guideline, and express routing with stable skill identifiers rather than repo-specific file paths.
 
+### Attribution and evaluation guardrails
+
+When a task is triggered by failing evaluations, attribution issues, grader output, benchmark evidence, traces, or result artifacts, treat that evidence as diagnosis input rather than a public product contract.
+
+- Only change product behavior when you can explain a real user-visible defect in this repository.
+- Do not add benchmark-only or grader-only branches, wording, prompts, comments, or shims just to satisfy evaluation output.
+- Do not add multiple naming variants for the same semantic field unless the alias is already part of a documented public contract.
+- Do not leak internal evaluation filenames or context paths in code, comments, docs, commit messages, or PR bodies, including `run-result.json`, `run-trace.json`, `evaluation-trace.json`, and `.codebuddy/attribution-context`; rewrite them as “internal evaluation evidence” when needed.
+- If the evidence points to a grader mismatch, task-contract mismatch, wrong-repo routing, or external limitation rather than a real product defect here, stop product-surface edits and explain that in the summary.
+- Before commit, review the staged diff specifically for evaluator-only wording, internal artifact leakage, and temporary alias-field additions.
+
 ### Global must-read rules
 
 - Identify the scenario first. Do not start implementation before reading the matching rule file.
