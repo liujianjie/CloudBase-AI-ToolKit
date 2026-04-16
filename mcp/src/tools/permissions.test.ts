@@ -155,6 +155,7 @@ describe("permission tools", () => {
         action: "getResourcePermission",
         resourceType: "noSqlDatabase",
         resourceId: "todos",
+        aclTag: "READONLY",
       },
     });
   });
