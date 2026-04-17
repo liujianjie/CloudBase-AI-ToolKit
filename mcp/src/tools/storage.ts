@@ -1,10 +1,16 @@
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
 import { z } from "zod";
 import { getCloudBaseManager } from '../cloudbase-manager.js';
 import { ExtendedMcpServer } from '../server.js';
 
+const MAX_INLINE_TEXT_BYTES = 256 * 1024;
+const STORAGE_READ_TEMP_PREFIX = 'cloudbase-mcp-storage-read-';
+
 // Input schema for queryStorage tool
 const queryStorageInputSchema = {
-  action: z.enum(['list', 'info', 'url']).describe('查询操作类型：list=列出目录下的所有文件，info=获取指定文件的详细信息，url=获取文件的临时下载链接'),
+  action: z.enum(['list', 'info', 'url', 'read']).describe('查询操作类型：list=列出目录下的所有文件，info=获取指定文件的详细信息，url=获取文件的临时下载链接，read=读取文本文件内容'),
   cloudPath: z.string().describe('云端文件路径，例如 files/data.txt 或 files/（目录）'),
   maxAge: z.number().min(1).max(86400).optional().default(3600).describe('临时链接有效期，单位为秒，取值范围：1-86400，默认值：3600（1小时）')
 };
@@ -19,10 +25,29 @@ const manageStorageInputSchema = {
 };
 
 type QueryStorageInput = {
-  action: 'list' | 'info' | 'url';
+  action: 'list' | 'info' | 'url' | 'read';
   cloudPath: string;
   maxAge?: number;
 };
+
+function getStorageTempFileName(cloudPath: string) {
+  const baseName = path.posix.basename(cloudPath);
+  return baseName || 'storage-file';
+}
+
+function decodeInlineTextContent(buffer: Buffer) {
+  const inlineBuffer = buffer.subarray(0, MAX_INLINE_TEXT_BYTES);
+  if (inlineBuffer.includes(0)) {
+    throw new Error('queryStorage action=read 仅支持读取文本文件内容；二进制文件请改用 action=url 获取下载链接，或使用 manageStorage(action="download") 下载到本地。');
+  }
+
+  return {
+    content: inlineBuffer.toString('utf8'),
+    truncated: buffer.length > MAX_INLINE_TEXT_BYTES,
+    sizeBytes: buffer.length,
+    encoding: 'utf8' as const,
+  };
+}
 
 type ManageStorageInput = {
   action: 'upload' | 'download' | 'delete';
@@ -130,6 +155,45 @@ export function registerStorageTools(server: ExtendedMcpServer) {
               }
             ]
           };
+        }
+
+        case 'read': {
+          const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), STORAGE_READ_TEMP_PREFIX));
+          const localPath = path.join(tempDir, getStorageTempFileName(input.cloudPath));
+
+          try {
+            await storageService.downloadFile({
+              cloudPath: input.cloudPath,
+              localPath
+            });
+
+            const buffer = await fs.readFile(localPath);
+            const decoded = decodeInlineTextContent(buffer);
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    success: true,
+                    data: {
+                      action: 'read',
+                      cloudPath: input.cloudPath,
+                      content: decoded.content,
+                      encoding: decoded.encoding,
+                      sizeBytes: decoded.sizeBytes,
+                      truncated: decoded.truncated
+                    },
+                    message: decoded.truncated
+                      ? `Successfully read text content for '${input.cloudPath}' (truncated to ${MAX_INLINE_TEXT_BYTES} bytes)`
+                      : `Successfully read text content for '${input.cloudPath}'`
+                  }, null, 2)
+                }
+              ]
+            };
+          } finally {
+            await fs.rm(tempDir, { recursive: true, force: true });
+          }
         }
 
         default:
