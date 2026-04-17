@@ -36,6 +36,7 @@ If a skill points to its own `references/...` files, keep following those relati
 
 - If the same implementation path fails 2-3 times, stop retrying and reroute. Re-check the selected platform skill, runtime, auth domain, permission model, and SDK boundary before editing more code.
 - Always specify `EnvId` explicitly in code, configuration, and command examples when initializing CloudBase clients or manager operations. Do not rely on the current CLI-selected environment, implicit defaults, or copied local state.
+- When saving MCP or tool results to a local file with a generic file-writing tool, pass text, not raw objects. For JSON output files, serialize first with `JSON.stringify(result, null, 2)` and write that string as the file content.
 - Keep scenario-specific pitfall lists in the matching child skills instead of expanding this entry file.
 
 ### High-priority routing
