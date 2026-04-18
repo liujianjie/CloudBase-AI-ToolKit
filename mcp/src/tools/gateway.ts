@@ -573,26 +573,31 @@ export function registerGatewayTools(server: ExtendedMcpServer) {
     {
       title: "管理网关域资源",
       description:
-        "网关域统一写入口。通过 action 创建目标访问入口，后续承接更通用的网关配置能力。注意 createAccess 只创建网关入口，不会自动修改函数资源权限。",
+        "网关域统一写入口。通过 action 创建目标访问入口，后续承接更通用的网关配置能力。为已存在的 HTTP 云函数补默认域名访问时，通常使用 createAccess 并提供 targetType=\"function\"、targetName、type=\"HTTP\" 与期望 path。注意 createAccess 只创建网关入口，不会自动修改函数资源权限。",
       inputSchema: {
-        action: z.enum(MANAGE_GATEWAY_ACTIONS).describe("写操作类型，例如 createAccess"),
+        action: z
+          .enum(MANAGE_GATEWAY_ACTIONS)
+          .describe("写操作类型，例如 createAccess。为已有函数补默认域名访问入口时使用 createAccess"),
         targetType: z
           .enum(["function"])
           .optional()
           .describe("目标资源类型。当前支持 function，后续可扩展"),
-        targetName: z.string().optional().describe("目标资源名称"),
+        targetName: z
+          .string()
+          .optional()
+          .describe("目标资源名称。createAccess 到云函数时填写函数名"),
         path: z
           .string()
           .optional()
-          .describe("访问路径，默认 /{targetName}。该参数只创建网关入口，不会自动放开函数资源权限。"),
+          .describe("访问路径，默认 /{targetName}。例如为 HTTP 函数暴露 /api/hello 时传 /api/hello。该参数只创建网关入口，不会自动放开函数资源权限。"),
         type: z
           .enum(["Event", "HTTP"])
           .optional()
-          .describe("目标函数的本身类型（非接入形式）。如果被访问的函数是 Event 型（默认），此处必须传 Event；只有当被访问函数在创建时就是 HTTP 函数时才传 HTTP。"),
+          .describe("目标函数的运行时类型，不是接入协议。createAccess 到已创建的 HTTP 云函数时传 HTTP；给 Event 函数补网关访问时传 Event 或省略。"),
         auth: z
           .boolean()
           .optional()
-          .describe("是否开启网关路径鉴权。该开关仅控制网关入口本身，不会修改函数资源权限；若需匿名或浏览器直连访问，还需检查并按需调整函数安全规则。"),
+          .describe("是否开启网关路径鉴权。若要走默认域名做匿名或浏览器访问，通常设为 false；该开关仅控制网关入口本身，不会修改函数资源权限，仍需检查并按需调整函数安全规则。"),
         route: z
           .object({
             routeId: z.string().optional(),

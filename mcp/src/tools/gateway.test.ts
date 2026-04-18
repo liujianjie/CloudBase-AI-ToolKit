@@ -141,6 +141,18 @@ describe("gateway tools", () => {
     ({ tools } = createMockServer());
   });
 
+  it("manageGateway schema should explain how to expose an existing HTTP function", () => {
+    const schema = tools.manageGateway.meta.inputSchema;
+
+    expect(tools.manageGateway.meta.description).toContain("HTTP 云函数补默认域名访问");
+    expect(schema.action.description).toContain("createAccess");
+    expect(schema.action.description).toContain("默认域名访问入口");
+    expect(schema.targetName.description).toContain("填写函数名");
+    expect(schema.path.description).toContain("/api/hello");
+    expect(schema.type.description).toContain("已创建的 HTTP 云函数时传 HTTP");
+    expect(schema.auth.description).toContain("通常设为 false");
+  });
+
   it("manageGateway(action=createAccess) should normalize path and return structured payload", async () => {
     const result = await tools.manageGateway.handler({
       action: "createAccess",
