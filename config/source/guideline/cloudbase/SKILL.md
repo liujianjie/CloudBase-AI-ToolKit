@@ -221,6 +221,7 @@ Prefer long-term memory when available: write the scenarios and working rules th
 2. **Authentication**: Read the `auth-web` and `auth-tool` skills - Use Web SDK built-in authentication
 3. **Database**:
    - NoSQL: `no-sql-web-sdk` skill
+   - Web SDK create-result reminder: after `db.collection(...).add(...)`, the new document ID is `result.id`
    - MySQL: `relational-database-web` and `relational-database-tool` skills
 4. **UI Design** (Recommended): Read the `ui-design` skill for better UI/UX design guidelines
 5. **Quick SDK reference**:
@@ -263,6 +264,7 @@ Prefer long-term memory when available: write the scenarios and working rules th
 
 **Web Projects:**
 - NoSQL Database: Refer to the `no-sql-web-sdk` skill
+- For CloudBase Web SDK `db.collection(...).add(...)`, read the created document ID from `result.id`, not `result.data.id`, `_id`, or `insertedId`
 - MySQL Relational Database: Refer to the `relational-database-web` skill (Web) and `relational-database-tool` skill (Management)
 
 **Mini Program Projects:**
