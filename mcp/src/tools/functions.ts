@@ -374,11 +374,21 @@ export function buildFunctionOperationErrorMessage(
       `当前工具会从 \`functionRootPath + 函数名\` 查找代码目录，期望目录是 \`${expectedFunctionPath}\`。`,
     );
     suggestions.push("如果你传入的已经是函数目录本身，请改为传它的父目录。");
+    if (functionRootPath) {
+      const lastDir = path.basename(path.normalize(functionRootPath));
+      if (lastDir !== "cloudfunctions" && lastDir !== "functions") {
+        suggestions.push(
+          `functionRootPath 应该是直接包含函数文件夹的目录（如 cloudfunctions 或 functions），而不是项目根目录。` +
+          `请将 functionRootPath 改为 \`${path.join(path.normalize(functionRootPath), "cloudfunctions")}\` ` +
+          `或 \`${path.join(path.normalize(functionRootPath), "functions")}\`。`,
+        );
+      }
+    }
   }
 
   if (/paths\[0\].*undefined/i.test(baseMessage)) {
     suggestions.push(
-      "HTTP 函数创建时需要提供 functionRootPath（指向 cloudfunctions 父目录）或 zipFile，否则 SDK 无法定位函数目录。",
+      "HTTP 函数创建时需要提供 functionRootPath（指向 cloudfunctions 或 functions 目录的绝对路径，不是项目根目录）或 zipFile，否则 SDK 无法定位函数目录。",
     );
   }
 
@@ -892,7 +902,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
 
       if (functionType === "HTTP" && !processedRootPath && !input.zipFile) {
         throw new Error(
-          "createFunction 创建 HTTP 函数时，需要提供 functionRootPath（指向 cloudfunctions 父目录）或 zipFile。",
+          "createFunction 创建 HTTP 函数时，需要提供 functionRootPath（指向 cloudfunctions 或 functions 目录的绝对路径，不是项目根目录）或 zipFile。",
         );
       }
 
@@ -1441,9 +1451,11 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
           .describe("写操作类型，例如 createFunction、invokeFunction、attachLayer"),
         func: CREATE_FUNCTION_SCHEMA.optional().describe("createFunction 操作的函数配置"),
         functionRootPath: z.string().optional().describe(
-          "创建或更新函数代码时默认推荐的本地目录方式。函数根目录（父目录绝对路径）。" +
-          "本地应按 cloudfunctions/<functionName>/index.js 布局，" +
-          "此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。" +
+          "创建或更新函数代码时默认推荐的本地目录方式。" +
+          "必须是直接包含函数文件夹的目录绝对路径（如 /abs/path/cloudfunctions 或 /abs/path/functions），" +
+          "不要传项目根目录（如 /abs/path），也不要传到函数名子目录（如 /abs/path/cloudfunctions/hello）。" +
+          "本地应按 cloudfunctions/<functionName>/index.js 或 functions/<functionName>/index.js 布局，" +
+          "此参数传 cloudfunctions 或 functions 目录的绝对路径。" +
           "SDK 会自动拼接函数名子目录，无需预先压缩 zip 或 base64 编码。",
         ),
         force: z.boolean().optional().describe("createFunction 时是否覆盖"),
