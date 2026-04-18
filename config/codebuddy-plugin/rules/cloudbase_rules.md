@@ -36,7 +36,7 @@ updatedAt: 2026-03-27T00:00:00.000Z
 **2.2 工具结果写文件时先序列化**
 - 当使用通用写文件工具把 MCP 或其他工具结果保存到本地文件时，`content` 必须是字符串，不能直接传对象。
 - 如果目标文件是 JSON，先执行 `JSON.stringify(result, null, 2)`，再把返回的字符串写入文件。
-- 如果写文件工具提示 `content` 之类的参数期望 `string` 却收到了 `object`，不要原样重试；先序列化对象，再重试一次。
+- 如果写文件工具提示 `content` 之类的参数期望 `string` 却收到了 `object`，不要原样重试；先序列化对象，再重试一次，并确保重试时真正传入的是序列化后的字符串，而不是原始对象。
 
 **3. 认证区分平台**
 - Web 项目使用 CloudBase Web SDK 内置认证（如 `auth.toDefaultLoginPage()`）
