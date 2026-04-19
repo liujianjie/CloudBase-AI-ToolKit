@@ -191,6 +191,74 @@ function simplifyEnvDomains(domains: unknown) {
   });
 }
 
+function buildEnvDomainManagementResult(params: {
+  action: "create" | "delete";
+  domains: string[];
+  result: unknown;
+}) {
+  const { action, domains, result } = params;
+  const rawResult =
+    result && typeof result === "object" && !Array.isArray(result)
+      ? (result as Record<string, unknown>)
+      : { result };
+
+  if (action === "create") {
+    return {
+      ...rawResult,
+      ok: true,
+      code: "DOMAIN_UPDATE_PENDING",
+      operation: action,
+      targetDomains: domains,
+      asyncState: "PENDING",
+      message:
+        '安全域名已提交添加请求。该变更通常需要约 10 分钟传播，请继续轮询 envQuery(action="domains")，直到目标域名状态为 ENABLE。',
+      propagation: {
+        requiresPolling: true,
+        pollTool: "envQuery",
+        pollAction: "domains",
+        pollIntervalSuggestionSeconds: 10,
+        timeoutSuggestionSeconds: 600,
+        successCondition:
+          '目标域名出现在 envQuery(action="domains") 返回中，且 Status 为 ENABLE。',
+      },
+      next_step: {
+        tool: "envQuery",
+        action: "domains",
+        suggested_args: {
+          action: "domains",
+        },
+      },
+    };
+  }
+
+  return {
+    ...rawResult,
+    ok: true,
+    code: "DOMAIN_DELETE_PENDING",
+    operation: action,
+    targetDomains: domains,
+    asyncState: "PENDING",
+    message:
+      '安全域名已提交删除请求。该变更可能需要数分钟传播，请继续轮询 envQuery(action="domains")，直到目标域名不再出现。',
+    propagation: {
+      requiresPolling: true,
+      pollTool: "envQuery",
+      pollAction: "domains",
+      pollIntervalSuggestionSeconds: 10,
+      timeoutSuggestionSeconds: 600,
+      successCondition:
+        '目标域名不再出现在 envQuery(action="domains") 返回中。',
+    },
+    next_step: {
+      tool: "envQuery",
+      action: "domains",
+      suggested_args: {
+        action: "domains",
+      },
+    },
+  };
+}
+
 function formatDeviceAuthHint(deviceAuthInfo?: DeviceFlowAuthInfo): string {
   if (!deviceAuthInfo) {
     return "";
@@ -1414,7 +1482,7 @@ export function registerEnvTools(server: ExtendedMcpServer) {
     {
       title: "环境域名管理",
       description:
-        "管理云开发环境的安全域名，支持添加和删除操作。（原工具名：createEnvDomain/deleteEnvDomain，为兼容旧AI规则可继续使用这些名称）当浏览器 Web 应用需要从本地 Vite / dev server 或自定义域名直接访问 CloudBase 资源时，应先用 envQuery(action=domains) 检查当前实际浏览器 origin 对应的 host:port 是否已在白名单中，再按该实际值添加。",
+        "管理云开发环境的安全域名，支持添加和删除操作。（原工具名：createEnvDomain/deleteEnvDomain，为兼容旧AI规则可继续使用这些名称）当浏览器 Web 应用需要从本地 Vite / dev server 或自定义域名直接访问 CloudBase 资源时，应先用 envQuery(action=domains) 检查当前实际浏览器 origin 对应的 host:port 是否已在白名单中，再按该实际值添加。新增或删除后通常需要继续轮询 envQuery(action=domains) 确认状态收敛；安全域名一般约 10 分钟生效。",
       inputSchema: {
         action: z
           .enum(["create", "delete"])
@@ -1455,14 +1523,13 @@ export function registerEnvTools(server: ExtendedMcpServer) {
             throw new Error(`不支持的操作类型: ${action}`);
         }
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: `${JSON.stringify(result, null, 2)}\n\n请注意安全域名需要10分钟才能生效，用户也应该了解这一点。`,
-            },
-          ],
-        };
+        return buildJsonToolResult(
+          buildEnvDomainManagementResult({
+            action,
+            domains,
+            result,
+          }),
+        );
       } catch (error) {
         const toolPayloadResult = toolPayloadErrorToResult(error);
         if (toolPayloadResult) {

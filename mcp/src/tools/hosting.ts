@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getCloudBaseManager, getEnvId, logCloudBaseResult } from '../cloudbase-manager.js';
 import { ExtendedMcpServer } from '../server.js';
 import { sendDeployNotification } from '../utils/notification.js';
+import { buildJsonToolResult, toolPayloadErrorToResult } from '../utils/tool-result.js';
 
 
 // 定义扩展的EnvInfo接口，包含StaticStorages属性
@@ -67,6 +68,182 @@ function buildUploadFilesErrorMessage(error: unknown, localPath?: string): strin
   }
 
   return `[uploadFiles] ${baseMessage}\n建议：${suggestions.join(" ")}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getRecordString(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function collectDomainRecords(
+  value: unknown,
+  seen = new Set<unknown>(),
+  depth = 0,
+): Array<Record<string, unknown>> {
+  if (depth > 5 || !value || typeof value !== "object" || seen.has(value)) {
+    return [];
+  }
+
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectDomainRecords(item, seen, depth + 1));
+  }
+
+  const record = value as Record<string, unknown>;
+  const current = getRecordString(record, ["Domain", "domain"])
+    ? [record]
+    : [];
+
+  return current.concat(
+    Object.values(record).flatMap((item) => collectDomainRecords(item, seen, depth + 1)),
+  );
+}
+
+function summarizeHostingDomainCheck(domains: string[], result: unknown) {
+  const targetSet = new Set(domains);
+  const matchedRecords = collectDomainRecords(result).filter((record) => {
+    const domain = getRecordString(record, ["Domain", "domain"]);
+    return domain ? targetSet.has(domain) : false;
+  });
+  const matchedDomains = Array.from(
+    new Set(
+      matchedRecords
+        .map((record) => getRecordString(record, ["Domain", "domain"]))
+        .filter((domain): domain is string => Boolean(domain)),
+    ),
+  );
+
+  return {
+    matchedDomains,
+    missingDomains: domains.filter((domain) => !matchedDomains.includes(domain)),
+    domainDetails: matchedRecords,
+  };
+}
+
+function extractTaskStatus(result: unknown): string | undefined {
+  const candidates: unknown[] = [result];
+
+  if (isRecord(result)) {
+    candidates.push(result.Data, result.Task, result.Result);
+  }
+
+  for (const candidate of candidates) {
+    if (!isRecord(candidate)) {
+      continue;
+    }
+
+    const value = getRecordString(candidate, ["Status", "status", "TaskStatus", "State"]);
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function buildHostingDomainNextStep(domains: string[]) {
+  return {
+    tool: "domainManagement",
+    action: "check",
+    suggested_args: {
+      action: "check",
+      domains,
+    },
+  };
+}
+
+async function describeHostingDomainTask(
+  cloudbase: any,
+  cloudBaseOptions?: { envId?: string },
+  logger?: ExtendedMcpServer["logger"],
+) {
+  try {
+    const envId = await getEnvId(cloudBaseOptions);
+    const service = cloudbase.commonService?.("tcb", "2018-06-08");
+
+    if (!service?.call) {
+      return undefined;
+    }
+
+    const result = await service.call({
+      Action: "DescribeHostingDomainTask",
+      Param: { EnvId: envId },
+    });
+    logCloudBaseResult(logger, result);
+
+    return {
+      rawStatus: extractTaskStatus(result),
+      raw: result,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function buildHostingDomainMutationResult(params: {
+  action: "create" | "delete" | "modify";
+  domain: string;
+  certId?: string;
+  domainId?: number;
+  domainConfig?: unknown;
+  result: unknown;
+  taskStatus?: {
+    rawStatus?: string;
+    raw: unknown;
+  };
+}) {
+  const { action, domain, certId, domainId, domainConfig, result, taskStatus } = params;
+  const actionLabel =
+    action === "create"
+      ? "绑定"
+      : action === "delete"
+        ? "解绑"
+        : "修改";
+  const successIndicator =
+    action === "create"
+      ? `继续调用 domainManagement(action=\"check\", domains=[\"${domain}\"])，直到返回中出现该域名，并且相关状态字段显示为已生效。`
+      : action === "delete"
+        ? `继续调用 domainManagement(action=\"check\", domains=[\"${domain}\"])，直到返回中不再出现该域名。`
+        : `继续调用 domainManagement(action=\"check\", domains=[\"${domain}\"])，确认返回中的配置字段已更新为最新值。`;
+
+  return {
+    ok: true,
+    code: `HOSTING_DOMAIN_${action.toUpperCase()}_PENDING`,
+    action,
+    targetDomains: [domain],
+    ...(certId ? { certId } : {}),
+    ...(domainId !== undefined ? { domainId } : {}),
+    ...(domainConfig ? { domainConfig } : {}),
+    asyncState: "PENDING",
+    message:
+      `静态托管域名${actionLabel}请求已提交。域名配置、证书校验和边缘侧传播通常需要 30 秒到 10 分钟，请继续轮询 domainManagement(action=\"check\") 再确认最终结果。`,
+    propagation: {
+      requiresPolling: true,
+      pollTool: "domainManagement",
+      pollAction: "check",
+      pollIntervalSuggestionSeconds: 30,
+      timeoutSuggestionSeconds: 600,
+      successIndicator,
+    },
+    ...(taskStatus
+      ? {
+          taskStatus,
+        }
+      : {}),
+    next_step: buildHostingDomainNextStep([domain]),
+    result,
+  };
 }
 
 export function registerHostingTools(server: ExtendedMcpServer) {
@@ -258,7 +435,7 @@ export function registerHostingTools(server: ExtendedMcpServer) {
     "domainManagement",
     {
       title: "静态托管域名管理",
-      description: "统一的域名管理工具，支持绑定、解绑、查询和修改域名配置",
+      description: "统一的域名管理工具，支持绑定、解绑、查询和修改域名配置。绑定、解绑和修改通常是异步传播流程，调用后应继续使用 action=check 轮询确认域名是否已出现、已删除或配置已收敛。",
       inputSchema: {
         action: z.enum(["create", "delete", "check", "modify"]).describe("操作类型: create=绑定域名, delete=解绑域名, check=查询域名配置, modify=修改域名配置"),
         // 绑定域名参数
@@ -309,65 +486,134 @@ export function registerHostingTools(server: ExtendedMcpServer) {
       domainId?: number;
       domainConfig?: any;
     }) => {
-      const cloudbase = await getManager()
-      let result;
+      try {
+        const cloudbase = await getManager();
+        let result;
 
-      switch (action) {
-        case "create":
-          if (!domain || !certId) {
-            throw new Error("绑定域名需要提供域名和证书ID");
+        switch (action) {
+          case "create": {
+            if (!domain || !certId) {
+              throw new Error("绑定域名需要提供域名和证书ID");
+            }
+            result = await cloudbase.hosting.CreateHostingDomain({
+              domain,
+              certId
+            });
+            logCloudBaseResult(server.logger, result);
+
+            const taskStatus = await describeHostingDomainTask(cloudbase, cloudBaseOptions, server.logger);
+            return buildJsonToolResult(
+              buildHostingDomainMutationResult({
+                action,
+                domain,
+                certId,
+                result,
+                taskStatus,
+              }),
+            );
           }
-          result = await cloudbase.hosting.CreateHostingDomain({
-            domain,
-            certId
-          });
-          logCloudBaseResult(server.logger, result);
-          break;
 
-        case "delete":
-          if (!domain) {
-            throw new Error("解绑域名需要提供域名");
+          case "delete": {
+            if (!domain) {
+              throw new Error("解绑域名需要提供域名");
+            }
+            result = await cloudbase.hosting.deleteHostingDomain({
+              domain
+            });
+            logCloudBaseResult(server.logger, result);
+
+            const taskStatus = await describeHostingDomainTask(cloudbase, cloudBaseOptions, server.logger);
+            return buildJsonToolResult(
+              buildHostingDomainMutationResult({
+                action,
+                domain,
+                result,
+                taskStatus,
+              }),
+            );
           }
-          result = await cloudbase.hosting.deleteHostingDomain({
-            domain
-          });
-          logCloudBaseResult(server.logger, result);
-          break;
 
-        case "check":
-          if (!domains || domains.length === 0) {
-            throw new Error("查询域名配置需要提供域名列表");
+          case "check": {
+            if (!domains || domains.length === 0) {
+              throw new Error("查询域名配置需要提供域名列表");
+            }
+            result = await cloudbase.hosting.tcbCheckResource({
+              domains
+            });
+            logCloudBaseResult(server.logger, result);
+
+            const summary = summarizeHostingDomainCheck(domains, result);
+            const allMatched = summary.missingDomains.length === 0;
+
+            return buildJsonToolResult({
+              ok: true,
+              code: allMatched ? "HOSTING_DOMAIN_CHECK_READY" : "HOSTING_DOMAIN_CHECK_PENDING",
+              action,
+              queriedDomains: domains,
+              matchedDomains: summary.matchedDomains,
+              missingDomains: summary.missingDomains,
+              domainDetails: summary.domainDetails,
+              message: allMatched
+                ? "已查询到目标静态托管域名配置。若这是绑定或修改后的确认步骤，请继续核对返回中的状态字段、证书信息和配置内容是否符合预期。"
+                : "部分目标静态托管域名尚未在查询结果中出现。若这是绑定后的确认步骤，请继续轮询 domainManagement(action=\"check\") 直到结果收敛或达到超时。",
+              ...(allMatched
+                ? {}
+                : {
+                    next_step: buildHostingDomainNextStep(summary.missingDomains),
+                    propagation: {
+                      requiresPolling: true,
+                      pollTool: "domainManagement",
+                      pollAction: "check",
+                      pollIntervalSuggestionSeconds: 30,
+                      timeoutSuggestionSeconds: 600,
+                      successIndicator: "目标域名出现在返回结果中，并且相关状态字段显示为已生效。",
+                    },
+                  }),
+              result,
+            });
           }
-          result = await cloudbase.hosting.tcbCheckResource({
-            domains
-          });
-          logCloudBaseResult(server.logger, result);
-          break;
 
-        case "modify":
-          if (!domain || domainId === undefined || !domainConfig) {
-            throw new Error("修改域名配置需要提供域名、域名ID和配置信息");
+          case "modify": {
+            if (!domain || domainId === undefined || !domainConfig) {
+              throw new Error("修改域名配置需要提供域名、域名ID和配置信息");
+            }
+            result = await cloudbase.hosting.tcbModifyAttribute({
+              domain,
+              domainId,
+              domainConfig
+            });
+            logCloudBaseResult(server.logger, result);
+
+            const taskStatus = await describeHostingDomainTask(cloudbase, cloudBaseOptions, server.logger);
+            return buildJsonToolResult(
+              buildHostingDomainMutationResult({
+                action,
+                domain,
+                domainId,
+                domainConfig,
+                result,
+                taskStatus,
+              }),
+            );
           }
-          result = await cloudbase.hosting.tcbModifyAttribute({
-            domain,
-            domainId,
-            domainConfig
-          });
-          logCloudBaseResult(server.logger, result);
-          break;
 
-        default:
-          throw new Error(`不支持的操作类型: ${action}`);
+          default:
+            throw new Error(`不支持的操作类型: ${action}`);
+        }
+      } catch (error) {
+        const toolPayloadResult = toolPayloadErrorToResult(error);
+        if (toolPayloadResult) {
+          return toolPayloadResult;
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: `域名管理操作失败: ${error instanceof Error ? error.message : String(error)}`,
+            }
+          ]
+        };
       }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2)
-          }
-        ]
-      };
     }
   );
 }

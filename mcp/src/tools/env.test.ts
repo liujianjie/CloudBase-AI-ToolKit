@@ -1180,4 +1180,89 @@ describe("env tools - envQuery", () => {
       Bucket: null,
     });
   });
+
+  it("envDomainManagement(create) should return structured polling guidance", async () => {
+    const createEnvDomain = vi.fn().mockResolvedValue({
+      RequestId: "req-create-domain",
+    });
+    mockGetCloudBaseManager.mockResolvedValue({
+      env: {
+        createEnvDomain,
+      },
+    });
+
+    const { tools } = createMockServer();
+    const payload = JSON.parse(
+      (
+        await tools.envDomainManagement.handler({
+          action: "create",
+          domains: ["integration.example.com"],
+        })
+      ).content[0].text,
+    );
+
+    expect(createEnvDomain).toHaveBeenCalledWith(["integration.example.com"]);
+    expect(payload).toMatchObject({
+      ok: true,
+      code: "DOMAIN_UPDATE_PENDING",
+      operation: "create",
+      targetDomains: ["integration.example.com"],
+      asyncState: "PENDING",
+      propagation: {
+        requiresPolling: true,
+        pollTool: "envQuery",
+        pollAction: "domains",
+        pollIntervalSuggestionSeconds: 10,
+        timeoutSuggestionSeconds: 600,
+      },
+      next_step: {
+        tool: "envQuery",
+        action: "domains",
+        suggested_args: {
+          action: "domains",
+        },
+      },
+    });
+    expect(payload.message).toContain("继续轮询 envQuery(action=\"domains\")");
+  });
+
+  it("envDomainManagement(delete) should return structured polling guidance", async () => {
+    const deleteEnvDomain = vi.fn().mockResolvedValue({
+      RequestId: "req-delete-domain",
+    });
+    mockGetCloudBaseManager.mockResolvedValue({
+      env: {
+        deleteEnvDomain,
+      },
+    });
+
+    const { tools } = createMockServer();
+    const payload = JSON.parse(
+      (
+        await tools.envDomainManagement.handler({
+          action: "delete",
+          domains: ["integration.example.com"],
+        })
+      ).content[0].text,
+    );
+
+    expect(deleteEnvDomain).toHaveBeenCalledWith(["integration.example.com"]);
+    expect(payload).toMatchObject({
+      ok: true,
+      code: "DOMAIN_DELETE_PENDING",
+      operation: "delete",
+      targetDomains: ["integration.example.com"],
+      asyncState: "PENDING",
+      propagation: {
+        requiresPolling: true,
+        pollTool: "envQuery",
+        pollAction: "domains",
+      },
+      next_step: {
+        tool: "envQuery",
+        action: "domains",
+      },
+    });
+    expect(payload.message).toContain("直到目标域名不再出现");
+  });
 });
