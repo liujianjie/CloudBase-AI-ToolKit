@@ -407,9 +407,10 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
             });
             logCloudBaseResult(server.logger, result);
             const permissions = result.Data.PermissionList ?? [];
+            const matchedPermission =
+              permissions.find((item) => item.Resource === resourceId) ?? permissions[0];
             const securityRule =
-              permissions.find((item) => item.Resource === resourceId)?.SecurityRule ??
-              permissions[0]?.SecurityRule;
+              matchedPermission?.SecurityRule;
             const hints = buildPermissionHints(securityRule, resourceId);
             return buildEnvelope(
               {
@@ -417,6 +418,7 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
                 envId,
                 resourceType,
                 resourceId,
+                aclTag: matchedPermission?.Permission,
                 permissions,
                 hints,
                 raw: result,
