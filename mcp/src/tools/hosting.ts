@@ -487,7 +487,7 @@ export function registerHostingTools(server: ExtendedMcpServer) {
       domainConfig?: any;
     }) => {
       try {
-        const cloudbase = await getManager()
+        const cloudbase = await getManager();
         let result;
 
         switch (action) {
