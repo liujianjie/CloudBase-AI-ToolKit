@@ -267,7 +267,14 @@ const CREATE_FUNCTION_SCHEMA = z.object({
         `  Go: ${RECOMMENDED_RUNTIMES.golang}`,
     ),
   triggers: z.array(TRIGGER_SCHEMA).optional().describe("触发器配置数组"),
-  handler: z.string().optional().describe("函数入口"),
+  handler: z
+    .string()
+    .optional()
+    .describe(
+      "函数入口。" +
+        "Event 函数使用 file.export 格式（如 index.main），表示 index.js 文件导出的 main 方法。" +
+        "HTTP 函数不需要 handler 字段，入口由 scf_bootstrap 启动脚本决定；如果传了 handler 会被忽略或导致启动冲突，请不要为 HTTP 函数设置 handler。",
+    ),
   ignore: z.union([z.string(), z.array(z.string())]).optional().describe("忽略文件"),
   isWaitInstall: z.boolean().optional().describe("是否等待依赖安装"),
   layers: z
@@ -896,6 +903,15 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         );
       }
 
+      // Fail-fast: HTTP functions use scf_bootstrap, not Event-style handler
+      if (functionType === "HTTP" && typeof func.handler === "string" && func.handler.includes(".")) {
+        throw new Error(
+          `createFunction 创建 HTTP 函数时不支持设置 handler="${func.handler}"。` +
+            `HTTP 函数使用 scf_bootstrap 启动脚本监听端口，不需要 file.export 格式的 handler 入口。` +
+            `请移除 func.handler 字段，并确保函数目录中包含 scf_bootstrap 文件和监听端口的入口脚本（如 index.js）。`,
+        );
+      }
+
       const hasPackageJson =
         expectedFunctionPath !== undefined
           ? existsSync(path.join(expectedFunctionPath, "package.json"))
@@ -1451,7 +1467,10 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         zipFile: z.string().optional().describe(
           "仅兼容特殊场景：预先准备好的代码包 base64 编码。普通 createFunction/updateFunctionCode 默认不要先压缩 zip，优先使用 functionRootPath。",
         ),
-        handler: z.string().optional().describe("函数入口"),
+        handler: z.string().optional().describe(
+          "函数入口。Event 函数使用 file.export 格式（如 index.main）；" +
+            "HTTP 函数不需要 handler，由 scf_bootstrap 决定入口，请不要为 HTTP 函数设置此字段。",
+        ),
         timeout: z.number().optional().describe("配置更新时的超时时间"),
         envVariables: z.record(z.string()).optional().describe("配置更新时要合并的环境变量"),
         vpc: VPC_SCHEMA.optional().describe("配置更新时的 VPC 信息"),

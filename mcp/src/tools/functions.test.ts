@@ -127,6 +127,53 @@ describe("functions tool helpers", () => {
     expect(() => resolveEventFunctionRuntime("Ruby3.2")).toThrow(/Python3.9/);
   });
 
+  it("rejects Event-style handler for HTTP functions", async () => {
+    const result = await tools.manageFunctions.handler({
+      action: "createFunction",
+      func: {
+        name: "httpDemo",
+        type: "HTTP",
+        handler: "index.main",
+      },
+      functionRootPath: "/tmp/cloudfunctions",
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload.success).toBe(false);
+    expect(payload.message).toContain("handler=\"index.main\"");
+    expect(payload.message).toContain("scf_bootstrap");
+    expect(mockCreateFunction).not.toHaveBeenCalled();
+  });
+
+  it("allows HTTP functions without handler", async () => {
+    const result = await tools.manageFunctions.handler({
+      action: "createFunction",
+      func: {
+        name: "httpDemo",
+        type: "HTTP",
+      },
+      functionRootPath: "/tmp/cloudfunctions",
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload.success).toBe(true);
+  });
+
+  it("allows Event functions with handler", async () => {
+    const result = await tools.manageFunctions.handler({
+      action: "createFunction",
+      func: {
+        name: "eventDemo",
+        type: "Event",
+        handler: "index.main",
+      },
+      functionRootPath: "/tmp/cloudfunctions",
+    });
+
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload.success).toBe(true);
+  });
+
   it("guides HTTP functions through anonymous-access follow-up without auto-creating gateway access", async () => {
     const result = await tools.manageFunctions.handler({
       action: "createFunction",
