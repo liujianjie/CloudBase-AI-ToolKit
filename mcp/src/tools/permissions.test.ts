@@ -106,6 +106,13 @@ describe("permission tools", () => {
       RequestId: "req-create-user",
     });
     mockGetCloudBaseManager.mockResolvedValue({
+      env: {
+        getEnvInfo: vi.fn().mockResolvedValue({
+          EnvInfo: {
+            Storages: [{ Bucket: "bucket-1" }],
+          },
+        }),
+      },
       permission: {
         describeResourcePermission: mockDescribeResourcePermission,
         describeRoleList: mockDescribeRoleList,
@@ -192,6 +199,56 @@ describe("permission tools", () => {
           "{\"create\":\"auth.uid != null\",\"update\":\"auth.uid != null && (get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid)\",\"delete\":\"auth.uid != null && (get('database.user_roles.' + auth.uid).role == 'admin' || doc.authorId == auth.uid)\"}",
       }),
     ]);
+  });
+
+  it("queryPermissions(action=getResourcePermission) should fail when storage bucket does not exist", async () => {
+    const result = await tools.queryPermissions.handler({
+      action: "getResourcePermission",
+      resourceType: "storage",
+      resourceId: "missing-bucket",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockDescribeResourcePermission).not.toHaveBeenCalled();
+    expect(payload).toMatchObject({
+      success: false,
+      message: "存储 Bucket missing-bucket 不存在",
+    });
+  });
+
+  it("queryPermissions(action=getResourcePermission) should allow existing storage bucket", async () => {
+    mockDescribeResourcePermission.mockResolvedValueOnce({
+      Data: {
+        TotalCount: 1,
+        PermissionList: [
+          {
+            ResourceType: "storage",
+            Resource: "bucket-1",
+            Permission: "ADMINWRITE",
+          },
+        ],
+      },
+      RequestId: "req-storage-perm",
+    });
+
+    const result = await tools.queryPermissions.handler({
+      action: "getResourcePermission",
+      resourceType: "storage",
+      resourceId: "bucket-1",
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(mockDescribeResourcePermission).toHaveBeenCalledWith({
+      resourceType: "storage",
+      resources: ["bucket-1"],
+    });
+    expect(payload).toMatchObject({
+      success: true,
+      data: {
+        resourceType: "storage",
+        resourceId: "bucket-1",
+      },
+    });
   });
 
   it("queryPermissions(action=listResourcePermissions) should include resource-level hints for risky custom rules", async () => {

@@ -301,6 +301,30 @@ function buildPermissionHints(securityRule: string | undefined, resourceId: stri
   ].filter(Boolean) as PermissionHint[];
 }
 
+async function ensureStorageBucketsExist(cloudbase: any, resourceIds: string[]) {
+  if (!resourceIds.length) {
+    return;
+  }
+
+  const envInfo = await cloudbase.env.getEnvInfo();
+  const existingBuckets = new Set(
+    (envInfo?.EnvInfo?.Storages ?? [])
+      .map((item: { Bucket?: string }) => item?.Bucket)
+      .filter((bucket: string | undefined): bucket is string => Boolean(bucket)),
+  );
+  const missingBuckets = resourceIds.filter((resourceId) => !existingBuckets.has(resourceId));
+
+  if (missingBuckets.length === 0) {
+    return;
+  }
+
+  if (missingBuckets.length === 1) {
+    throw new Error(`存储 Bucket ${missingBuckets[0]} 不存在`);
+  }
+
+  throw new Error(`以下存储 Bucket 不存在: ${missingBuckets.join(", ")}`);
+}
+
 export function registerPermissionTools(server: ExtendedMcpServer) {
   const cloudBaseOptions = server.cloudBaseOptions;
   const getManager = () => getCloudBaseManager({ cloudBaseOptions });
@@ -374,6 +398,9 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
             if (!resourceType || !resourceId) {
               throw new Error("action=getResourcePermission 时必须提供 resourceType 和 resourceId");
             }
+            if (resourceType === "storage") {
+              await ensureStorageBucketsExist(cloudbase, [resourceId]);
+            }
             const result = await cloudbase.permission.describeResourcePermission({
               resourceType: mapResourceType(resourceType),
               resources: [resourceId],
@@ -400,6 +427,9 @@ export function registerPermissionTools(server: ExtendedMcpServer) {
           case "listResourcePermissions": {
             if (!resourceType) {
               throw new Error("action=listResourcePermissions 时必须提供 resourceType");
+            }
+            if (resourceType === "storage" && resourceIds?.length) {
+              await ensureStorageBucketsExist(cloudbase, resourceIds);
             }
             const result = await cloudbase.permission.describeResourcePermission({
               resourceType: mapResourceType(resourceType),
