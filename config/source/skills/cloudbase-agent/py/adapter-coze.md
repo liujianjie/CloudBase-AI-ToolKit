@@ -278,7 +278,7 @@ app.use(auth_middleware)
 if __name__ == "__main__":
     app.run(
         create_agent,
-        port=int(os.getenv("PORT", "8000")),
+        port=int(os.getenv("PORT", "9000")),
         host="0.0.0.0"
     )
 ```
@@ -307,7 +307,7 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-ENV PORT=8000
+ENV PORT=9000
 
 CMD ["python", "app.py"]
 ```
@@ -331,7 +331,7 @@ docker run -p 9000:9000 \
     "name": "coze-agent",
     "path": "./",
     "runtime": "Python3.9",
-    "port": 8000,
+    "port": 9000,
     "env": {
       "COZE_BOT_ID": "${COZE_BOT_ID}",
       "COZE_API_KEY": "${COZE_API_KEY}",
