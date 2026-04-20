@@ -82,6 +82,8 @@ Use these rules whenever you are writing the function code itself:
 - Do not write an HTTP Function as `exports.main(event, context)`. That is the Event Function contract.
 - Treat the function as a standard web server process that must listen on port `9000`.
 - With Node.js, prefer `http.createServer((req, res) => { ... })` by default so the runtime contract stays explicit.
+- For Node.js HTTP Functions, choose one module system up front and keep it consistent. Default to CommonJS for simple functions (`require(...)`, no `"type": "module"` in `package.json`) unless you explicitly want ES Modules.
+- If you do choose ES Modules (`"type": "module"` + `import ...`), do not mix in CommonJS-only globals or APIs such as `require(...)`, `module.exports`, or bare `__dirname`. In ESM, derive file paths from `import.meta.url` with `fileURLToPath(...)` only when needed.
 - With the native `http` module, parse `req.url` yourself with `new URL(...)`, and read the request body from the stream before calling `JSON.parse`.
 - Return responses explicitly with `res.writeHead(...)` and `res.end(...)`, including `Content-Type` such as `application/json; charset=utf-8` for JSON APIs.
 - Keep routing and method handling explicit. Unknown paths should return `404`, and known paths with unsupported methods should normally return `405`.
