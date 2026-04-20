@@ -72,7 +72,20 @@ Use this skill when developing, deploying, and operating CloudBase cloud functio
 
 - If the request is for SDK calls, timers, or event-driven workflows, write an **Event Function** with `exports.main = async (event, context) => {}`.
 - If the request is for REST APIs, browser-facing endpoints, SSE, or WebSocket, write an **HTTP Function** with `req` / `res` on port `9000`.
+- For Node.js HTTP Functions, default to the native `http` module unless the user explicitly asks for Express, Koa, NestJS, or another framework.
 - If the user mentions HTTP access for an existing Event Function, keep the Event Function code shape and add gateway access separately.
+
+## HTTP Function authoring contract
+
+Use these rules whenever you are writing the function code itself:
+
+- Do not write an HTTP Function as `exports.main(event, context)`. That is the Event Function contract.
+- Treat the function as a standard web server process that must listen on port `9000`.
+- With Node.js, prefer `http.createServer((req, res) => { ... })` by default so the runtime contract stays explicit.
+- With the native `http` module, parse `req.url` yourself with `new URL(...)`, and read the request body from the stream before calling `JSON.parse`.
+- Return responses explicitly with `res.writeHead(...)` and `res.end(...)`, including `Content-Type` such as `application/json; charset=utf-8` for JSON APIs.
+- Keep routing and method handling explicit. Unknown paths should return `404`, and known paths with unsupported methods should normally return `405`.
+- Keep gateway setup and security-rule changes separate from the runtime code. They affect access, not the HTTP Function programming model.
 
 ## Quick decision table
 
