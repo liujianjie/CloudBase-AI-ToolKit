@@ -191,6 +191,18 @@ const server = http.createServer(async (req, res) => {
 server.listen(9000);
 ```
 
+### Express 5 catch-all note
+
+If the user explicitly asks for Express, keep in mind that Express 5 uses `path-to-regexp` semantics for wildcards. Do not use bare `*` or `/*` as the catch-all route.
+
+```javascript
+app.all("/{*splat}", (req, res) => {
+  res.status(405).json({ error: "Method Not Allowed" });
+});
+```
+
+Express 5 note: `app.all("/{*splat}", (req, res) => {` is the safe catch-all form when you also need to match the root path `/`, because the router is based on `path-to-regexp` rather than the older Express 4 wildcard behavior.
+
 ## Deployment flow
 
 Prefer `manageFunctions` over CLI in agent flows.
