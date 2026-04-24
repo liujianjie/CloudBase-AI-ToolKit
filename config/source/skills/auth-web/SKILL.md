@@ -141,11 +141,15 @@ const uid = data.user.id
 
 **Checking login state (for route guards / auth checks):**
 ```js
-// Use auth.getLoginState() — returns the current session if logged in, null/undefined if not.
-// Do NOT use auth.getUser() alone — it may return an anonymous user when the SDK
-// is initialized with a publishableKey.
+// Use auth.getLoginState() to get the current session.
+// IMPORTANT: uid alone is NOT enough — when the SDK is initialized with a
+// publishableKey it may create an anonymous session that also has a uid.
+// Route guards must reject anonymous sessions explicitly.
 const loginState = await auth.getLoginState()
-const isLoggedIn = !!loginState && !!loginState.uid
+const isRealLogin = !!loginState
+  && !!loginState.uid
+  && loginState.loginType !== 'ANONYMOUS'
+// Use isRealLogin (not just !!uid) to gate protected routes.
 ```
 
 **4. Registration**
