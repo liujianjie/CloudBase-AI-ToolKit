@@ -311,11 +311,61 @@ CloudBase（腾讯云开发）开发阶段登录与环境绑定。登录后即�
           name: "CreateIndexes",
           type: "array of object",
           description: `要添加的索引列表`,
+          children: [
+            {
+              name: "IndexName",
+              type: "string",
+              required: true,
+              description: `要创建的索引名称`,
+            },
+            {
+              name: "MgoKeySchema",
+              type: "object",
+              required: true,
+              description: `待创建索引的字段与约束配置`,
+              children: [
+                {
+                  name: "MgoIsUnique",
+                  type: "boolean",
+                  required: true,
+                  description: `是否唯一索引`,
+                },
+                {
+                  name: "MgoIndexKeys",
+                  type: "array of object",
+                  required: true,
+                  description: `索引字段列表，支持单字段或复合索引`,
+                  children: [
+                    {
+                      name: "Name",
+                      type: "string",
+                      required: true,
+                      description: `索引字段名`,
+                    },
+                    {
+                      name: "Direction",
+                      type: "string",
+                      required: true,
+                      description: `索引方向，通常 1 表示升序，-1 表示降序`,
+                    }
+                  ],
+                }
+              ],
+            }
+          ],
         },
         {
           name: "DropIndexes",
           type: "array of object",
           description: `要删除的索引列表`,
+          children: [
+            {
+              name: "IndexName",
+              type: "string",
+              required: true,
+              description: `要删除的索引名称`,
+            }
+          ],
         }
       ],
     }
@@ -718,10 +768,33 @@ Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, w
         {
           name: "protocolParams",
           type: "object",
+          children: [
+            {
+              name: "wsParams",
+              type: "object",
+              children: [
+                {
+                  name: "idleTimeOut",
+                  type: "number",
+                  description: `WebSocket 空闲超时时间（秒）`,
+                }
+              ],
+            }
+          ],
         },
         {
           name: "instanceConcurrencyConfig",
           type: "object",
+          children: [
+            {
+              name: "dynamicEnabled",
+              type: "boolean",
+            },
+            {
+              name: "maxConcurrency",
+              type: "number",
+            }
+          ],
         },
         {
           name: "timeout",
@@ -737,6 +810,18 @@ Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, w
           name: "vpc",
           type: "object",
           description: `私有网络配置`,
+          children: [
+            {
+              name: "vpcId",
+              type: "string",
+              required: true,
+            },
+            {
+              name: "subnetId",
+              type: "string",
+              required: true,
+            }
+          ],
         },
         {
           name: "runtime",
@@ -747,6 +832,26 @@ Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, w
           name: "triggers",
           type: "array of object",
           description: `触发器配置数组`,
+          children: [
+            {
+              name: "name",
+              type: "string",
+              required: true,
+              description: `触发器名称`,
+            },
+            {
+              name: "type",
+              type: "string",
+              required: true,
+              description: `触发器类型 可填写的值: "timer"`,
+            },
+            {
+              name: "config",
+              type: "string",
+              required: true,
+              description: `触发器配置。timer 必须使用 CloudBase 7 段 cron 格式：秒 分 时 日 月 星期 年。⚠️ 不支持标准 5 段 cron（如 */5 * * * * 是错误的）。正确示例：0 */5 * * * * *（每5分钟）、0 0 2 1 * * *（每月1号2点）、0 30 9 * * * *（每天9:30）`,
+            }
+          ],
         },
         {
           name: "handler",
@@ -767,6 +872,18 @@ Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, w
           name: "layers",
           type: "array of object",
           description: `Layer 配置`,
+          children: [
+            {
+              name: "name",
+              type: "string",
+              required: true,
+            },
+            {
+              name: "version",
+              type: "number",
+              required: true,
+            }
+          ],
         }
       ],
     },
@@ -1030,18 +1147,89 @@ Manage SQL database resources. Supports MySQL provisioning, MySQL destruction, w
         {
           name: "Refer",
           type: "object",
+          children: [
+            {
+              name: "Switch",
+              type: "string",
+              required: true,
+            },
+            {
+              name: "RefererRules",
+              type: "array of object",
+              children: [
+                {
+                  name: "RefererType",
+                  type: "string",
+                  required: true,
+                },
+                {
+                  name: "Referers",
+                  type: "array of string",
+                  required: true,
+                },
+                {
+                  name: "AllowEmpty",
+                  type: "boolean",
+                  required: true,
+                }
+              ],
+            }
+          ],
         },
         {
           name: "Cache",
           type: "array of object",
+          children: [
+            {
+              name: "RuleType",
+              type: "string",
+              required: true,
+            },
+            {
+              name: "RuleValue",
+              type: "string",
+              required: true,
+            },
+            {
+              name: "CacheTtl",
+              type: "number",
+              required: true,
+            }
+          ],
         },
         {
           name: "IpFilter",
           type: "object",
+          children: [
+            {
+              name: "Switch",
+              type: "string",
+              required: true,
+            },
+            {
+              name: "FilterType",
+              type: "string",
+            },
+            {
+              name: "Filters",
+              type: "array of string",
+            }
+          ],
         },
         {
           name: "IpFreqLimit",
           type: "object",
+          children: [
+            {
+              name: "Switch",
+              type: "string",
+              required: true,
+            },
+            {
+              name: "Qps",
+              type: "number",
+            }
+          ],
         }
       ],
     }
@@ -1430,6 +1618,20 @@ API名：storage API介绍：Storage API - 云存储 HTTP API
           name: "PolicyDetails",
           type: "array of object",
           description: `扩缩容配置数组，用于配置服务的自动扩缩容策略。可配置多个扩缩容策略`,
+          children: [
+            {
+              name: "PolicyType",
+              type: "string",
+              required: true,
+              description: `扩缩容类型：cpu=基于CPU使用率扩缩容，mem=基于内存使用率扩缩容，cpu/mem=基于CPU和内存使用率扩缩容 可填写的值: "cpu", "mem", "cpu/mem"`,
+            },
+            {
+              name: "PolicyThreshold",
+              type: "number",
+              required: true,
+              description: `扩缩容阈值，单位为百分比。如60表示当资源使用率达到60%时触发扩缩容`,
+            }
+          ],
         },
         {
           name: "CustomLogs",

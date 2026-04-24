@@ -126,8 +126,10 @@ function schemaToParameters(schema) {
   return `${parts.join(',\n')}`;
 }
 
-function schemaToParametersChildren(propSchema) {
+function schemaToParametersChildren(propSchema, depth = 0) {
   if (!propSchema) return null;
+  const indent = 8 + depth * 4;
+  const innerIndent = indent + 2;
   // array of object
   if (propSchema.type === 'array' && propSchema.items) {
     const inner = propSchema.items;
@@ -136,18 +138,24 @@ function schemaToParametersChildren(propSchema) {
       const parts = [];
       for (const [k, v] of Object.entries(inner.properties)) {
         const lines = [];
-        lines.push(`        {`);
-        lines.push(`          name: "${k}",`);
-        lines.push(`          type: "${typeOfSchema(v)}",`);
-        if (requiredSet.has(k)) lines.push(`          required: true,`);
+        lines.push(`${' '.repeat(indent)}{`);
+        lines.push(`${' '.repeat(innerIndent)}name: "${k}",`);
+        lines.push(`${' '.repeat(innerIndent)}type: "${typeOfSchema(v)}",`);
+        if (requiredSet.has(k)) lines.push(`${' '.repeat(innerIndent)}required: true,`);
         let desc = (v.description || '').replace(/[\r\n]+/g, ' ');
         const enumValues = renderEnum(v);
         if (enumValues) desc += ` 可填写的值: ${enumValues}`;
         if (desc) {
           const escaped = desc.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
-          lines.push(`          description: \`${escaped}\`,`);
+          lines.push(`${' '.repeat(innerIndent)}description: \`${escaped}\`,`);
         }
-        lines.push(`        }`);
+        const nested = schemaToParametersChildren(v, depth + 1);
+        if (nested) {
+          lines.push(`${' '.repeat(innerIndent)}children: [`);
+          lines.push(nested);
+          lines.push(`${' '.repeat(innerIndent)}],`);
+        }
+        lines.push(`${' '.repeat(indent)}}`);
         parts.push(lines.join('\n'));
       }
       return parts.join(',\n');
@@ -159,18 +167,24 @@ function schemaToParametersChildren(propSchema) {
     const parts = [];
     for (const [k, v] of Object.entries(propSchema.properties)) {
       const lines = [];
-      lines.push(`        {`);
-      lines.push(`          name: "${k}",`);
-      lines.push(`          type: "${typeOfSchema(v)}",`);
-      if (requiredSet.has(k)) lines.push(`          required: true,`);
+      lines.push(`${' '.repeat(indent)}{`);
+      lines.push(`${' '.repeat(innerIndent)}name: "${k}",`);
+      lines.push(`${' '.repeat(innerIndent)}type: "${typeOfSchema(v)}",`);
+      if (requiredSet.has(k)) lines.push(`${' '.repeat(innerIndent)}required: true,`);
       let desc = (v.description || '').replace(/[\r\n]+/g, ' ');
       const enumValues = renderEnum(v);
       if (enumValues) desc += ` 可填写的值: ${enumValues}`;
       if (desc) {
         const escaped = desc.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
-        lines.push(`          description: \`${escaped}\`,`);
+        lines.push(`${' '.repeat(innerIndent)}description: \`${escaped}\`,`);
       }
-      lines.push(`        }`);
+      const nested = schemaToParametersChildren(v, depth + 1);
+      if (nested) {
+        lines.push(`${' '.repeat(innerIndent)}children: [`);
+        lines.push(nested);
+        lines.push(`${' '.repeat(innerIndent)}],`);
+      }
+      lines.push(`${' '.repeat(indent)}}`);
       parts.push(lines.join('\n'));
     }
     return parts.join(',\n');
