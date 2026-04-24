@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.join(__dirname, '..');
-const CONFIG_FILE = path.join(ROOT_DIR, 'doc/skills/config.yaml');
+const CONFIG_FILE = path.join(ROOT_DIR, 'doc/prompts/config.yaml');
 const OUTPUT_FILE = path.join(ROOT_DIR, 'doc/components/prompts.json');
 const yaml = await loadYamlModule(ROOT_DIR);
 

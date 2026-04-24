@@ -22,8 +22,8 @@
 
 如果你希望 AI 继续完成页面开发、调试、预览、上线等流程，推荐使用微信小程序 Skill：
 
-- [微信小程序 Skill](../skills/miniprogram-development.mdx)
-- [如何使用 Skill](../skills/how-to-use.mdx)
+- [微信小程序 Skill](../prompts/miniprogram-development.mdx)
+- [如何使用 Skill](../prompts/how-to-use.mdx)
 
 ### 3. 按业务启用 MCP 插件
 
@@ -61,5 +61,5 @@
 
 - [插件系统总览](../plugins.md)
 - [项目模板](../templates.md)
-- [微信小程序 Skill](../skills/miniprogram-development.mdx)
+- [微信小程序 Skill](../prompts/miniprogram-development.mdx)
 - [MCP 工具](../mcp-tools.md)

@@ -249,7 +249,7 @@ cp -r doc/* {cloudbase-docs dir}/docs/ai/cloudbase-ai-toolkit/
 
 5. 本地验证与对外发布
    - 日常只需要修改 `config/source/skills/`、`config/source/guideline/`、`config/source/editor-config/`，其余交给 CI
-   - 如果 Skill 变更会影响对外公开的 skills 文档（例如修改 `config/source/skills/cloudbase-platform/SKILL.md` 需要同步更新 `doc/skills/cloudbase-platform.mdx`），在提交前必须本地运行：
+   - 如果 Skill 变更会影响对外公开的 prompts 文档（例如修改 `config/source/skills/cloudbase-platform/SKILL.md` 需要同步更新 `doc/prompts/cloudbase-platform.mdx`），在提交前必须本地运行：
      - `node scripts/generate-prompts-data.mjs && node scripts/generate-prompts.mjs`
    - 只有在需要本地验证兼容面或同步外部模板仓库时，才运行：
      - `node scripts/sync-claude-skills-mirror.mjs`

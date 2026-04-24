@@ -1,5 +1,5 @@
 // Prompts data loaded from prompts.json
-// This file is auto-generated from doc/skills/config.yaml
+// This file is auto-generated from doc/prompts/config.yaml
 // Run: npm run build:prompts-data
 
 import promptsDataJson from './prompts.json';

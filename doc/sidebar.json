@@ -62,18 +62,18 @@
         "collapsible": true,
         "collapsed": true,
         "items": [
-          "ai/cloudbase-ai-toolkit/skills/how-to-use",
+          "ai/cloudbase-ai-toolkit/prompts/how-to-use",
           {
             "type": "category",
             "label": "身份认证",
             "collapsible": true,
             "collapsed": true,
             "items": [
-              "ai/cloudbase-ai-toolkit/skills/auth-tool",
-              "ai/cloudbase-ai-toolkit/skills/auth-web",
-              "ai/cloudbase-ai-toolkit/skills/auth-wechat",
-              "ai/cloudbase-ai-toolkit/skills/auth-http-api",
-              "ai/cloudbase-ai-toolkit/skills/auth-nodejs"
+              "ai/cloudbase-ai-toolkit/prompts/auth-tool",
+              "ai/cloudbase-ai-toolkit/prompts/auth-web",
+              "ai/cloudbase-ai-toolkit/prompts/auth-wechat",
+              "ai/cloudbase-ai-toolkit/prompts/auth-http-api",
+              "ai/cloudbase-ai-toolkit/prompts/auth-nodejs"
             ]
           },
           {
@@ -82,12 +82,12 @@
             "collapsible": true,
             "collapsed": true,
             "items": [
-              "ai/cloudbase-ai-toolkit/skills/no-sql-web-sdk",
-              "ai/cloudbase-ai-toolkit/skills/no-sql-wx-mp-sdk",
-              "ai/cloudbase-ai-toolkit/skills/relational-database-tool",
-              "ai/cloudbase-ai-toolkit/skills/relational-database-web",
-              "ai/cloudbase-ai-toolkit/skills/data-model-creation",
-              "ai/cloudbase-ai-toolkit/skills/database-http-api"
+              "ai/cloudbase-ai-toolkit/prompts/no-sql-web-sdk",
+              "ai/cloudbase-ai-toolkit/prompts/no-sql-wx-mp-sdk",
+              "ai/cloudbase-ai-toolkit/prompts/relational-database-tool",
+              "ai/cloudbase-ai-toolkit/prompts/relational-database-web",
+              "ai/cloudbase-ai-toolkit/prompts/data-model-creation",
+              "ai/cloudbase-ai-toolkit/prompts/database-http-api"
             ]
           },
           {
@@ -96,8 +96,8 @@
             "collapsible": true,
             "collapsed": true,
             "items": [
-              "ai/cloudbase-ai-toolkit/skills/cloud-functions",
-              "ai/cloudbase-ai-toolkit/skills/cloudrun-development"
+              "ai/cloudbase-ai-toolkit/prompts/cloud-functions",
+              "ai/cloudbase-ai-toolkit/prompts/cloudrun-development"
             ]
           },
           {
@@ -106,10 +106,10 @@
             "collapsible": true,
             "collapsed": true,
             "items": [
-              "ai/cloudbase-ai-toolkit/skills/web-development",
-              "ai/cloudbase-ai-toolkit/skills/miniprogram-development",
-              "ai/cloudbase-ai-toolkit/skills/ui-design",
-              "ai/cloudbase-ai-toolkit/skills/http-api"
+              "ai/cloudbase-ai-toolkit/prompts/web-development",
+              "ai/cloudbase-ai-toolkit/prompts/miniprogram-development",
+              "ai/cloudbase-ai-toolkit/prompts/ui-design",
+              "ai/cloudbase-ai-toolkit/prompts/http-api"
             ]
           },
           {
@@ -118,9 +118,9 @@
             "collapsible": true,
             "collapsed": true,
             "items": [
-              "ai/cloudbase-ai-toolkit/skills/ai-model-web",
-              "ai/cloudbase-ai-toolkit/skills/ai-model-nodejs",
-              "ai/cloudbase-ai-toolkit/skills/ai-model-wechat"
+              "ai/cloudbase-ai-toolkit/prompts/ai-model-web",
+              "ai/cloudbase-ai-toolkit/prompts/ai-model-nodejs",
+              "ai/cloudbase-ai-toolkit/prompts/ai-model-wechat"
             ]
           },
           {
@@ -129,8 +129,8 @@
             "collapsible": true,
             "collapsed": true,
             "items": [
-              "ai/cloudbase-ai-toolkit/skills/spec-workflow",
-              "ai/cloudbase-ai-toolkit/skills/cloudbase-platform"
+              "ai/cloudbase-ai-toolkit/prompts/spec-workflow",
+              "ai/cloudbase-ai-toolkit/prompts/cloudbase-platform"
             ]
           }
         ]
