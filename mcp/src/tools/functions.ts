@@ -1025,7 +1025,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
           tool: "manageGateway",
           action: "createAccess",
           reason:
-            "如果需要通过 URL 访问 HTTP 函数，请按实际路径和鉴权需求显式创建访问入口，不要默认假设 /函数名 已存在",
+            `HTTP 函数需要显式创建网关访问入口，调用时必须传 type="HTTP"、targetType="function"、targetName="${functionName}"，不可省略 type`,
         });
         nextActions.push({
           tool: "queryGateway",
