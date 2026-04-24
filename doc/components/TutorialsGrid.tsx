@@ -389,17 +389,6 @@ const tutorials: Tutorial[] = [
   },
   // 视频
   {
-    id: 'video-vibecoding-compare-coze-cloudbase',
-    title: 'vibecoding托管平台对比 扣子 vs cloudbase',
-    description: '君黎的折腾日常',
-    category: '视频教程',
-    url: 'https://www.bilibili.com/video/BV1vGXEBrERj/',
-    type: 'video',
-    thumbnail: 'https://7463-tcb-advanced-a656fc-1257967285.tcb.qcloud.la/video-thumbnails/BV1vGXEBrERj.jpg',
-    terminalTags: ['Web'],
-    appTypeTags: ['工具/效率'],
-  },
-  {
     id: 'video-figma-codebuddy-miniprogram',
     title: 'Figma + CodeBuddy + CloudBase 实战：完整开发一个微信小程序',
     description: 'JavaPub',

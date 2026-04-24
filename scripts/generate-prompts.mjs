@@ -10,8 +10,8 @@ const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.join(__dirname, '..');
 const SKILLS_DIR = path.join(ROOT_DIR, 'config', 'source', 'skills');
-const PROMPTS_DIR = path.join(ROOT_DIR, 'doc/prompts');
-const CONFIG_FILE = path.join(PROMPTS_DIR, 'config.yaml');
+const SKILLS_DOC_DIR = path.join(ROOT_DIR, 'doc/skills');
+const CONFIG_FILE = path.join(SKILLS_DOC_DIR, 'config.yaml');
 const SIDEBAR_FILE = path.join(ROOT_DIR, 'doc/sidebar.json');
 const yaml = await loadYamlModule(ROOT_DIR);
 
@@ -75,9 +75,21 @@ const SINGLE_INSTALL_REPO = 'https://github.com/tencentcloudbase/skills';
 const SKILL_VIEW_BASE_URL = 'https://skills.sh/tencentcloudbase/skills';
 
 /**
+ * Count the max consecutive backticks in text to determine fence length
+ */
+function maxBacktickRun(text) {
+  let max = 0, cur = 0;
+  for (const ch of text) {
+    if (ch === '`') { cur++; max = Math.max(max, cur); }
+    else { cur = 0; }
+  }
+  return max;
+}
+
+/**
  * Generate MDX content for a single rule
  */
-function generateMDX(ruleConfig) {
+function generateMDX(ruleConfig, files) {
   const { id, title, description, prompts = [], ruleDir } = ruleConfig;
   const skillId = ruleDir || id;
   const singleInstallCommand = `npx skills add ${SINGLE_INSTALL_REPO} --skill ${skillId}`;
@@ -87,7 +99,7 @@ function generateMDX(ruleConfig) {
   
   // How to use section - just a brief note with link
   mdx += `## 如何使用\n\n`;
-  mdx += `查看[如何使用Skill](/ai/cloudbase-ai-toolkit/prompts/how-to-use)了解详细的使用方法。\n\n`;
+  mdx += `查看[如何使用Skill](/ai/cloudbase-ai-toolkit/skills/how-to-use)了解详细的使用方法。\n\n`;
   
   // Test prompts section
   if (prompts.length > 0) {
@@ -108,7 +120,20 @@ function generateMDX(ruleConfig) {
   mdx += `\`\`\`bash\n${FULL_INSTALL_COMMAND}\n\`\`\`\n\n`;
   mdx += `如果只安装当前 Skill，可执行：\n\n`;
   mdx += `\`\`\`bash\n${singleInstallCommand}\n\`\`\`\n\n`;
-  mdx += `当前 Skill 在线查看： [${skillId}](${skillViewUrl})\n`;
+  mdx += `当前 Skill 在线查看： [${skillId}](${skillViewUrl})\n\n`;
+
+  // Embed SKILL.md original content at the very bottom for SEO
+  const skillFile = files.find(f => f.filename === 'SKILL.md');
+  if (skillFile && skillFile.content) {
+    mdx += `---\n\n`;
+    mdx += `## Skill 规则原文\n\n`;
+    mdx += `<details>\n<summary>查看 SKILL.md 原文</summary>\n\n`;
+    // Use enough backticks to safely fence content that may contain ``` itself
+    const fenceLen = Math.max(4, maxBacktickRun(skillFile.content) + 1);
+    const fence = '`'.repeat(fenceLen);
+    mdx += `${fence}markdown\n${skillFile.content}\n${fence}\n\n`;
+    mdx += `</details>\n`;
+  }
   
   return mdx;
 }
@@ -132,7 +157,7 @@ function updateSidebar(config) {
   // Group rules by category
   const rulesByCategory = {};
   for (const rule of config.rules) {
-    const mdxFile = path.join(PROMPTS_DIR, `${rule.id}.mdx`);
+    const mdxFile = path.join(SKILLS_DOC_DIR, `${rule.id}.mdx`);
     if (!fs.existsSync(mdxFile)) {
       continue;
     }
@@ -152,7 +177,7 @@ function updateSidebar(config) {
   // Build category items
   const categoryItems = categories.map(category => {
     const rules = rulesByCategory[category.id] || [];
-    const items = rules.map(rule => `ai/cloudbase-ai-toolkit/prompts/${rule.id}`);
+    const items = rules.map(rule => `ai/cloudbase-ai-toolkit/skills/${rule.id}`);
     
     return {
       type: 'category',
@@ -168,7 +193,7 @@ function updateSidebar(config) {
   if (uncategorizedRules.length > 0) {
     const items = uncategorizedRules
       .sort((a, b) => (a.order || 999) - (b.order || 999))
-      .map(rule => `ai/cloudbase-ai-toolkit/prompts/${rule.id}`);
+      .map(rule => `ai/cloudbase-ai-toolkit/skills/${rule.id}`);
     
     categoryItems.push({
       type: 'category',
@@ -192,7 +217,7 @@ function updateSidebar(config) {
   
   // Create prompts category with subcategories
   // Add "How to use" document at the beginning
-  const howToUseItem = 'ai/cloudbase-ai-toolkit/prompts/how-to-use';
+  const howToUseItem = 'ai/cloudbase-ai-toolkit/skills/how-to-use';
   const promptsCategoryItems = [howToUseItem, ...categoryItems];
   const promptsCategory = {
     type: 'category',
@@ -255,9 +280,9 @@ async function main() {
     process.exit(1);
   }
   
-  // Ensure prompts directory exists
-  if (!fs.existsSync(PROMPTS_DIR)) {
-    fs.mkdirSync(PROMPTS_DIR, { recursive: true });
+  // Ensure skills doc directory exists
+  if (!fs.existsSync(SKILLS_DOC_DIR)) {
+    fs.mkdirSync(SKILLS_DOC_DIR, { recursive: true });
   }
   
   // Process each rule
@@ -279,10 +304,10 @@ async function main() {
     }
     
     // Generate MDX content
-    const mdxContent = generateMDX(ruleConfig);
+    const mdxContent = generateMDX(ruleConfig, files);
     
     // Write to file
-    const outputFile = path.join(PROMPTS_DIR, `${id}.mdx`);
+    const outputFile = path.join(SKILLS_DOC_DIR, `${id}.mdx`);
     fs.writeFileSync(outputFile, mdxContent, 'utf8');
     
     console.log(`Generated: ${outputFile}`);

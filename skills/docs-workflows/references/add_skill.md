@@ -10,9 +10,9 @@ When user inputs `/add-skill` or needs to add a new skill/prompt rule
 
 ### Step 1: Understand Skill Structure
 A skill consists of:
-- **Configuration entry** in `doc/prompts/config.yaml`
+- **Configuration entry** in `doc/skills/config.yaml`
 - **Rule file(s)** in `config/rules/{skill-id}/` directory
-- **Generated documentation** in `doc/prompts/{skill-id}.mdx` (auto-generated)
+- **Generated documentation** in `doc/skills/{skill-id}.mdx` (auto-generated)
 - **Generated prompts data** in `doc/components/prompts.json` (auto-generated from config.yaml)
 - **UI component entry** in `doc/components/PromptScenarios.tsx` (manual update)
 
@@ -54,7 +54,7 @@ Create the rule file(s) in `config/rules/{skill-id}/` directory:
    - All files in the directory will be included in the generated documentation
 
 ### Step 3: Add Configuration to config.yaml
-Add a new entry to `doc/prompts/config.yaml`:
+Add a new entry to `doc/skills/config.yaml`:
 
 ```yaml
   - id: skill-id
@@ -87,7 +87,7 @@ npm run build:prompts-data
 ```
 
 This will:
-- Generate `doc/prompts/{skill-id}.mdx` from the rule files
+- Generate `doc/skills/{skill-id}.mdx` from the rule files
 - Update `doc/sidebar.json` automatically
 - Generate `doc/components/prompts.json` from `config.yaml` (used by `AIDevelopmentPrompt` component)
 
@@ -116,7 +116,7 @@ Manually add the new skill to `doc/components/PromptScenarios.tsx`:
 
 ### Step 6: Verify Generated Files
 Check that:
-- ✅ `doc/prompts/{skill-id}.mdx` exists and has correct content
+- ✅ `doc/skills/{skill-id}.mdx` exists and has correct content
 - ✅ `doc/sidebar.json` includes the new skill in the correct category
 - ✅ `doc/components/prompts.json` includes the new skill with all prompts
 - ✅ `doc/components/PromptScenarios.tsx` includes the new skill
@@ -159,7 +159,7 @@ Check that:
 ## Success Criteria
 
 - [ ] Rule file(s) created in `config/rules/{skill-id}/`
-- [ ] Configuration added to `doc/prompts/config.yaml`
+- [ ] Configuration added to `doc/skills/config.yaml`
 - [ ] Documentation generated via `node scripts/generate-prompts.mjs`
 - [ ] Prompts data generated via `npm run build:prompts-data`
 - [ ] Entry added to `doc/components/PromptScenarios.tsx`

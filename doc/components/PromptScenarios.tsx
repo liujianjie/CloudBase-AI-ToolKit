@@ -47,7 +47,7 @@ export default function PromptScenarios() {
       }
       acc[categoryLabel].items.push({
         ...prompt,
-        docUrl: `/ai/cloudbase-ai-toolkit/prompts/${prompt.id}`,
+        docUrl: `/ai/cloudbase-ai-toolkit/skills/${prompt.id}`,
       });
       return acc;
     }, {} as Record<string, { order: number; items: Array<PromptItem & { docUrl: string }> }>);
