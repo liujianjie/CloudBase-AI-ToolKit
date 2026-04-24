@@ -238,7 +238,13 @@ function renderToolDetails(tool) {
   const lines = [];
   lines.push(`### \`${tool.name}\``);
   if (tool.description) {
-    lines.push(tool.description.trim());
+    // MDX v2 会把正文中的 { ... } 解析为 JSX 表达式，需反斜杠转义
+    const desc = tool.description.trim()
+      .replace(/\\{/g, '\\\\{')
+      .replace(/\\}/g, '\\\\}')
+      .replace(/\{/g, '\\{')
+      .replace(/\}/g, '\\}');
+    lines.push(desc);
   }
   const schema = tool.inputSchema || {};
   if (schema && schema.type === 'object' && schema.properties && Object.keys(schema.properties).length > 0) {
