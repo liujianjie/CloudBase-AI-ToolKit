@@ -54,6 +54,8 @@ Keep local `references/...` paths for files that ship with the current skill dir
 - Forgetting that runtime cannot be changed after creation.
 - Using cloud functions as the first answer for Web login.
 - Forgetting that HTTP Functions must ship `scf_bootstrap`, listen on port `9000`, and include dependencies.
+- Forgetting to configure function security rules after creating an HTTP Function. Default rules reject anonymous callers with `EXCEED_AUTHORITY`. Use `managePermissions(action="updateResourcePermission", resourceType="function")` to allow public access.
+- Mismatching the `scf_bootstrap` Node.js binary path with the function runtime (e.g. using `/var/lang/node18/bin/node` but setting `runtime: "Nodejs16.13"`).
 
 ### Minimal checklist
 
@@ -177,10 +179,21 @@ exports.main = async (event, context) => {
 
 ```js
 const http = require("http");
+const { URL } = require("url");
+
+function sendJson(res, statusCode, data) {
+  res.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(data));
+}
 
 const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ ok: true, message: "hello from http function" }));
+  const url = new URL(req.url || "/", "http://127.0.0.1");
+
+  if (req.method === "GET" && url.pathname === "/") {
+    sendJson(res, 200, { ok: true, message: "hello from http function" });
+  } else {
+    sendJson(res, 404, { error: "Not Found" });
+  }
 });
 
 server.listen(9000);
@@ -192,6 +205,8 @@ server.listen(9000);
 #!/bin/bash
 /var/lang/node18/bin/node index.js
 ```
+
+The `scf_bootstrap` binary path must match the runtime — see the full mapping table in `./references/http-functions.md`.
 
 `cloudfunctions/hello-http/package.json`
 

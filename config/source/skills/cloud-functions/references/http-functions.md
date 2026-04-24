@@ -35,6 +35,16 @@ Requirements:
 - Use LF line endings.
 - Make it executable with `chmod +x scf_bootstrap`.
 
+The `scf_bootstrap` Node.js binary path must match the function runtime. Use this mapping:
+
+| Runtime value | `scf_bootstrap` binary path |
+| --- | --- |
+| `Nodejs20.19` | `/var/lang/node20/bin/node` |
+| `Nodejs18.15` | `/var/lang/node18/bin/node` |
+| `Nodejs16.13` | `/var/lang/node16/bin/node` |
+
+If the user specifies "Node.js 18", use runtime `Nodejs18.15` and the path `/var/lang/node18/bin/node`.
+
 ## Minimal Node.js example
 
 ```javascript
@@ -203,6 +213,15 @@ app.all("/{*splat}", (req, res) => {
 
 Express 5 note: `app.all("/{*splat}", (req, res) => {` is the safe catch-all form when you also need to match the root path `/`, because the router is based on `path-to-regexp` rather than the older Express 4 wildcard behavior.
 
+## End-to-end deployment lifecycle
+
+Follow these steps in order when creating an HTTP Function:
+
+1. **Write the function code** — create the directory with `index.js`, `scf_bootstrap`, and `package.json`.
+2. **Deploy with `manageFunctions`** — set `type: "HTTP"`, `protocolType: "HTTP"`, and `runtime` explicitly.
+3. **Configure security rules** — HTTP Functions default to a restrictive security rule. If the function should be publicly accessible (anonymous access), call `managePermissions(action="updateResourcePermission")` with `resourceType="function"`.
+4. **Verify** — call the function URL and confirm it returns the expected response. If you get `EXCEED_AUTHORITY`, the security rule needs to be updated (step 3).
+
 ## Deployment flow
 
 Prefer `manageFunctions` over CLI in agent flows.
@@ -214,11 +233,42 @@ manageFunctions({
     name: "myHttpFunction",
     type: "HTTP",
     protocolType: "HTTP",
+    runtime: "Nodejs18.15",
     timeout: 60
   },
   functionRootPath: "/absolute/path/to/cloudfunctions"
 });
 ```
+
+**Important parameters:**
+
+- `type: "HTTP"` — marks the function as an HTTP Function (not an Event Function).
+- `protocolType: "HTTP"` — the wire protocol. Use `"WS"` for WebSocket.
+- `runtime` — the execution runtime. Must match the `scf_bootstrap` binary path. Default is `"Nodejs18.15"` if omitted, but always set it explicitly to avoid ambiguity.
+- `functionRootPath` — the parent directory of the function folder (e.g. `/path/to/cloudfunctions` if the code lives in `/path/to/cloudfunctions/myHttpFunction/`).
+
+### Security rule configuration
+
+After creating an HTTP Function, it will reject anonymous callers with `EXCEED_AUTHORITY` by default. If the function should be publicly accessible:
+
+```javascript
+managePermissions({
+  action: "updateResourcePermission",
+  resourceType: "function",
+  resourceId: "myHttpFunction",
+  permission: {
+    aclTag: "CUSTOM",
+    rule: "true"
+  }
+});
+```
+
+- `aclTag: "CUSTOM"` with `rule: "true"` allows all callers (anonymous access).
+- Do NOT use `readSecurityRule` / `writeSecurityRule` — those are removed. Use `queryPermissions` / `managePermissions` instead.
+- Security rule semantics for `resourceType="function"` differ from NoSQL database rules. Do not reuse `doc._openid` or `auth.openid` expressions from NoSQL security rules.
+- Official reference: `https://docs.cloudbase.net/cloud-function/security-rules`
+
+If an external caller reports `EXCEED_AUTHORITY`, inspect the function permission first with `queryPermissions(action="getResourcePermission", resourceType="function", resourceId="myHttpFunction")` before widening access.
 
 ### WebSocket
 
@@ -264,9 +314,7 @@ manageGateway({
 Before enabling anonymous access, confirm both of these:
 
 1. The access path exists.
-2. The function security rule allows the intended caller identity.
-
-If an external caller reports `EXCEED_AUTHORITY`, inspect the function permission first with `queryPermissions(action="getResourcePermission", resourceType="function")` before widening access.
+2. The function security rule allows the intended caller identity (see Security rule configuration above).
 
 ## SSE and WebSocket notes
 
