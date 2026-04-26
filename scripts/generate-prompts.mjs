@@ -75,9 +75,21 @@ const SINGLE_INSTALL_REPO = 'https://github.com/tencentcloudbase/skills';
 const SKILL_VIEW_BASE_URL = 'https://skills.sh/tencentcloudbase/skills';
 
 /**
+ * Count the max consecutive backticks in text to determine fence length
+ */
+function maxBacktickRun(text) {
+  let max = 0, cur = 0;
+  for (const ch of text) {
+    if (ch === '`') { cur++; max = Math.max(max, cur); }
+    else { cur = 0; }
+  }
+  return max;
+}
+
+/**
  * Generate MDX content for a single rule
  */
-function generateMDX(ruleConfig) {
+function generateMDX(ruleConfig, files) {
   const { id, title, description, prompts = [], ruleDir } = ruleConfig;
   const skillId = ruleDir || id;
   const singleInstallCommand = `npx skills add ${SINGLE_INSTALL_REPO} --skill ${skillId}`;
@@ -109,6 +121,18 @@ function generateMDX(ruleConfig) {
   mdx += `如果只安装当前 Skill，可执行：\n\n`;
   mdx += `\`\`\`bash\n${singleInstallCommand}\n\`\`\`\n\n`;
   mdx += `当前 Skill 在线查看： [${skillId}](${skillViewUrl})\n`;
+
+  // Embed SKILL.md original content at the very bottom for SEO
+  const skillFile = files.find(f => f.filename === 'SKILL.md');
+  if (skillFile && skillFile.content) {
+    mdx += `\n---\n\n`;
+    mdx += `## Skill 规则原文\n\n`;
+    mdx += `<details>\n<summary>查看 SKILL.md 原文</summary>\n\n`;
+    const fenceLen = Math.max(4, maxBacktickRun(skillFile.content) + 1);
+    const fence = '`'.repeat(fenceLen);
+    mdx += `${fence}markdown\n${skillFile.content}\n${fence}\n\n`;
+    mdx += `</details>\n`;
+  }
   
   return mdx;
 }
@@ -279,7 +303,7 @@ async function main() {
     }
     
     // Generate MDX content
-    const mdxContent = generateMDX(ruleConfig);
+    const mdxContent = generateMDX(ruleConfig, files);
     
     // Write to file
     const outputFile = path.join(PROMPTS_DIR, `${id}.mdx`);
