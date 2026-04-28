@@ -389,7 +389,7 @@ classDiagram
 <tr><td><code>func.layers</code></td><td>array of object</td><td></td><td>Layer 配置</td></tr>
 <tr><td><code>func.layers[].name</code></td><td>string</td><td>是</td><td></td></tr>
 <tr><td><code>func.layers[].version</code></td><td>number</td><td>是</td><td></td></tr>
-<tr><td><code>functionRootPath</code></td><td>string</td><td></td><td>创建或更新函数代码时默认推荐的本地目录方式。函数根目录（父目录绝对路径）。本地应按 cloudfunctions/&lt;functionName&gt;/index.js 布局，此参数传 cloudfunctions 目录的绝对路径（如 /abs/path/cloudfunctions），不要传到函数名子目录。SDK 会自动拼接函数名子目录，无需预先压缩 zip 或 base64 编码。</td></tr>
+<tr><td><code>functionRootPath</code></td><td>string</td><td></td><td>创建或更新函数代码时默认推荐的本地目录方式。必须是直接包含函数文件夹的目录绝对路径（如 /abs/path/cloudfunctions 或 /abs/path/functions），不要传项目根目录（如 /abs/path），也不要传到函数名子目录（如 /abs/path/cloudfunctions/hello）。本地应按 cloudfunctions/&lt;functionName&gt;/index.js 或 functions/&lt;functionName&gt;/index.js 布局，此参数传 cloudfunctions 或 functions 目录的绝对路径。SDK 会自动拼接函数名子目录，无需预先压缩 zip 或 base64 编码。</td></tr>
 <tr><td><code>force</code></td><td>boolean</td><td></td><td>createFunction 时是否覆盖</td></tr>
 <tr><td><code>functionName</code></td><td>string</td><td></td><td>函数名称。大多数 action 使用该字段作为统一目标</td></tr>
 <tr><td><code>zipFile</code></td><td>string</td><td></td><td>仅兼容特殊场景：预先准备好的代码包 base64 编码。普通 createFunction/updateFunctionCode 默认不要先压缩 zip，优先使用 functionRootPath。</td></tr>
