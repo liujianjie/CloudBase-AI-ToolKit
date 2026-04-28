@@ -330,7 +330,7 @@ For better UI/UX design, consider reading the `ui-design` skill which provides:
 - **MySQL (Tool)**: `relational-database-tool`
 
 ### Storage Skills
-- **Cloud Storage (Web)**: `cloud-storage-web` - Upload, download, temporary URLs, file management
+- **Cloud Storage (Web)**: `cloud-storage-web` - Upload, download, temporary URLs, file management. **Note**: For permanent public URLs, use `envQuery(action=info)` to get `EnvInfo.Storages[0].CdnDomain` and construct `https://{CdnDomain}/{cloudPath}`
 
 ### AI Skills
 - **AI Model (Web)**: `ai-model-web` - Text generation and streaming via @cloudbase/js-sdk

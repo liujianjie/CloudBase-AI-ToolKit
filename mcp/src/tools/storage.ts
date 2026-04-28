@@ -69,7 +69,7 @@ export function registerStorageTools(server: ExtendedMcpServer) {
     "queryStorage",
     {
       title: "查询存储信息",
-      description: "查询云存储信息，支持列出目录文件、获取文件信息、获取临时下载链接等只读操作。返回的文件信息包括文件名、大小、修改时间、下载链接等。",
+      description: "查询云存储信息，支持列出目录文件、获取文件信息、获取临时下载链接等只读操作。返回的文件信息包括文件名、大小、修改时间、下载链接等。注意：action=url 返回的 temporaryUrl 是临时签名链接，有效期由 maxAge 参数决定（默认1小时）。如需获取永久公网访问地址，请使用 envQuery(action=info) 查询环境信息，从返回的 EnvInfo.Storages[0].CdnDomain 字段获取存储桶 CDN 域名，然后拼接为 https://{CdnDomain}/{cloudPath} 格式的公网访问地址。",
       inputSchema: queryStorageInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -207,7 +207,7 @@ export function registerStorageTools(server: ExtendedMcpServer) {
     "manageStorage",
     {
       title: "管理存储文件",
-      description: "管理云存储文件，仅用于 COS/Storage 对象，不用于静态网站托管。支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。",
+      description: "管理云存储文件，仅用于 COS/Storage 对象，不用于静态网站托管。支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。注意：上传后返回的 temporaryUrl 是临时签名链接，有效期1小时后会过期。如需获取永久公网访问地址，请使用 envQuery(action=info) 查询环境信息，从返回的 EnvInfo.Storages[0].CdnDomain 字段获取存储桶 CDN 域名，然后拼接为 https://{CdnDomain}/{cloudPath} 格式的公网访问地址。",
       inputSchema: manageStorageInputSchema,
       annotations: {
         readOnlyHint: false,
@@ -264,7 +264,8 @@ export function registerStorageTools(server: ExtendedMcpServer) {
                     cloudPath: input.cloudPath,
                     isDirectory: input.isDirectory,
                     temporaryUrl: fileUrls[0]?.url || "",
-                    expireTime: "1小时"
+                    expireTime: "1小时",
+                    note: "temporaryUrl 是临时签名链接，1小时后过期。如需永久公网访问地址，请调用 envQuery(action=info) 获取 EnvInfo.Storages[0].CdnDomain，拼接为 https://{CdnDomain}/{cloudPath}"
                   },
                   message: `Successfully uploaded ${input.isDirectory ? 'directory' : 'file'} from '${input.localPath}' to '${input.cloudPath}'`
                 }, null, 2)
