@@ -498,9 +498,9 @@ checkIndex: 检查指定索引是否存在`),
   server.registerTool?.(
     "writeNoSqlDatabaseStructure",
     {
-      title: "修改 NoSQL 数据库结构",
+      title: "创建并管理 NoSQL 数据库集合",
       description:
-        "修改 NoSQL 数据库结构，支持创建/删除集合，以及通过 updateCollection 的 updateOptions.CreateIndexes / updateOptions.DropIndexes 添加索引和删除索引。",
+        "创建、删除和管理 NoSQL 数据库集合（collection）。支持创建新集合、删除现有集合，以及通过 updateCollection 的 updateOptions.CreateIndexes / updateOptions.DropIndexes 添加索引和删除索引。当需要新建集合时，使用 action=createCollection。",
       inputSchema: {
         action: z.enum([
           "createCollection",
