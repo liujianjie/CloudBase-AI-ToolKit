@@ -113,6 +113,32 @@ describe("functions tool helpers", () => {
     expect(message).toContain("package.json");
   });
 
+  it("warns when functionRootPath looks like project root on path-not-found errors", () => {
+    const message = buildFunctionOperationErrorMessage(
+      "createFunction",
+      "hello",
+      "/home/user/my-project",
+      new Error("路径不存在"),
+    );
+
+    expect(message).toContain("functionRootPath");
+    expect(message).toContain("cloudfunctions");
+    expect(message).toContain("functions");
+    expect(message).toContain("/home/user/my-project/cloudfunctions");
+    expect(message).toContain("/home/user/my-project/functions");
+  });
+
+  it("does not warn about project root when functionRootPath already ends with cloudfunctions", () => {
+    const message = buildFunctionOperationErrorMessage(
+      "createFunction",
+      "hello",
+      "/home/user/my-project/cloudfunctions",
+      new Error("路径不存在"),
+    );
+
+    expect(message).not.toContain("functionRootPath 应该是直接包含函数文件夹的目录");
+  });
+
   it("normalizes supported Event runtimes with whitespace", () => {
     expect(resolveEventFunctionRuntime("Python 3.9")).toBe("Python3.9");
     expect(resolveEventFunctionRuntime("Php 7.4")).toBe("Php7.4");
