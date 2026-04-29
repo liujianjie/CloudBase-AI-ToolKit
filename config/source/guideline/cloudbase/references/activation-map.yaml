@@ -152,6 +152,31 @@ scenarios:
     commonMistakes:
       - 把 CloudRun 需求收敛成云函数模板。
 
+  - id: ai-agent
+    priority: 85
+    signals:
+      - AI Agent
+      - 智能体
+      - 智能体开发
+      - AG-UI protocol
+      - LangGraph
+      - LangChain
+      - CrewAI
+      - streaming agent
+      - agent UI
+    firstRead: cloudbase-agent
+    thenRead:
+      - cloud-functions
+      - cloudrun-development
+    beforeAction:
+      - 先确认是 Agent 开发而不是普通云函数。
+      - 确认 AG-UI 协议、SSE streaming、部署目标（云函数或 CloudRun）。
+    doNotUse: []
+    commonMistakes:
+      - 把 Agent 开发误当成普通云函数开发。
+      - 未确认 AG-UI 协议就直接写代码。
+      - 遗漏 SSE streaming 处理或前端事件解析。
+
   - id: ui-first
     priority: 98
     signals:
