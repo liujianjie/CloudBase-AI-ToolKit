@@ -104,6 +104,7 @@ export const MANAGE_FUNCTION_ACTIONS = [
   "updateFunctionCode",
   "updateFunctionConfig",
   "invokeFunction",
+  "deleteFunction",
   "createFunctionTrigger",
   "deleteFunctionTrigger",
   "createLayerVersion",
@@ -1147,6 +1148,30 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
         throw error;
       }
     }
+    case "deleteFunction": {
+      if (!input.functionName) {
+        throw new Error("deleteFunction 操作时，functionName 参数是必需的");
+      }
+      requireConfirm(input.action, input.confirm);
+      const cloudbase = await getManager();
+      const result = await cloudbase.functions.deleteFunction(input.functionName);
+      logCloudBaseResult(server.logger, result);
+      return buildEnvelope(
+        {
+          action: input.action,
+          functionName: input.functionName,
+          raw: result,
+        },
+        `已删除函数 ${input.functionName}`,
+        [
+          {
+            tool: "queryFunctions",
+            action: "listFunctions",
+            reason: "确认函数已被删除",
+          },
+        ],
+      );
+    }
     case "createFunctionTrigger": {
       if (!input.functionName) {
         throw new Error("createFunctionTrigger 操作时，functionName 参数是必需的");
@@ -1448,7 +1473,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
       inputSchema: {
         action: z
           .enum(MANAGE_FUNCTION_ACTIONS)
-          .describe("写操作类型，例如 createFunction、invokeFunction、attachLayer"),
+          .describe("写操作类型，例如 createFunction、updateFunctionCode、invokeFunction、deleteFunction、attachLayer"),
         func: CREATE_FUNCTION_SCHEMA.optional().describe("createFunction 操作的函数配置"),
         functionRootPath: z.string().optional().describe(
           "创建或更新函数代码时默认推荐的本地目录方式。" +
@@ -1482,7 +1507,7 @@ export function registerFunctionTools(server: ExtendedMcpServer) {
           .optional()
           .describe("updateFunctionLayers 的目标层列表，顺序即最终顺序"),
         codeSecret: z.string().optional().describe("层绑定时的代码保护密钥"),
-        confirm: z.boolean().optional().describe("危险操作确认开关"),
+        confirm: z.boolean().optional().describe("危险操作确认开关。deleteFunction、deleteFunctionTrigger、deleteLayerVersion、detachLayer 等删除类操作需要显式传入 confirm=true"),
       },
       annotations: {
         readOnlyHint: false,
