@@ -184,7 +184,10 @@ function simplifyEnvDomains(domains: unknown) {
 
     const source = domain as Record<string, unknown>;
     return {
+      ...(source.Id !== undefined ? { Id: source.Id } : {}),
       ...(source.Domain !== undefined ? { Domain: source.Domain } : {}),
+      ...(source.CreateTime !== undefined ? { CreateTime: source.CreateTime } : {}),
+      ...(source.UpdateTime !== undefined ? { UpdateTime: source.UpdateTime } : {}),
       ...(source.Status !== undefined ? { Status: source.Status } : {}),
       ...(source.Type !== undefined ? { Type: source.Type } : {}),
     };
