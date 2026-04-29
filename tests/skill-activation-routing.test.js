@@ -13,6 +13,7 @@ const ACTIVATION_MAP_FILE = path.join(
   'source',
   'guideline',
   'cloudbase',
+  'references',
   'activation-map.yaml',
 );
 

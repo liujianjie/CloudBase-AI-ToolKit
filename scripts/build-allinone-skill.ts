@@ -133,19 +133,21 @@ function generateRoutingTableFromYaml(): string {
   const data = yaml.load(yamlContent) as { scenarios?: Record<string, any>[] };
   const scenarios = data.scenarios || [];
 
-  let table = '| Scenario | Read first | Then read | Do NOT route to first |\n';
-  table += '|----------|------------|-----------|------------------------|\n';
+  let table = '| Scenario | Read first | Then read | Do NOT route to first | Must check before action |\n';
+  table += '|----------|------------|-----------|------------------------|--------------------------|\n';
 
   for (const s of scenarios) {
-    const id = s.id || '';
+    const scenario = s.label || s.id || '';
     const first = s.firstRead || '';
     const then = (s.thenRead || []).join(', ');
     const donot = (s.doNotUse || []).length > 0 ? (s.doNotUse || []).join(', ') : '-';
-    table += `| ${id} | \`${first}\` | ${then} | ${donot} |\n`;
+    const mustCheck = (s.mustCheckBeforeAction || []).join(', ') || '-';
+    table += `| ${scenario} | \`${first}\` | ${then} | ${donot} | ${mustCheck} |\n`;
   }
 
   return table;
 }
+
 
 // Inject auto-generated routing table into SKILL.md content
 function injectRoutingTable(skillContent: string): string {
