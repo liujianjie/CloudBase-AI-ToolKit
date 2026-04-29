@@ -184,7 +184,9 @@ scenarios:
   beforeAction:
   - 先确认是 Agent 开发而不是普通云函数。
   - 确认 AG-UI 协议、SSE streaming、部署目标（云函数或 CloudRun）。
-  doNotUse: []
+  doNotUse:
+  - cloud-functions
+  - cloudrun-development
   commonMistakes:
   - 把 Agent 开发误当成普通云函数开发。
   - 未确认 AG-UI 协议就直接写代码。

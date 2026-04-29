@@ -82,6 +82,6 @@ When your IDE does not support native MCP, use **mcporter** as the CLI.
 - Query app-side login config:
   `npx mcporter call cloudbase.queryAppAuth action=getLoginConfig --output json`
 - Patch app-side login strategy:
-  `npx mcporter call cloudbase.manageAppAuth action=patchLoginStrategy patch='{"usernamePassword\":true}' --output json`
+  `npx mcporter call cloudbase.manageAppAuth action=patchLoginStrategy patch='{"usernamePassword":true}' --output json`
 - Query publishable key:
   `npx mcporter call cloudbase.queryAppAuth action=getPublishableKey --output json`

@@ -44,20 +44,20 @@ If a skill points to its own `references/...` files, keep following those relati
 
 <!-- DO NOT EDIT: auto-generated from references/activation-map.yaml -->
 
-| Scenario | Read first | Then read | Do NOT route to first |
-|----------|------------|-----------|------------------------|
-| web-auth | `auth-tool` | auth-web, web-development | cloud-functions, http-api |
-| miniapp-cloudbase | `miniprogram-development` | auth-wechat, no-sql-wx-mp-sdk | auth-web, web-development |
-| native-http-api | `http-api` | auth-tool, relational-database-tool | auth-web, no-sql-web-sdk, web-development |
-| web-nosql | `web-development` | no-sql-web-sdk, auth-web | relational-database-tool, http-api |
-| mysql-mcp | `relational-database-tool` | relational-database-web, http-api | no-sql-web-sdk, web-development |
-| cloud-functions | `cloud-functions` | auth-tool, ai-model-nodejs | cloudrun-development, auth-web |
-| cloudrun-backend | `cloudrun-development` | auth-tool, relational-database-tool | cloud-functions |
-| ai-agent | `cloudbase-agent` | cloud-functions, cloudrun-development | - |
-| ui-first | `ui-design` | web-development, miniprogram-development | cloud-functions |
-| ai-web | `web-development` | ai-model-web, ui-design | ai-model-wechat, http-api |
-| ops-inspector | `ops-inspector` | cloud-functions, cloudrun-development | ui-design, spec-workflow |
-| spec-workflow | `spec-workflow` | cloudbase | web-development, cloud-functions |
+| Scenario | Read first | Then read | Do NOT route to first | Must check before action |
+|----------|------------|-----------|------------------------|--------------------------|
+| Web login / registration / auth UI | `auth-tool` | auth-web, web-development | cloud-functions, http-api | Provider status and publishable key |
+| WeChat mini program + CloudBase | `miniprogram-development` | auth-wechat, no-sql-wx-mp-sdk | auth-web, web-development | Whether the project really uses CloudBase / `wx.cloud` |
+| Native App / Flutter / React Native | `http-api` | auth-tool, relational-database-tool | auth-web, no-sql-web-sdk, web-development | SDK boundary, OpenAPI, auth method |
+| Web projects + NoSQL Database | `web-development` | no-sql-web-sdk, auth-web | relational-database-tool, http-api | Login state and database access permission model |
+| MySQL Database (relational) | `relational-database-tool` | relational-database-web, http-api | no-sql-web-sdk, web-development | Distinguish MCP management vs app code access |
+| Cloud Functions | `cloud-functions` | auth-tool, ai-model-nodejs | cloudrun-development, auth-web | Event vs HTTP function, runtime, `scf_bootstrap` |
+| CloudRun backend | `cloudrun-development` | auth-tool, relational-database-tool | cloud-functions | Container boundary, Dockerfile, CORS |
+| AI Agent (智能体开发) | `cloudbase-agent` | cloud-functions, cloudrun-development | cloud-functions, cloudrun-development | AG-UI protocol, scf_bootstrap, SSE streaming |
+| UI generation | `ui-design` | web-development, miniprogram-development | cloud-functions | Design specification first |
+| AI Model (Web) | `web-development` | ai-model-web, ui-design | ai-model-wechat, http-api | Platform and streaming interaction mode |
+| Resource health inspection / troubleshooting | `ops-inspector` | cloud-functions, cloudrun-development | ui-design, spec-workflow | CLS enabled, time range for logs |
+| Spec workflow / architecture design | `spec-workflow` | cloudbase | web-development, cloud-functions | Requirements, design, tasks confirmed |
 
 
 ### Routing reminders
@@ -79,7 +79,7 @@ If a skill points to its own `references/...` files, keep following those relati
 
 ### Approach A: IDE Native MCP
 
-Configure CloudBase MCP via your IDE\'s MCP settings. For detailed config examples (Cursor, Claude Code, Windsurf, Cline, etc.), see `references/mcp-setup.md`.
+Configure CloudBase MCP via your IDE's MCP settings. For detailed config examples (Cursor, Claude Code, Windsurf, Cline, etc.), see `references/mcp-setup.md`.
 
 
 ### Approach B: mcporter CLI
