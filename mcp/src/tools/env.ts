@@ -712,6 +712,59 @@ function normalizeOptionalToolString(value: unknown) {
     : undefined;
 }
 
+/**
+ * Build enhanced error message for envQuery tool errors
+ * Provides actionable guidance based on error patterns
+ */
+function buildEnvQueryErrorMessage(error: unknown, action: string): string {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+
+  // Check for common error patterns and provide specific guidance
+  const hasInvalidParameterError = /400|invalid parameter|invalid argument|parameter value/i.test(baseMessage);
+  const hasAuthError = /未登录|auth required|unauthorized|authentication|credential|token|secret/i.test(baseMessage);
+  const hasNetworkError = /ECONNRESET|socket hang up|ETIMEDOUT|ENOTFOUND|timeout/i.test(baseMessage);
+  const hasPermissionError = /permission|denied|forbidden|无权|拒绝/i.test(baseMessage);
+  const hasEnvNotFoundError = /env|environment|环境.*不存在|not found/i.test(baseMessage);
+
+  const suggestions: string[] = [];
+
+  if (hasInvalidParameterError) {
+    suggestions.push("参数错误：可能是认证信息无效或已过期，请尝试以下步骤：");
+    suggestions.push("1. 先调用 auth(action=\"status\") 检查当前登录状态");
+    suggestions.push("2. 如果未登录，调用 auth(action=\"start_auth\", authMode=\"device\") 完成登录");
+    suggestions.push("3. 登录完成后再次调用 envQuery(action=\"list\")");
+  }
+
+  if (hasAuthError) {
+    suggestions.push("认证错误：当前未登录或认证已过期。");
+    suggestions.push("建议先执行 auth(action=\"status\") 查看状态，然后按提示完成登录。");
+  }
+
+  if (hasPermissionError) {
+    suggestions.push("权限错误：当前账号可能没有访问该资源的权限。");
+    suggestions.push("请确认：1) 已选择正确的环境 2) 账号有对应权限");
+  }
+
+  if (hasEnvNotFoundError) {
+    suggestions.push("环境错误：指定的环境不存在或无法访问。");
+    suggestions.push("请使用 envQuery(action=\"list\") 查看可用的环境列表。");
+  }
+
+  if (hasNetworkError) {
+    suggestions.push("网络错误：请检查网络连接，稍后重试。");
+  }
+
+  // If no specific pattern matched, provide general guidance
+  if (suggestions.length === 0) {
+    suggestions.push("查询环境信息时出错，建议：");
+    suggestions.push("1. 先调用 auth(action=\"status\") 确认登录状态");
+    suggestions.push("2. 如未登录，执行 auth(action=\"start_auth\") 完成认证");
+    suggestions.push("3. 确认环境 ID 正确且可访问");
+  }
+
+  return `[envQuery/${action}] 调用失败: ${baseMessage}\n\n解决建议：\n${suggestions.join("\n")}`;
+}
+
 function normalizeOptionalToolBoolean(value: unknown) {
   return typeof value === "boolean" ? value : undefined;
 }
@@ -1338,15 +1391,12 @@ export function registerEnvTools(server: ExtendedMcpServer) {
                   return toolPayloadResult;
                 }
                 debug("降级到 listEnvs() 也失败:", fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError)));
+                const enhancedMessage = buildEnvQueryErrorMessage(fallbackError, "list");
                 return {
                   content: [
                     {
                       type: "text",
-                      text:
-                        "获取环境列表时出错: " +
-                        (fallbackError instanceof Error
-                          ? fallbackError.message
-                          : String(fallbackError)),
+                      text: enhancedMessage,
                     },
                   ],
                 };
@@ -1467,11 +1517,12 @@ export function registerEnvTools(server: ExtendedMcpServer) {
         if (toolPayloadResult) {
           return toolPayloadResult;
         }
+        const enhancedMessage = buildEnvQueryErrorMessage(error, action);
         return {
           content: [
             {
               type: "text",
-              text: `环境查询失败: ${error instanceof Error ? error.message : String(error)}`,
+              text: enhancedMessage,
             },
           ],
         };
