@@ -125,6 +125,11 @@ function convertMdcToSkill(skillContent: string, noSubSkill: boolean): string {
   return content;
 }
 
+// Escape a literal string for safe use inside a RegExp.
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Generate routing table markdown from activation-map.yaml
 function generateRoutingTableFromYaml(): string {
   const yamlPath = path.join(TOOLKIT_ROOT, SOURCES.guidelineReferences, 'activation-map.yaml');
@@ -133,16 +138,36 @@ function generateRoutingTableFromYaml(): string {
   const data = yaml.load(yamlContent) as { scenarios?: Record<string, any>[] };
   const scenarios = data.scenarios || [];
 
+  const tick = (x: string) => `\`${x}\``;
+  const joinSkills = (arr: string[] | undefined) =>
+    (arr && arr.length > 0) ? arr.map(tick).join(', ') : '-';
+
   let table = '| Scenario | Read first | Then read | Do NOT route to first | Must check before action |\n';
   table += '|----------|------------|-----------|------------------------|--------------------------|\n';
 
   for (const s of scenarios) {
     const scenario = s.label || s.id || '';
-    const first = s.firstRead || '';
-    const then = (s.thenRead || []).join(', ');
-    const donot = (s.doNotUse || []).length > 0 ? (s.doNotUse || []).join(', ') : '-';
+    const first = s.firstRead ? tick(s.firstRead) : '';
+    const then = joinSkills(s.thenRead);
+    const donot = joinSkills(s.doNotUse);
     const mustCheck = (s.mustCheckBeforeAction || []).join(', ') || '-';
-    table += `| ${scenario} | \`${first}\` | ${then} | ${donot} | ${mustCheck} |\n`;
+    table += `| ${scenario} | ${first} | ${then} | ${donot} | ${mustCheck} |\n`;
+  }
+
+  // Emit a trigger vocabulary block so activation-critical keywords
+  // (Chinese + English phrases from activation-map.yaml `signals`) stay
+  // visible in the published SKILL.md — not just in the YAML reference.
+  const triggerLines: string[] = [];
+  for (const s of scenarios) {
+    const label = s.label || s.id || '';
+    const signals: string[] = Array.isArray(s.signals) ? s.signals : [];
+    if (!label || signals.length === 0) continue;
+    triggerLines.push(`- **${label}** — ${signals.join(', ')}`);
+  }
+
+  if (triggerLines.length > 0) {
+    table += '\n#### Activation triggers (derived from `references/activation-map.yaml`)\n\n';
+    table += triggerLines.join('\n') + '\n';
   }
 
   return table;
@@ -158,17 +183,18 @@ function injectRoutingTable(skillContent: string): string {
   const fallbackMarker = 'See `references/activation-map.yaml` for the canonical routing contract';
 
   if (skillContent.includes(marker)) {
-    // Replace from marker to next ### heading
+    // Replace from marker up to the next ### heading
     return skillContent.replace(
-      new RegExp(`${marker}\\n(?:.*\\n)*?(?=\\n### )`),
+      new RegExp(`${escapeRegExp(marker)}\\n(?:.*\\n)*?(?=\\n### )`),
       `${marker}\n\n${table}\n`
     );
   } else if (skillContent.includes(fallbackMarker)) {
-    // Fallback: replace the "See references/..." paragraph
+    // Fallback: replace the "See references/..." paragraph with the
+    // marker + generated table. Use a properly-constructed RegExp with
+    // the dotall flag so `.` crosses newlines.
     return skillContent.replace(
-      fallbackMarker + '.*?(?=\\n### )',
-      `${marker}\n\n${table}\n`,
-      's'  // dotall mode
+      new RegExp(`${escapeRegExp(fallbackMarker)}.*?(?=\\n### )`, 's'),
+      `${marker}\n\n${table}\n`
     );
   }
 
