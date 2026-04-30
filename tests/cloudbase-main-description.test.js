@@ -86,13 +86,13 @@ describe('cloudbase main skill activation description', async () => {
     },
     {
       name: 'Built-in AI',
-      terms: ['AI 对话', 'streaming', '流式输出', 'image generation', 'hunyuan', 'deepseek'],
+      terms: ['AI 对话', 'streaming', '流式输出', 'image generation', 'hunyuan', '内置大模型'],
       minHits: 3,
     },
     {
       name: 'Third-party LLM integration',
-      terms: ['大模型', 'LLM', 'GPT', 'Claude', 'Gemini', '通义千问', '文心一言', '豆包', 'Kimi', 'DeepSeek', 'OpenAI', 'Anthropic'],
-      minHits: 6,
+      terms: ['大模型', 'LLM', '第三方大模型', '大模型接入', '大模型调用', '接入外部大模型', 'LLM API', 'chatbot', 'AI 助手', 'AI agent'],
+      minHits: 5,
     },
     {
       name: 'AI Agent',

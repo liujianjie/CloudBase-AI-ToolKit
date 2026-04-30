@@ -1,6 +1,6 @@
 ---
 name: cloudbase
-description: Use this skill whenever users ask to develop, design, build, deploy, debug, migrate, or troubleshoot anything on CloudBase (腾讯云开发 / 云开发 / TCB / 微信云开发) — across (a) full-stack Web apps, 网站, landing pages, dashboards, admin systems, 管理后台, e-commerce sites, React / Vue / Vite / Next / Nuxt projects; (b) 微信小程序 / 小程序 / WeChat Mini Programs and uni-app; (c) native / mobile / 移动端 / iOS / Android / Flutter / React Native apps via HTTP API; (d) UI / UX / 页面 / 界面 / 登录页 / 注册页 / 表单 / 仪表盘 / login page / signup page / form / dashboard / screen / prototype / mockup / 原型 / 高保真 / visual design specs before writing interface code; (e) authentication — 登录 / 注册 / signin / signup / OAuth / SSO / SMS / 短信验证码 / email / 微信登录 / anonymous login / publishable key / provider configuration; (f) databases — NoSQL 文档数据库, MySQL 关系型数据库, CRUD, 查询, pagination, security rules, data modeling; (g) cloud functions / 云函数 / serverless API / 接口 / HTTP Functions / Event Functions / scf_bootstrap / SCF; (h) CloudRun / 云托管 / container backend / Dockerfile / long-running services; (i) 云存储 / cloud storage / object storage / 文件上传 / file upload / hosting / 静态托管; (j) built-in AI models, AI 能力, AI 对话, streaming, 流式输出, image generation, hunyuan, deepseek via @cloudbase/js-sdk / node-sdk / wx.cloud.extend.AI; (k) integrating third-party LLMs / 大模型 / 大模型接入 / GPT / Claude / Gemini / 通义千问 / 文心一言 / 豆包 / Kimi / DeepSeek / Moonshot / Qwen / OpenAI / Anthropic — chatbot, AI 助手, AI agent backends, API key 管理; (l) AI Agent / 智能体 / 智能体开发 / AG-UI protocol / LangGraph / LangChain / CrewAI / streaming agent UI; (m) CloudBase CLI (tcb) operations, CI/CD deploys, 批量部署; (n) ops — 巡检 / 诊断 / health check / 日志排查 / error inspection / troubleshooting / 故障排查 / CLS 日志; (o) spec workflow / 需求文档 / 技术方案 / 架构设计 / requirements / design doc / tasks.md; (p) comparing CloudBase with Supabase or 从 Supabase 迁移到 CloudBase. Covers backend, database, hosting, cloud functions, CloudRun, storage, AI, Agent, UI design, and ops inspection in one bundled skill with reference sub-skills.
+description: Use this skill whenever users ask to develop, design, build, deploy, debug, migrate, or troubleshoot anything on CloudBase (腾讯云开发 / 云开发 / TCB / 微信云开发) — across (a) full-stack Web apps, 网站, landing pages, dashboards, admin systems, 管理后台, e-commerce sites, React / Vue / Vite / Next / Nuxt projects; (b) 微信小程序 / 小程序 / WeChat Mini Programs and uni-app; (c) native / mobile / 移动端 / iOS / Android / Flutter / React Native apps via HTTP API; (d) UI / UX / 页面 / 界面 / 登录页 / 注册页 / 表单 / 仪表盘 / login page / signup page / form / dashboard / screen / prototype / mockup / 原型 / 高保真 / visual design specs before writing interface code; (e) authentication — 登录 / 注册 / signin / signup / OAuth / SSO / SMS / 短信验证码 / email / 微信登录 / anonymous login / publishable key / provider configuration; (f) databases — NoSQL 文档数据库, MySQL 关系型数据库, CRUD, 查询, pagination, security rules, data modeling; (g) cloud functions / 云函数 / serverless API / 接口 / HTTP Functions / Event Functions / scf_bootstrap / SCF; (h) CloudRun / 云托管 / container backend / Dockerfile / long-running services; (i) 云存储 / cloud storage / object storage / 文件上传 / file upload / hosting / 静态托管; (j) built-in AI models, 内置大模型, AI 能力, AI 对话, streaming, 流式输出, image generation, hunyuan via @cloudbase/js-sdk / node-sdk / wx.cloud.extend.AI; (k) integrating third-party LLMs / 第三方大模型 / 大模型接入 / 大模型调用 / 接入外部大模型 / LLM API — chatbot, AI 助手, AI agent backends, API key 管理, streaming responses, tool calling; (l) AI Agent / 智能体 / 智能体开发 / AG-UI protocol / LangGraph / LangChain / CrewAI / streaming agent UI; (m) CloudBase CLI (tcb) operations, CI/CD deploys, 批量部署; (n) ops — 巡检 / 诊断 / health check / 日志排查 / error inspection / troubleshooting / 故障排查 / CLS 日志; (o) spec workflow / 需求文档 / 技术方案 / 架构设计 / requirements / design doc / tasks.md; (p) comparing CloudBase with Supabase or 从 Supabase 迁移到 CloudBase. Covers backend, database, hosting, cloud functions, CloudRun, storage, AI, Agent, UI design, and ops inspection in one bundled skill with reference sub-skills.
 description_zh: 为你的小程序和 Web/H5 提供一体化运行与部署环境，包括数据库、云函数、云存储、身份权限和静态托管
 description_en: An all-in-one runtime and deployment environment for WeChat Mini Programs and Web/H5 apps, including database, cloud functions, cloud storage, identity and access control, and static hosting.
 version: 2.18.0
@@ -77,14 +77,37 @@ If a skill points to its own `references/...` files, keep following those relati
 
 **CloudBase MCP (Model Context Protocol) is REQUIRED before using any CloudBase capabilities.** Without MCP, you cannot manage environments, deploy functions, operate databases, or perform any CloudBase management tasks.
 
+> ⚠️ **Do not skip this section.** If MCP is not configured, every later step (env query, deploy, database operations, function updates) will fail. Always verify MCP availability first with `npx mcporter list | grep cloudbase` or the IDE's MCP panel before calling any CloudBase tool.
+
 ### Approach A: IDE Native MCP
 
 Configure CloudBase MCP via your IDE's MCP settings. For detailed config examples (Cursor, Claude Code, Windsurf, Cline, etc.), see `references/mcp-setup.md`.
 
 
-### Approach B: mcporter CLI
+### Approach B: mcporter CLI (fallback for IDEs without native MCP)
 
-When your IDE does not support native MCP, use **mcporter** CLI. Config file: `config/mcporter.json`. See `references/mcp-setup.md` for detailed examples.
+When your IDE does **not** support native MCP, you **MUST** configure CloudBase via **mcporter**. Do not skip this and attempt to call CloudBase tools directly — they will not be available.
+
+**Step 1 — Check**: `npx mcporter list | grep cloudbase`
+
+**Step 2 — Configure** (if not found): create `config/mcporter.json` in the project root with this minimal content:
+
+```json
+{
+  "mcpServers": {
+    "cloudbase": {
+      "command": "npx",
+      "args": ["@cloudbase/cloudbase-mcp@latest"],
+      "description": "CloudBase MCP",
+      "lifecycle": "keep-alive"
+    }
+  }
+}
+```
+
+**Step 3 — Verify**: `npx mcporter describe cloudbase --all-parameters`
+
+For the full command reference (list, call, schema, app-auth flows, etc.), see `references/mcp-setup.md`.
 
 
 ### Important Rules
