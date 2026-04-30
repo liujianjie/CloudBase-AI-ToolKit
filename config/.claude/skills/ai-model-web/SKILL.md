@@ -1,6 +1,6 @@
 ---
 name: ai-model-web
-description: Use this skill when developing browser/Web applications (React/Vue/Angular, static websites, SPAs) that need AI capabilities. Features text generation (generateText) and streaming (streamText) via @cloudbase/js-sdk. Default managed model is deepseek-v4-flash; hunyuan-2.0-instruct-20251111 available as alternative. Before calling any model you MUST run a pre-flight eligibility check via callCloudApi (DescribeEnvPostpayPackage for Token Credits resource package, or for WeChat Mini Program switch to ai-model-wechat for inspire plan). Handles non-managed / self-hosted OpenAI-compatible models via custom model integration. 关键词：大模型调用、AI 模型、generateText、streamText、资格检查、Token Credits 资源包、deepseek-v4-flash、hunyuan-exp、自定义模型接入、callCloudApi、DescribeEnvPostpayPackage。NOT for Node.js backend (use ai-model-nodejs), WeChat Mini Program (use ai-model-wechat), or image generation (Node SDK only).
+description: Use this skill when developing browser/Web applications (React/Vue/Angular, static websites, SPAs) that need AI capabilities. Features text generation (generateText) and streaming (streamText) via @cloudbase/js-sdk. Managed AI models are called via ai.createModel("<GroupName>") — the only legal GroupName values are "cloudbase" (main managed group, default-only model is deepseek-v4-flash; other models must be enabled via UpdateAIModel), "hunyuan-exp" (legacy builtin group kept for compatibility), or a user-defined GroupName created via CreateAIModel. Before generating any code you MUST run the two-step preflight — eligibility (DescribeEnvPostpayPackage for Token Credits) and group readiness (DescribeAIModels to inspect the env, DescribeManagedAIModelList to see platform-supported models + pricing, UpdateAIModel with Status:1 to enable a new model). Non-managed / self-hosted OpenAI-compatible models go through CreateAIModel custom-group integration. 关键词：大模型调用、AI 模型、generateText、streamText、createModel、cloudbase 分组、hunyuan-exp、资格检查、分组就绪、Token Credits 资源包、deepseek-v4-flash、UpdateAIModel、DescribeAIModels、DescribeManagedAIModelList、CreateAIModel、自定义模型接入、callCloudApi、DescribeEnvPostpayPackage。NOT for Node.js backend (use ai-model-nodejs), WeChat Mini Program (use ai-model-wechat), or image generation (Node SDK only).
 version: 2.18.0
 alwaysApply: false
 ---
@@ -33,24 +33,17 @@ Use this skill for **calling AI models in browser/Web applications** using `@clo
 
 ---
 
-## 调用前必须的资格检查（Pre-flight Eligibility Check）
+## 调用前必须的两步预检（Pre-flight）
 
-在生成任何 AI 调用代码之前，**先确认当前环境具备调用条件**。直接写代码再解释错误会显著增加用户调试成本。
+在生成任何 AI 调用代码之前，**先跑两步预检**：① 资格 ② 分组就绪。直接写代码再解释错误会显著增加调试成本。
 
-### 步骤 1：获取环境 ID
+### 步骤 0：获取环境 ID
 
 调用 MCP 工具 `envQuery`（`action=info`），从返回值中取出 `EnvId`。后续所有检查与购买链接都使用该 `EnvId`。
 
-### 步骤 2：按场景判定分支
+---
 
-| 用户输入特征 | 进入哪个分支 |
-|-------------|-------------|
-| 未指定模型 / 只说「调用大模型 / AI」 | 分支 A：托管 + Token Credits 资源包 |
-| 指定托管列表内模型（如 `deepseek-v4-flash`、`hunyuan-2.0-instruct-20251111`） | 分支 A |
-| 指定第三方 / 自建私有模型（非托管） | 分支 C：自定义接入（跳到下一章节） |
-| 目标是小程序场景 | 切到 `ai-model-wechat` skill（有小程序成长计划分支） |
-
-### 步骤 3：分支 A — Token Credits 资源包检查
+### 预检 ① 资格检查（Token Credits 资源包）
 
 调用 MCP 工具：
 
@@ -63,38 +56,85 @@ callCloudApi(service="tcb", action="DescribeEnvPostpayPackage", params={ EnvId }
 - 该项 `postpayPackageId` 前缀为 `pkg_tcb_tokencredits_`
 - 该项 `status ∉ [3, 4]`（3 / 4 通常代表已过期 / 已停用；以实际响应为准）
 
-> 参数 / 返回字段大小写以首次实测返回为准。若调用报 `InvalidParameter`，尝试 camelCase（如 `envId` / `envPostpayPackageInfoList`）。
-
-### 步骤 4：结果处理
-
-- ✅ **命中** → 可以继续写代码，未指定模型时使用默认 `deepseek-v4-flash`
 - ❌ **未命中** → **停止写代码**，向用户输出（把 `{envId}` 替换为真实值）：
   > 当前环境未开通 Token Credits 资源包，请先购买后再调用：
   > https://buy.cloud.tencent.com/lowcode?buyType=resPack&envId={envId}&resourceType=token
   >
   > 完成后告诉我一声，我重新检查资源包状态。
 
+- ✅ **命中** → 进入预检 ②。
+
+> 参数 / 返回字段大小写以实测为准。若报 `InvalidParameter`，回退 camelCase（如 `envId` / `envPostpayPackageInfoList`）。小程序场景另有成长计划分支，请切到 `ai-model-wechat` skill。
+
+---
+
+### 预检 ② 分组就绪检查（DescribeAIModels → 必要时 UpdateAIModel）
+
+资格通过后，**不要直接写 `createModel("cloudbase")`**。先确认目标 `GroupName` 在当前环境存在、`Status=1`、且目标 `Model` 已经在 `Models[]` 里。
+
+1. **查当前环境已配置的分组**：
+
+   ```
+   callCloudApi(service="tcb", action="DescribeAIModels", params={ EnvId })
+   ```
+
+   返回 `AIModels[]`，每项含 `GroupName`、`Type`（`builtin`/`custom`）、`Models[{Model, EnableMCP, Tags}]`、`Status`（1=开启/2=关闭）、`BaseUrl`、`Secret`、`Remark`。主打托管分组的 `GroupName` 为 `cloudbase`。
+
+2. **用户没指定模型时**：默认用 `createModel("cloudbase")` + `model: "deepseek-v4-flash"`（托管分组默认就开着这个模型）。若 `cloudbase` 分组缺失或 `Status=2` → 跳到步骤 4 开启。
+
+3. **用户指定了托管列表内的模型**（如 `deepseek-v3.2`、`hunyuan-turbos-latest`）：检查该 `Model` 是否已在 `cloudbase` 分组的 `Models[]` 里；不在 → 跳到步骤 4 开启。
+
+4. **启用/新增托管模型**（可选：先看平台支持和价格）：
+
+   ```
+   callCloudApi(service="tcb", action="DescribeManagedAIModelList", params={ EnvId })
+   ```
+
+   返回 `ManagedAIModelList[]`，每项含 `GroupName`（例：`cloudbase`）、`Remark`、`Models[{Model, EnableMCP, ModelSpec{ContextLength, MaxInputToken, MaxOutputToken}, ModelChargingInfo[{Type, InputPrice, OutputPrice, InputOutputUnit, CachePrice}]}]`。**开通前可用这个接口给用户展示价格**。
+
+   然后发起启用（`Models` 是**全量替换**，所以必须把已开模型连同目标模型一起传）：
+
+   ```
+   callCloudApi(service="tcb", action="UpdateAIModel", params={
+     EnvId,
+     GroupName: "cloudbase",
+     Models: [
+       { Model: "deepseek-v4-flash" },
+       { Model: "<目标模型>" }
+     ],
+     Status: 1
+   })
+   ```
+
+5. **用户要的模型不在托管列表里**（`DescribeManagedAIModelList` 都搜不到）→ 走下一章「不在托管列表时的自定义接入」。
+
+> 参数 / 返回字段采用 PascalCase（`EnvId`/`GroupName`/`Models`/`Status`）。若报 `InvalidParameter` 则以实测为准回退 camelCase。所有 Action 均走 `service=tcb`，`Version=2018-06-08`。
+
 ---
 
 ## Available Providers and Models
 
-CloudBase 托管以下 provider；**未指定模型时默认使用 `deepseek-v4-flash`**。
+`ai.createModel(<GroupName>)` 的参数只有以下三类合法取值：
 
-### 默认 / 推荐（托管 + Token Credits）
+### 1. `"cloudbase"` —— 主打托管分组（推荐）
 
-| Provider | 模型 | 适用 |
-|----------|------|------|
-| `deepseek` | ✅ **`deepseek-v4-flash`**（默认） | 通用对话、文本生成、未指定模型时的首选 |
-| `hunyuan-exp` | `hunyuan-2.0-instruct-20251111` | 中文语境备选；小程序成长计划专属模型（见 `ai-model-wechat`） |
+- GroupName：`cloudbase`，Type：`builtin`，Remark：`腾讯云开发`
+- 内含 DeepSeek、Hunyuan 等多家厂商模型。**默认只开 `deepseek-v4-flash`**；其他模型需要先 `UpdateAIModel` 启用
+- 未指定模型时用 `createModel("cloudbase")` + `model: "deepseek-v4-flash"`
+- 查平台支持哪些 + 价格：`DescribeManagedAIModelList`
+- 查当前环境已开哪些：`DescribeAIModels`
 
-### 兼容可用（不推荐新项目）
+### 2. `"hunyuan-exp"` —— 老 builtin 分组（兼容保留）
 
-保留在托管里但不作为首选推荐；老项目可继续使用：
-`deepseek-r1-0528`、`deepseek-v3-0324`、`deepseek-v3.2`、`hunyuan-turbos-latest`、`hunyuan-t1-latest`、`hunyuan-2.0-thinking-20251109`
+- 小程序成长计划专属场景下有效；Web 端一般不走（请切到 `ai-model-wechat` skill）
+- 常见模型：`hunyuan-2.0-instruct-20251111`、`hunyuan-turbos-latest`、`hunyuan-t1-latest`
 
-### 不在托管列表的模型
+### 3. 用户自定义 GroupName
 
-第三方 / 自建私有模型 → 见下一章节「不在托管列表时的自定义接入」。
+- 通过 `CreateAIModel` 登记（见下一章）；GroupName **不允许以 `cloudbase` 为前缀**
+- 例如 `createModel("my-kimi")`、`createModel("my-openai")`
+
+> **严禁** `createModel("deepseek")` / `createModel("custom")` 这类猜测写法，除非 `DescribeAIModels` 明确返回过对应 `GroupName`（老环境可能存在 `deepseek` / `hunyuan-exp` builtin 分组，兼容可用但新项目建议一律走 `cloudbase`）。
 
 ---
 
@@ -102,20 +142,29 @@ CloudBase 托管以下 provider；**未指定模型时默认使用 `deepseek-v4-
 
 当用户要调用**非托管**的模型（企业自建、第三方 OpenAI 兼容端点等），**不要阻塞**，给出接入指引：
 
-1. 控制台入口：`https://tcb.cloud.tencent.com/dev?envId={envId}#/ai`
-2. 程序化方式（参数名以官方文档及实测为准；若 Action 不可用，回退控制台入口）：
-   ```
-   callCloudApi(service="tcb", action="CreateAIModel", params={
-     EnvId: "<envId>",
-     Provider: "custom",
-     BaseUrl: "<OpenAI 兼容端点>",
-     ApiKey: "<用户持有的 key>",
-     ModelName: "<模型名>"
-   })
-   ```
-3. 配置完成后用 `callCloudApi(tcb, DescribeAIModels, { EnvId })` 查看当前环境已接入的模型列表，再按本 skill 普通 SDK 流程调用。
+### 方式 1：控制台入口（推荐引导用户自己操作）
 
-> 自定义模型的计费由第三方承担，不走 Token Credits 资源包。
+`https://tcb.cloud.tencent.com/dev?envId={envId}#/ai`
+
+### 方式 2：程序化接入（`CreateAIModel`）
+
+```
+callCloudApi(service="tcb", action="CreateAIModel", params={
+  EnvId: "<envId>",
+  GroupName: "<用户自定义名，不能以 cloudbase 为前缀>",
+  BaseUrl: "<OpenAI 兼容端点，例如 https://api.moonshot.cn/v1>",
+  Models: [
+    { Model: "<模型名，例如 kimi-k2.5>", EnableMCP: true }
+  ],
+  Remark: "<备注>",
+  Status: 1,
+  Secret: { ApiKey: "<用户持有的 key>" }
+})
+```
+
+登记完成后，用 `DescribeAIModels` 确认分组已就绪，再在代码里 `ai.createModel("<登记的 GroupName>")` 发起调用。后续若要增删模型、换密钥、改 BaseUrl，使用 `UpdateAIModel`（注意 `Models` 是**全量替换**）；若要移除分组，使用 `DeleteAIModel`（只能删 custom，内置分组无法删）。
+
+> 自定义模型的调用计费由第三方承担，不走 Token Credits 资源包。所有字段大小写以实测为准，报 `InvalidParameter` 则回退 camelCase。
 
 ---
 
@@ -151,13 +200,13 @@ const ai = app.ai();
 
 ## generateText() - Non-streaming
 
-> **前提**：已完成「调用前必须的资格检查」。
+> **前提**：已完成「两步预检」（资格 + 分组就绪）。下例默认用户没指定模型，走 `cloudbase` 托管分组 + `deepseek-v4-flash`。
 
 ```js
-const model = ai.createModel("deepseek");
+const model = ai.createModel("cloudbase");
 
 const result = await model.generateText({
-  model: "deepseek-v4-flash",  // 默认推荐（托管 + Token Credits）
+  model: "deepseek-v4-flash",  // 默认就开着；其他模型需 UpdateAIModel 启用
   messages: [{ role: "user", content: "你好，请你介绍一下李白" }],
 });
 
@@ -171,13 +220,13 @@ console.log(result.rawResponses);   // Raw model responses
 
 ## streamText() - Streaming
 
-> **前提**：已完成「调用前必须的资格检查」。
+> **前提**：已完成「两步预检」。
 
 ```js
-const model = ai.createModel("deepseek");
+const model = ai.createModel("cloudbase");
 
 const res = await model.streamText({
-  model: "deepseek-v4-flash",  // 默认推荐
+  model: "deepseek-v4-flash",
   messages: [{ role: "user", content: "你好，请你介绍一下李白" }],
 });
 
@@ -201,7 +250,7 @@ const usage = await res.usage;        // Token usage
 ## Error Handling Pattern
 
 ```js
-const model = ai.createModel("deepseek");
+const model = ai.createModel("cloudbase");
 
 try {
   const result = await model.generateText({
@@ -259,9 +308,11 @@ interface Usage {
 
 ## Best Practices
 
-1. **Run the pre-flight eligibility check first** — confirm Token Credits 资源包 已开通（或按场景切换到自定义接入），否则模型调用会失败
-2. **Use streaming for long responses** - Better user experience
-3. **Handle errors gracefully** - Wrap AI calls in try/catch
-4. **Keep accessKey secure** - Use publishable key, not secret key
-5. **Initialize early** - Initialize SDK in app entry point
-6. **Ensure authentication** - User must be signed in before AI calls
+1. **Run the two-step preflight first** — ① 资格检查（Token Credits 资源包） + ② 分组就绪检查（`DescribeAIModels` 看已开、必要时 `UpdateAIModel` 全量替换 `Models[]` + `Status:1`）。跳过会直接报模型不存在或未开通。
+2. **`createModel` 的参数只有三种合法取值** — `"cloudbase"`（主打托管）/ `"hunyuan-exp"`（老 builtin，成长计划场景用）/ 用户自定义 GroupName（走 `CreateAIModel`）。**严禁** `createModel("deepseek")` / `createModel("custom")` 这种猜测写法。
+3. **开启新托管模型前先查价格** — `DescribeManagedAIModelList` 返回 `ModelSpec`（上下文长度、最大输入输出 token）+ `ModelChargingInfo`（输入输出价格、缓存价、计费单位）；把价格告知用户再 `UpdateAIModel`。
+4. **Use streaming for long responses** - 更好的交互体验。
+5. **Handle errors gracefully** - Wrap AI calls in try/catch。
+6. **Keep accessKey secure** - Use publishable key, not secret key。
+7. **Initialize early** - 在 app 入口初始化 SDK。
+8. **Ensure authentication** - User must be signed in before AI calls。
