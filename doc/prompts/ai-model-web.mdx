@@ -70,6 +70,50 @@ Use this skill for **calling AI models in browser/Web applications** via `@cloud
 
 ---
 
+## ⛔ STOP — `ai.createModel(...)` argument is **not** a vendor / model name
+
+Read this before writing any `createModel(...)` line. The single most common mistake when agents generate code for this SDK is hallucinating the argument. There are **exactly three** legal shapes. Anything else is a bug.
+
+| ✅ Legal `ai.createModel(...)` argument | When to use it |
+|----------------------------------------|----------------|
+| `"cloudbase"` | **Default for new projects.** The main managed group (TokenHub-backed, multi-vendor pool). Vendor + concrete model go into the **`model` field** of `generateText` / `streamText`, e.g. `{ model: "deepseek-v4-flash" }`. |
+| `"hunyuan-exp"` | Only if `DescribeAIModels` explicitly returns this legacy builtin group for the current env (mainly the Mini Program Growth Plan — see `ai-model-wechat`). |
+| `"custom-<your-name>"` | A user-defined GroupName you onboarded via `CreateAIModel`. **Must** start with `custom-` (e.g. `custom-kimi`, `custom-openai-compat`). |
+
+### ❌ Do NOT write any of these — they are all wrong
+
+```js
+ai.createModel("deepseek")                 // wrong — that's a vendor, not a GroupName
+ai.createModel("deepseek-v4-flash")        // wrong — that's a model name, goes in the `model` field
+ai.createModel("hunyuan")                  // wrong — vendor family, not a GroupName
+ai.createModel("hunyuan-2.0-instruct-20251111")  // wrong — model name
+ai.createModel("glm") / ai.createModel("kimi") / ai.createModel("minimax")  // wrong — vendor names
+ai.createModel("openai") / ai.createModel("moonshot")  // wrong — vendor names
+ai.createModel("custom")                   // wrong — placeholder; use your real custom-<name>
+ai.createModel(modelName)                  // wrong — do not reuse the variable that holds the model id
+```
+
+### ✅ Correct pattern — GroupName vs Model are two different fields
+
+```js
+const model = ai.createModel("cloudbase");          // ← GroupName
+await model.generateText({
+  model: "deepseek-v4-flash",                       // ← concrete model id
+  messages: [...]
+});
+```
+
+### Decision procedure (when the user names a specific model)
+
+1. The user says "use DeepSeek v3.2" / "use hunyuan instruct" / "use Kimi k2.6" / "use GLM-5" / …
+2. `createModel("cloudbase")` stays the same.
+3. Put the model id into the **`model` field**: `{ model: "deepseek-v3.2" }`, `{ model: "hunyuan-2.0-instruct-20251111" }`, `{ model: "kimi-k2.6" }`, `{ model: "glm-5" }`, …
+4. Before using the model id, make sure it is present in `DescribeAIModels({ GroupName: "cloudbase" }).Models[]`. If not, enable it via `UpdateAIModel` (see preflight ② below).
+
+> If you are about to type `ai.createModel(` and the thing inside the parentheses is a vendor name, a model name, or a guess — **stop**. It is almost certainly one of the three legal values above.
+
+---
+
 ## Mandatory Two-Step Preflight (before any SDK code)
 
 Before generating any AI-related SDK code, **run the two-step preflight**: ① eligibility, ② group readiness. Emitting `createModel(...)` straight away and letting the user debug runtime errors is significantly more costly.
@@ -372,6 +416,8 @@ interface Usage {
 7. **Initialize early** — set up the SDK at app entry so auth and AI are both ready before routing.
 8. **Do NOT default to anonymous auth** — require a verified sign-in before calling any AI API. Delegate provider configuration to the `auth-tool` skill and the browser sign-in flow to the `auth-web` skill; the AI-model skill only checks `auth.getLoginState()` and gates the call.
 9. **Distinguish "preflight failure" from "model call failure"** — the former means the user needs to buy a resource pack or call `UpdateAIModel`; the latter is a prompt / parameter / network issue. Give the user different guidance for each.
+10. **TypeScript: do NOT use `any` to silence type errors from the SDK.** The SDK ships its own types; if an error shows up, narrow with `unknown` + a type guard, write a precise `interface` for the shape you actually consume, or augment types in a local `.d.ts`. Never `: any`, `as any`, `@ts-ignore`, or `@ts-nocheck`. See the Engineering constitution in the `web-development` skill.
+11. **Self-verify before claiming done.** Run `tsc --noEmit` + the project build + open the page with `agent-browser` and actually trigger the AI call. Confirm: (a) the text stream reaches the UI, (b) no new console errors, (c) `result.usage` is non-zero. Saying "it should work" without evidence is not acceptable — follow `web-development/browser-testing.md`.
 ````
 
 </details>

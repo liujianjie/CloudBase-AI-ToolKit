@@ -33,6 +33,55 @@ Use this skill for **calling AI models in WeChat Mini Program** using `wx.cloud.
 
 ---
 
+## ⛔ STOP — `wx.cloud.extend.AI.createModel(provider)` argument is **not** a vendor / model name
+
+Read this before writing any `createModel(...)` line. Agents frequently hallucinate this argument. There are **exactly three** legal shapes. Anything else is a bug.
+
+| ✅ Legal `createModel(provider)` argument | When to use it |
+|-----------------------------------------|----------------|
+| `"hunyuan-exp"` | The Mini Program **成长计划** (`ai_miniprogram_inspire_plan`) is enrolled for the current env. Default model: `hunyuan-2.0-instruct-20251111`. |
+| `"cloudbase"` | Default fallback. Main managed group (TokenHub-backed, multi-vendor pool). Vendor + concrete model go into the **`model` field**, e.g. `{ model: "deepseek-v4-flash" }`. |
+| `"custom-<your-name>"` | A user-defined GroupName you onboarded via `CreateAIModel`. **Must** start with `custom-` (e.g. `custom-kimi`, `custom-openai-compat`). |
+
+### ❌ Do NOT write any of these — they are all wrong
+
+```js
+wx.cloud.extend.AI.createModel("deepseek")                   // wrong — vendor, not GroupName
+wx.cloud.extend.AI.createModel("deepseek-v4-flash")          // wrong — model id goes in `model`
+wx.cloud.extend.AI.createModel("hunyuan")                    // wrong — vendor family
+wx.cloud.extend.AI.createModel("hunyuan-2.0-instruct-20251111")  // wrong — model name
+wx.cloud.extend.AI.createModel("glm") / "kimi" / "minimax"   // wrong — vendor names
+wx.cloud.extend.AI.createModel("custom")                     // wrong — placeholder
+wx.cloud.extend.AI.createModel(modelName)                    // wrong — do not reuse the model-id variable
+```
+
+### ✅ Correct pattern — provider vs model are two different fields
+
+```js
+// Growth Plan branch
+const model = wx.cloud.extend.AI.createModel("hunyuan-exp"); // ← provider / GroupName
+await model.streamText({
+  data: { model: "hunyuan-2.0-instruct-20251111", messages: [...] }  // ← concrete model id
+});
+
+// Token Credits branch
+const model = wx.cloud.extend.AI.createModel("cloudbase");
+await model.streamText({
+  data: { model: "deepseek-v4-flash", messages: [...] }
+});
+```
+
+### Decision procedure (when the user names a specific model)
+
+1. The user says "use DeepSeek v3.2" / "use hunyuan thinking" / "use Kimi k2.6" / …
+2. First run the eligibility decision tree below — the correct `provider` may be `"hunyuan-exp"` (if the env is on Growth Plan and the user asked for a `hunyuan-*` model) or `"cloudbase"` (anything else in the managed catalog).
+3. Put the model id into the **`model` field** inside `data`: `{ model: "deepseek-v3.2" }`, `{ model: "hunyuan-2.0-instruct-20251111" }`, `{ model: "kimi-k2.6" }`, …
+4. Before using the model id, make sure it is present in `DescribeAIModels({ GroupName: "cloudbase" }).Models[]`. If not, enable it via `UpdateAIModel`.
+
+> If you are about to type `wx.cloud.extend.AI.createModel(` and the thing inside the parentheses is a vendor name or a model id — **stop**. It is almost certainly one of the three legal values above.
+
+---
+
 ## Mandatory Two-Step Preflight
 
 You MUST NOT jump straight into `wx.cloud.extend.AI.createModel(...)`. Before writing any business code, confirm **billing eligibility** and **group readiness** in this fixed order: **① eligibility → ② group readiness**. Do not swap the two.
@@ -395,3 +444,5 @@ interface WxGenerateTextResponse {
 9. **Remember the `data` wrapper.** `streamText` parameters MUST be wrapped in `data: { ... }` — unlike JS/Node SDK. Forgetting it yields a parameter error.
 10. **Distinguish "not-eligible / group-not-ready" from "call failure".** The former should guide the user into enrollment / purchase / `UpdateAIModel` flows; the latter is about debugging prompts, parameters, or the network. The error messages and next actions are completely different.
 11. **Do not hardcode third-party model API keys in the Mini Program.** For models outside the managed catalog, use `CreateAIModel` (`Secret.ApiKey`) so the key is stored on the CloudBase side; keep only the `GroupName` in the Mini Program.
+12. **TypeScript: do NOT use `any` to silence type errors.** If the `wx.cloud.extend.AI` surface is missing types, declare a precise `interface` for the slice you actually use, or augment via a local `.d.ts`. Never `: any`, `as any`, `@ts-ignore`, `@ts-nocheck`.
+13. **Self-verify before claiming done.** Build the Mini Program, open it in the WeChat DevTools simulator, exercise the real `streamText` / `generateText` flow end-to-end, and confirm: (a) the text chunks arrive via `onText`, (b) `[DONE]` terminates the stream, (c) no new console errors. "It should work" without an actual run is not acceptable evidence.

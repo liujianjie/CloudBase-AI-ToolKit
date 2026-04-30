@@ -33,6 +33,51 @@ Use this skill for **calling AI models from Node.js backends or CloudBase cloud 
 
 ---
 
+## ⛔ STOP — `ai.createModel(...)` argument is **not** a vendor / model name
+
+Read this before writing any `createModel(...)` line. Agents frequently hallucinate this argument. There are **exactly three** legal shapes. Anything else is a bug.
+
+| ✅ Legal `ai.createModel(...)` argument | When to use it |
+|----------------------------------------|----------------|
+| `"cloudbase"` | **Default for new projects.** The main managed group (TokenHub-backed, multi-vendor pool). Vendor + concrete model go into the **`model` field** of `generateText` / `streamText`, e.g. `{ model: "deepseek-v4-flash" }`. |
+| `"hunyuan-exp"` | Only if `DescribeAIModels` explicitly returns this legacy builtin group for the current env. |
+| `"custom-<your-name>"` | A user-defined GroupName you onboarded via `CreateAIModel`. **Must** start with `custom-` (e.g. `custom-kimi`, `custom-openai-compat`). |
+
+> Image generation is a separate entry point: `ai.createImageModel("hunyuan-image")`. Do not mix it with `createModel(...)`.
+
+### ❌ Do NOT write any of these — they are all wrong
+
+```js
+ai.createModel("deepseek")                 // wrong — that's a vendor, not a GroupName
+ai.createModel("deepseek-v4-flash")        // wrong — model id goes in the `model` field
+ai.createModel("hunyuan") / "hunyuan-2.0-instruct-20251111"  // wrong — vendor / model name
+ai.createModel("glm") / "kimi" / "minimax"  // wrong — vendor names
+ai.createModel("openai") / "moonshot"       // wrong — vendor names
+ai.createModel("custom")                   // wrong — placeholder; use your real custom-<name>
+ai.createModel(modelName)                  // wrong — do not reuse the variable that holds the model id
+```
+
+### ✅ Correct pattern — GroupName vs Model are two different fields
+
+```js
+const model = ai.createModel("cloudbase");          // ← GroupName
+await model.generateText({
+  model: "deepseek-v4-flash",                       // ← concrete model id
+  messages: [...]
+});
+```
+
+### Decision procedure (when the user names a specific model)
+
+1. The user says "use DeepSeek v3.2" / "use hunyuan instruct" / "use Kimi k2.6" / "use GLM-5" / …
+2. `createModel("cloudbase")` stays the same.
+3. Put the model id into the **`model` field**: `{ model: "deepseek-v3.2" }`, `{ model: "hunyuan-2.0-instruct-20251111" }`, `{ model: "kimi-k2.6" }`, `{ model: "glm-5" }`, …
+4. Before using the model id, make sure it is present in `DescribeAIModels({ GroupName: "cloudbase" }).Models[]`. If not, enable it via `UpdateAIModel` (see preflight ② below).
+
+> If you are about to type `ai.createModel(` and the thing inside the parentheses is a vendor name, a model name, or a guess — **stop**. It is almost certainly one of the three legal values above.
+
+---
+
 ## Mandatory Two-Step Preflight (before any SDK code)
 
 Before calling any AI API on the server, **run the two-step preflight**: ① eligibility, ② group readiness. **Text generation and image generation draw from the same Token Credits resource pack**, and both must complete the preflight before code is emitted.
@@ -399,3 +444,5 @@ interface Usage {
 7. **Do not scatter hard-coded model names through the codebase** — centralize `DEFAULT_TEXT_MODEL = "deepseek-v4-flash"`, `DEFAULT_IMAGE_MODEL = "hunyuan-image"` in config. The managed catalog and pricing evolve; a single source of truth makes upgrades cheap. For models outside the managed catalog, follow the Custom Onboarding section — never hard-code third-party API keys in business code (let `CreateAIModel.Secret.ApiKey` hold them via CloudBase).
 8. **Distinguish "preflight failure" from "model call failure"** — the former means the resource pack is not active or the target model has not been enabled via `UpdateAIModel` (guide the user to purchase / enable). The latter is a parameter issue or upstream error. Do not wrap both in one generic toast.
 9. **Do not log full prompts or generated text in production** — log only `usage.total_tokens` and a short prefix. Prompts can leak sensitive content; token counts can leak cost signals.
+10. **TypeScript: do NOT use `any` to silence SDK type errors.** The Node SDK ships its own types; narrow with `unknown` + a type guard, write a precise `interface` for the shape you consume, or augment types in a local `.d.ts`. Never `: any`, `as any`, `@ts-ignore`, `@ts-nocheck`. See the Engineering constitution in the `web-development` skill — it applies to backend TS too.
+11. **Self-verify before claiming done.** `tsc --noEmit` + project build + actually invoke the function (local invoke / `manageFunctions(action="invokeFunction")` / direct HTTP hit) and confirm `usage.total_tokens > 0` and the returned text is not an error envelope. "It should work" without a real round-trip is not acceptable evidence.
