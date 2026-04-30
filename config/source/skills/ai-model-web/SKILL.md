@@ -177,7 +177,12 @@ npm install @cloudbase/js-sdk
 
 ## Initialization
 
-> ⚠️ **Do not use anonymous sign-in as the default.** Anonymous accounts are easy to abuse and weaken downstream permission rules. Prefer `auth.toDefaultLoginPage()` (the managed login page, which supports phone SMS, email, WeChat Open Platform, custom providers, …, all toggled on via the `auth-tool` skill), or integrate a specific verified provider. Only fall back to `signInAnonymously()` if the user explicitly requests a read-only anonymous demo and accepts the trade-off.
+> ⚠️ **Do not use anonymous sign-in as the default.** Anonymous accounts are easy to abuse and weaken downstream permission rules. The AI-model skill does **not** prescribe a specific login UI — delegate that concern:
+>
+> - **Enabling / configuring login providers** (phone SMS, email, WeChat Open Platform, username+password, OAuth, …) → follow the **`auth-tool`** skill (backend config via `callCloudApi`).
+> - **Building the actual sign-in flow in the browser** (login form, callbacks, session guarding) → follow the **`auth-web`** skill (`@cloudbase/js-sdk` auth API, e.g. `signInWithPassword`, `signInWithPhone`, `getLoginState`).
+>
+> Only fall back to `signInAnonymously()` if the user explicitly requests a read-only anonymous demo and accepts the trade-off.
 
 ```js
 import cloudbase from "@cloudbase/js-sdk";
@@ -190,12 +195,14 @@ const app = cloudbase.init({
 const auth = app.auth();
 
 // Ensure the user is signed in before calling any AI API.
-// Preferred: redirect to the managed login page, which honours the providers
-// the project owner enabled via the auth-tool skill (phone / email / WeChat / …).
-if (!auth.hasLoginState()) {
-  await auth.toDefaultLoginPage();
-  // The page will navigate back here after a successful login; the code below
-  // will only execute once `auth.hasLoginState()` resolves truthy.
+// The concrete sign-in flow lives in your app (see the `auth-web` skill),
+// e.g. a login page that calls auth.signInWithPassword / signInWithPhone / …
+// and uses auth.onLoginStateChanged() to observe session changes.
+const loginState = await auth.getLoginState();
+if (!loginState) {
+  // Route to your own sign-in page — do NOT block here with a blind redirect.
+  window.location.href = "/login";
+  return;
 }
 
 const ai = app.ai();
@@ -204,7 +211,7 @@ const ai = app.ai();
 **Important notes:**
 
 - Use synchronous initialization with a top-level import
-- The user MUST be authenticated before using AI features — use a verified login (default login page, phone, email, WeChat, custom), never anonymous, as the default
+- The user MUST be authenticated before using AI features — use a verified login (phone, email, WeChat, username+password, custom), never anonymous, as the default. The exact flow is the responsibility of the `auth-web` skill.
 - Get `accessKey` from the CloudBase console
 
 ---
@@ -326,5 +333,5 @@ interface Usage {
 5. **Handle errors gracefully** — wrap AI calls in try/catch.
 6. **Keep `accessKey` safe** — use a publishable key, never a secret key.
 7. **Initialize early** — set up the SDK at app entry so auth and AI are both ready before routing.
-8. **Do NOT default to anonymous auth** — use a verified login (`auth.toDefaultLoginPage()` preferred). Anonymous accounts are easy to abuse and weaken permission rules.
+8. **Do NOT default to anonymous auth** — require a verified sign-in before calling any AI API. Delegate provider configuration to the `auth-tool` skill and the browser sign-in flow to the `auth-web` skill; the AI-model skill only checks `auth.getLoginState()` and gates the call.
 9. **Distinguish "preflight failure" from "model call failure"** — the former means the user needs to buy a resource pack or call `UpdateAIModel`; the latter is a prompt / parameter / network issue. Give the user different guidance for each.
