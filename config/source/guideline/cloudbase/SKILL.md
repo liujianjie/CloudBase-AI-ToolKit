@@ -40,6 +40,15 @@ If a skill points to its own `references/...` files, keep following those relati
 - If the file-writing tool reports that a field such as `content` expected a string but received an object, do not retry with the same raw object. Serialize the object first, then retry once with the serialized text, and make sure the retried call actually passes the serialized string rather than the original object.
 - Keep scenario-specific pitfall lists in the matching child skills instead of expanding this entry file.
 
+### Engineering constitution (applies to every scenario)
+
+These rules override convenience. They are a gate before saying "done". Full rationale + replacements live in `web-development` (Engineering constitution section).
+
+- **Do NOT use `any` to bypass type errors.** Not `: any`, not `as any`, not `@ts-ignore`, not `@ts-nocheck`. Use `unknown` + a type guard, a precise `interface`, or `declare module` augmentation instead. `any` propagates silently and defeats the compile-time safety net.
+- **Self-verify before claiming done.** Static layer (`tsc --noEmit` / lint / project build / unit tests) **and** runtime layer (use `agent-browser` to exercise user-visible flows when the change touches routing, rendering, forms, auth, or async UI). "It should work" without evidence is not acceptable. If a layer cannot be run locally, name the gap explicitly.
+- **Do not paper over failures.** No empty `try/catch` to silence bugs, no skipping / deleting failing tests to make CI green, "it compiles" is not "it works".
+- **`ai.createModel(...)` / `wx.cloud.extend.AI.createModel(provider)` argument is a GroupName, not a vendor / model id.** Only three legal shapes: `"cloudbase"` (default, TokenHub-backed managed pool), `"hunyuan-exp"` (only if `DescribeAIModels` returns it, mainly Mini Program Growth Plan), or `"custom-<your-name>"` (user-defined via `CreateAIModel`, must start with `custom-`). The concrete model id (`deepseek-v4-flash`, `hunyuan-2.0-instruct-20251111`, `kimi-k2.6`, …) goes into the **`model` field** of `generateText` / `streamText`, never into `createModel(...)`. See `ai-model-web` / `ai-model-nodejs` / `ai-model-wechat` for the full STOP card.
+
 ### High-priority routing
 
 <!-- DO NOT EDIT: auto-generated from references/activation-map.yaml -->
