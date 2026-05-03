@@ -151,5 +151,7 @@ describe("storage and hosting tool guidance", () => {
     expect(payload.data.temporaryUrl).toBe("https://signed.example.com/tmp-url");
     expect(payload.data.storageCdnDomain).toBe("env-test-1250000000.tcb.qcloud.la");
     expect(payload.data.publicUrl).toBe("https://env-test-1250000000.tcb.qcloud.la/aicoding/helloworld.txt");
+    expect(payload.data.note).toContain("temporaryUrl 是临时签名链接");
+    expect(payload.data.note).toContain("公有读");
   });
 });

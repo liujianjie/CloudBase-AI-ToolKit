@@ -223,7 +223,8 @@ export function registerStorageTools(server: ExtendedMcpServer) {
                     expireTime: `${input.maxAge || 3600}秒`,
                     fileId: result[0]?.fileId || "",
                     storageCdnDomain: publicAccess.storageCdnDomain,
-                    publicUrl: publicAccess.publicUrl
+                    publicUrl: publicAccess.publicUrl,
+                    note: "temporaryUrl 是临时签名链接，会按 expireTime 过期。publicUrl 基于 DescribeEnvs 返回的 Storages[0].CdnDomain 推导，仅在存储桶为公有读（所有用户可读）时可直接访问。"
                   },
                   message: `Successfully generated temporary URL for '${input.cloudPath}'`
                 }, null, 2)
