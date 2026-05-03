@@ -2,7 +2,7 @@ import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { z } from "zod";
-import { getCloudBaseManager } from '../cloudbase-manager.js';
+import { getCloudBaseManager, getEnvId } from '../cloudbase-manager.js';
 import { ExtendedMcpServer } from '../server.js';
 
 const MAX_INLINE_TEXT_BYTES = 256 * 1024;
@@ -57,6 +57,74 @@ type ManageStorageInput = {
   isDirectory?: boolean;
 };
 
+function getNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildStoragePublicUrl(cdnDomain: string | null, cloudPath: string): string | null {
+  if (!cdnDomain) {
+    return null;
+  }
+
+  const normalizedCloudPath = cloudPath.replace(/^\/+/, '');
+  if (!normalizedCloudPath) {
+    return `https://${cdnDomain}`;
+  }
+
+  return `https://${cdnDomain}/${normalizedCloudPath}`;
+}
+
+async function resolveStoragePublicAccess(params: {
+  cloudPath: string;
+  cloudBaseOptions: ExtendedMcpServer['cloudBaseOptions'];
+  manager: {
+    commonService: (service: string, version: string) => {
+      call: (args: { Action: string; Param: { EnvId: string } }) => Promise<unknown>;
+    };
+  };
+}): Promise<{ storageCdnDomain: string | null; publicUrl: string | null }> {
+  const { cloudPath, cloudBaseOptions, manager } = params;
+
+  try {
+    const envId = await getEnvId(cloudBaseOptions);
+    const describeEnvsResult = await manager.commonService('tcb', '2018-06-08').call({
+      Action: 'DescribeEnvs',
+      Param: {
+        EnvId: envId,
+      },
+    }) as {
+      EnvList?: Array<{
+        Storages?: Array<{
+          CdnDomain?: string | null;
+        }>;
+      }>;
+      EnvInfo?: {
+        Storages?: Array<{
+          CdnDomain?: string | null;
+        }>;
+      };
+    };
+
+    const storageList = describeEnvsResult?.EnvList?.[0]?.Storages ?? describeEnvsResult?.EnvInfo?.Storages ?? [];
+    const storageCdnDomain = getNonEmptyString(storageList[0]?.CdnDomain);
+
+    return {
+      storageCdnDomain,
+      publicUrl: buildStoragePublicUrl(storageCdnDomain, cloudPath),
+    };
+  } catch {
+    return {
+      storageCdnDomain: null,
+      publicUrl: null,
+    };
+  }
+}
+
 export function registerStorageTools(server: ExtendedMcpServer) {
   // 获取 cloudBaseOptions，如果没有则为 undefined
   const cloudBaseOptions = server.cloudBaseOptions;
@@ -69,7 +137,7 @@ export function registerStorageTools(server: ExtendedMcpServer) {
     "queryStorage",
     {
       title: "查询存储信息",
-      description: "查询云存储信息，支持列出目录文件、获取文件信息、获取临时下载链接等只读操作。返回的文件信息包括文件名、大小、修改时间、下载链接等。注意：action=url 返回的 temporaryUrl 是临时签名链接，有效期由 maxAge 参数决定（默认1小时）。如需获取永久公网访问地址，请使用 envQuery(action=info) 查询环境信息，从返回的 EnvInfo.Storages[0].CdnDomain 字段获取存储桶 CDN 域名，然后拼接为 https://{CdnDomain}/{cloudPath} 格式的公网访问地址。",
+      description: "查询云存储信息，支持列出目录文件、获取文件信息、获取临时下载链接等只读操作。返回的文件信息包括文件名、大小、修改时间、下载链接等。注意：action=url 返回的 temporaryUrl 是临时签名链接，有效期由 maxAge 参数决定（默认1小时）。工具还会基于 DescribeEnvs 返回的 Storages[0].CdnDomain 提供 publicUrl，但该地址仅在存储桶为公有读（所有用户可读）时可直接访问。",
       inputSchema: queryStorageInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -136,6 +204,11 @@ export function registerStorageTools(server: ExtendedMcpServer) {
             cloudPath: input.cloudPath,
             maxAge: input.maxAge || 3600
           }]);
+          const publicAccess = await resolveStoragePublicAccess({
+            cloudPath: input.cloudPath,
+            cloudBaseOptions,
+            manager,
+          });
 
           return {
             content: [
@@ -148,7 +221,9 @@ export function registerStorageTools(server: ExtendedMcpServer) {
                     cloudPath: input.cloudPath,
                     temporaryUrl: result[0]?.url || "",
                     expireTime: `${input.maxAge || 3600}秒`,
-                    fileId: result[0]?.fileId || ""
+                    fileId: result[0]?.fileId || "",
+                    storageCdnDomain: publicAccess.storageCdnDomain,
+                    publicUrl: publicAccess.publicUrl
                   },
                   message: `Successfully generated temporary URL for '${input.cloudPath}'`
                 }, null, 2)
@@ -207,7 +282,7 @@ export function registerStorageTools(server: ExtendedMcpServer) {
     "manageStorage",
     {
       title: "管理存储文件",
-      description: "管理云存储文件，仅用于 COS/Storage 对象，不用于静态网站托管。支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。注意：上传后返回的 temporaryUrl 是临时签名链接，有效期1小时后会过期。如需获取永久公网访问地址，请使用 envQuery(action=info) 查询环境信息，从返回的 EnvInfo.Storages[0].CdnDomain 字段获取存储桶 CDN 域名，然后拼接为 https://{CdnDomain}/{cloudPath} 格式的公网访问地址。",
+      description: "管理云存储文件，仅用于 COS/Storage 对象，不用于静态网站托管。支持上传文件/目录、下载文件/目录、删除文件/目录等操作。删除操作需要设置force=true进行确认，防止误删除重要文件。注意：上传后返回的 temporaryUrl 是临时签名链接，1小时后会过期。工具还会基于 DescribeEnvs 返回的 Storages[0].CdnDomain 提供 publicUrl，但该地址仅在存储桶为公有读（所有用户可读）时可直接访问。",
       inputSchema: manageStorageInputSchema,
       annotations: {
         readOnlyHint: false,
@@ -251,6 +326,11 @@ export function registerStorageTools(server: ExtendedMcpServer) {
             cloudPath: input.cloudPath,
             maxAge: 3600
           }]);
+          const publicAccess = await resolveStoragePublicAccess({
+            cloudPath: input.cloudPath,
+            cloudBaseOptions,
+            manager,
+          });
 
           return {
             content: [
@@ -265,7 +345,9 @@ export function registerStorageTools(server: ExtendedMcpServer) {
                     isDirectory: input.isDirectory,
                     temporaryUrl: fileUrls[0]?.url || "",
                     expireTime: "1小时",
-                    note: "temporaryUrl 是临时签名链接，1小时后过期。如需永久公网访问地址，请调用 envQuery(action=info) 获取 EnvInfo.Storages[0].CdnDomain，拼接为 https://{CdnDomain}/{cloudPath}"
+                    storageCdnDomain: publicAccess.storageCdnDomain,
+                    publicUrl: publicAccess.publicUrl,
+                    note: "temporaryUrl 是临时签名链接，1小时后过期。publicUrl 基于 DescribeEnvs 返回的 Storages[0].CdnDomain 推导，仅在存储桶为公有读（所有用户可读）时可直接访问。"
                   },
                   message: `Successfully uploaded ${input.isDirectory ? 'directory' : 'file'} from '${input.localPath}' to '${input.cloudPath}'`
                 }, null, 2)
