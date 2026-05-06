@@ -1,6 +1,6 @@
 ---
 name: ai-model-web
-description: Use this skill when developing browser/Web applications (React/Vue/Angular, static sites, SPAs) that need to call AI models via `@cloudbase/js-sdk`. The skill covers text generation (`generateText`) and streaming (`streamText`) from the browser. Managed models are invoked via `ai.createModel("<GroupName>")` — the only legal GroupName values are `"cloudbase"` (the main managed group; the only model enabled by default is `deepseek-v4-flash`; any other model must first be enabled through `UpdateAIModel`), `"hunyuan-exp"` (a legacy builtin group kept for backward compatibility), or a user-defined GroupName created through `CreateAIModel`. Before emitting any SDK code the agent MUST run the two-step preflight: (1) eligibility — call `DescribeEnvPostpayPackage` to confirm a Token Credits resource pack is active; (2) group readiness — call `DescribeAIModels` for env-configured groups, `DescribeManagedAIModelList` for platform-supported models and pricing, and `UpdateAIModel` with `Status: 1` to enable additional models. Non-managed or self-hosted OpenAI-compatible models must be onboarded through `CreateAIModel` as a custom group. Keywords: call large language model, AI model, generateText, streamText, createModel, cloudbase group, hunyuan-exp, eligibility check, group readiness, Token Credits resource pack, deepseek-v4-flash, UpdateAIModel, DescribeAIModels, DescribeManagedAIModelList, CreateAIModel, custom model onboarding, callCloudApi, DescribeEnvPostpayPackage, TokenHub, Hunyuan, DeepSeek, GLM, Zhipu GLM, Kimi, MiniMax, third-party managed model. Do NOT use for Node.js backend work (use `ai-model-nodejs`), WeChat Mini Program (use `ai-model-wechat`), or image generation (Node SDK only).
+description: Use this skill whenever a browser/Web application (React/Vue/Angular, Next/Nuxt, static sites, SPAs, admin dashboards, AI chat UI on the page) needs to call an AI model. **This is the default routing target for any AI request framed around a page / 页面 / Web / 前端 / frontend / 网页 / H5 — do NOT first propose a Node.js / cloud-function / CloudRun proxy; call the model directly from the browser via `@cloudbase/js-sdk`.** Covers text generation (`generateText`) and streaming (`streamText`). Managed models are invoked via `ai.createModel("<GroupName>")` — the only legal GroupName values are `"cloudbase"` (the main managed, TokenHub-backed pool; **no model is enabled by default** — the agent MUST first call `DescribeAIModels` to see what is already enabled and, if the target model is missing, call `DescribeManagedAIModelList` to read the platform-supported catalog, then `UpdateAIModel` with `Status: 1` to enable it), `"hunyuan-exp"` (legacy builtin group, only if `DescribeAIModels` returns it — mainly Mini Program Growth Plan), or a user-defined GroupName created through `CreateAIModel` (must start with `custom-`). The concrete model id (`deepseek-v4-flash`, `deepseek-v3.2`, `hunyuan-2.0-instruct-20251111`, `glm-5`, `kimi-k2.6`, …) goes into the **`model` field** of `generateText` / `streamText`, never into `createModel(...)`. Before emitting any SDK code the agent MUST run the two-step preflight: (1) eligibility — call `DescribeEnvPostpayPackage` to confirm a Token Credits resource pack is active; (2) group readiness — `DescribeAIModels` → `DescribeManagedAIModelList` → `UpdateAIModel` to enable the target model. **Never assume a model is already enabled** and never invent SDK method names — this skill is the authoritative reference for `@cloudbase/js-sdk` AI methods; look them up here, do not guess. Non-managed or self-hosted OpenAI-compatible models must be onboarded through `CreateAIModel` as a custom group. Keywords: 页面, Web, 前端, frontend, React, Vue, Next, Nuxt, SPA, admin dashboard, AI chat UI, call large language model, AI model, generateText, streamText, createModel, cloudbase group, hunyuan-exp, eligibility check, group readiness, Token Credits resource pack, deepseek-v4-flash, UpdateAIModel, DescribeAIModels, DescribeManagedAIModelList, CreateAIModel, custom model onboarding, callCloudApi, DescribeEnvPostpayPackage, TokenHub, Hunyuan, DeepSeek, GLM, Zhipu GLM, Kimi, MiniMax, third-party managed model. Do NOT use for Node.js backend work (use `ai-model-nodejs`), WeChat Mini Program (use `ai-model-wechat`), or image generation (Node SDK only).
 version: 2.18.0
 alwaysApply: false
 ---
@@ -18,11 +18,13 @@ Keep local `references/...` paths for files that ship with the current skill dir
 
 Use this skill for **calling AI models in browser/Web applications** via `@cloudbase/js-sdk`.
 
+> 🧭 **Runtime-plane default for Web.** Any time the user's request is framed around a page, a Web app, the frontend, React/Vue/Next/Nuxt, a dashboard UI, or "add AI to my H5", this skill is the default routing target. **Do NOT first propose a Node.js / cloud-function / CloudRun proxy**; `@cloudbase/js-sdk` can call the model from the browser directly. Only switch to `ai-model-nodejs` if the user explicitly asks for a backend/server call, image generation, or a scenario that truly needs server-side keys or long-running work. This decision is independent of which concrete model the user picks — model names (`deepseek-*`, `glm-*`, `hunyuan-*`, `kimi-*`, …) only affect the `model` field, not the routing plane.
+
 **Use it when you need to:**
 
 - Integrate AI text generation into a frontend Web app
 - Stream AI responses for a better UX
-- Call Hunyuan or DeepSeek models from the browser
+- Call Hunyuan / DeepSeek / GLM / Kimi / MiniMax models from the browser
 
 **Do NOT use for:**
 
@@ -39,7 +41,7 @@ Read this before writing any `createModel(...)` line. The single most common mis
 
 | ✅ Legal `ai.createModel(...)` argument | When to use it |
 |----------------------------------------|----------------|
-| `"cloudbase"` | **Default for new projects.** The main managed group (TokenHub-backed, multi-vendor pool). Vendor + concrete model go into the **`model` field** of `generateText` / `streamText`, e.g. `{ model: "deepseek-v4-flash" }`. |
+| `"cloudbase"` | **The main managed group for new projects** (TokenHub-backed, multi-vendor pool). Vendor + concrete model go into the **`model` field** of `generateText` / `streamText`, e.g. `{ model: "deepseek-v4-flash" }`. **No model is enabled by default — always check `DescribeAIModels` first and, if the target model is missing, enable it with `UpdateAIModel` before calling the SDK.** |
 | `"hunyuan-exp"` | Only if `DescribeAIModels` explicitly returns this legacy builtin group for the current env (mainly the Mini Program Growth Plan — see `ai-model-wechat`). |
 | `"custom-<your-name>"` | A user-defined GroupName you onboarded via `CreateAIModel`. **Must** start with `custom-` (e.g. `custom-kimi`, `custom-openai-compat`). |
 
@@ -71,7 +73,7 @@ await model.generateText({
 1. The user says "use DeepSeek v3.2" / "use hunyuan instruct" / "use Kimi k2.6" / "use GLM-5" / …
 2. `createModel("cloudbase")` stays the same.
 3. Put the model id into the **`model` field**: `{ model: "deepseek-v3.2" }`, `{ model: "hunyuan-2.0-instruct-20251111" }`, `{ model: "kimi-k2.6" }`, `{ model: "glm-5" }`, …
-4. Before using the model id, make sure it is present in `DescribeAIModels({ GroupName: "cloudbase" }).Models[]`. If not, enable it via `UpdateAIModel` (see preflight ② below).
+4. **Never assume the model is already enabled.** Before writing the SDK call, verify it is present in `DescribeAIModels({ GroupName: "cloudbase" }).Models[]`. If missing, call `DescribeManagedAIModelList` to confirm the exact `Model` name the platform supports (case-sensitive — do **not** guess the spelling), then enable it via `UpdateAIModel` with `Status: 1` (remember `Models` is a full replacement, so resend everything already enabled + the new one).
 
 > If you are about to type `ai.createModel(` and the thing inside the parentheses is a vendor name, a model name, or a guess — **stop**. It is almost certainly one of the three legal values above.
 
@@ -124,17 +126,17 @@ Eligibility alone is not enough. **Do not write `createModel("cloudbase")` yet.*
 
    Returns `AIModelGroups: AIModelGroup[]`, where each `AIModelGroup` includes `GroupName`, `Type` (`builtin` / `custom`), `Models: [{ Model, EnableMCP, Tags }]`, `Status` (1 = on / 2 = off), `BaseUrl`, `Secret`, `Remark`. The main managed `GroupName` is `cloudbase`.
 
-2. **User did not specify a model** → default to `createModel("cloudbase")` + `model: "deepseek-v4-flash"` (the only model the managed group has enabled out of the box). If the `cloudbase` group is missing or has `Status=2`, jump to step 4.
+2. **Never assume a model is already enabled.** Inspect `AIModelGroups[?].Models[].Model` for the `cloudbase` group. If the target model (or, when the user did not specify one, the model you intend to default to such as `deepseek-v4-flash`) is missing, jump to step 4 and enable it — do not call `createModel("cloudbase")` yet. If the `cloudbase` group itself is missing or has `Status=2`, also jump to step 4.
 
-3. **User asked for a model that belongs to the managed catalog** (e.g. `deepseek-v3.2`, `hunyuan-2.0-instruct-20251111`, `glm-5`, `kimi-k2.6`, …): check whether that `Model` is already in the `cloudbase` group's `Models[]`. If not, jump to step 4.
+3. **User asked for a model that belongs to the managed catalog** (e.g. `deepseek-v3.2`, `hunyuan-2.0-instruct-20251111`, `glm-5`, `kimi-k2.6`, …): check whether that `Model` is already in the `cloudbase` group's `Models[]`. If not, jump to step 4. **Do not guess the exact model id** — verify the canonical spelling in `DescribeManagedAIModelList` first (step 4 covers this).
 
-4. **Enable / add a managed model** (optionally inspect pricing first):
+4. **Enable / add a managed model** (always inspect the authoritative catalog + pricing first):
 
    ```
    callCloudApi(service="tcb", action="DescribeManagedAIModelList", params={ EnvId })
    ```
 
-   Returns `ManagedAIModelGroup[]`, where each group lists `GroupName` (e.g. `cloudbase`), `Remark`, and `Models: [{ Model, EnableMCP, ModelSpec{ContextLength, MaxInputToken, MaxOutputToken}, ModelChargingInfo[{Type, InputPrice, OutputPrice, InputOutputUnit, CachePrice}] }]`. **Use this response to show pricing to the user before enabling.**
+   Returns `ManagedAIModelGroup[]`, where each group lists `GroupName` (e.g. `cloudbase`), `Remark`, and `Models: [{ Model, EnableMCP, ModelSpec{ContextLength, MaxInputToken, MaxOutputToken}, ModelChargingInfo[{Type, InputPrice, OutputPrice, InputOutputUnit, CachePrice}] }]`. **This is the single source of truth for supported model names and pricing — do not infer them from memory. Use the exact `Model` string returned here when calling `UpdateAIModel`.** Also surface the prices to the user before enabling.
 
    Then enable (note: `Models` is a **full replacement** — always resend the already-enabled models together with the new one):
 
@@ -143,7 +145,9 @@ Eligibility alone is not enough. **Do not write `createModel("cloudbase")` yet.*
      EnvId,
      GroupName: "cloudbase",
      Models: [
-       { Model: "deepseek-v4-flash" },
+       // resend every model that DescribeAIModels already showed as enabled
+       { Model: "<already-enabled model, e.g. deepseek-v4-flash>" },
+       // append the newly-requested one, using the exact spelling from DescribeManagedAIModelList
        { Model: "<target model>" }
      ],
      Status: 1
@@ -164,9 +168,8 @@ Eligibility alone is not enough. **Do not write `createModel("cloudbase")` yet.*
 
 - `GroupName: "cloudbase"`, `Type: "builtin"`, `Remark: "腾讯云开发"` (Tencent CloudBase)
 - Backed by **Tencent Cloud TokenHub**, a unified managed pool covering multiple vendors — **Hunyuan** (HY 2.0 Instruct, HY 2.0 Think, Hunyuan-role, Hy3 preview, …), **DeepSeek** (DeepSeek-V4-Pro, DeepSeek-V4-Flash, Deepseek-v3.2, Deepseek-v3.1, Deepseek-r1-0528, Deepseek-v3-0324, …), **Zhipu GLM** (GLM-5, GLM-5-Turbo, GLM-5.1, GLM-5V-Turbo), **Kimi** (K2.5, K2.6), **MiniMax** (M2.5, M2.7), and more. The roster evolves — **do not hard-code specific SKUs** in application code; discover at runtime.
-- **Only `deepseek-v4-flash` is enabled by default**; other models must be appended via `UpdateAIModel` (Status:1) first
-- When the user did not specify anything, default to `createModel("cloudbase")` + `model: "deepseek-v4-flash"`
-- Current catalog + pricing: `DescribeManagedAIModelList`
+- **No model is enabled by default.** Always call `DescribeAIModels` first to see what the env has actually enabled; if your target model is missing, call `DescribeManagedAIModelList` for the authoritative catalog + pricing and then `UpdateAIModel` (`Status: 1`, `Models` full-replacement) to enable it before making the SDK call.
+- Authoritative catalog + pricing: `DescribeManagedAIModelList`
 - Env-enabled set: `DescribeAIModels`
 
 ### 2. `"hunyuan-exp"` — legacy builtin group (kept for compatibility)
@@ -262,13 +265,13 @@ const ai = app.ai();
 
 ## generateText() — non-streaming
 
-> **Prerequisite:** the two-step preflight (eligibility + group readiness) has passed. The example below assumes the user did not specify a model, so it uses the `cloudbase` managed group + `deepseek-v4-flash`.
+> **Prerequisite:** the two-step preflight (eligibility + group readiness) has passed, and the target model has been confirmed present in `DescribeAIModels({ GroupName: "cloudbase" }).Models[]` — if it was not, it should already have been enabled via `UpdateAIModel`. The example below uses `deepseek-v4-flash` only for illustration; substitute the actual model the user asked for.
 
 ```js
 const model = ai.createModel("cloudbase");
 
 const result = await model.generateText({
-  model: "deepseek-v4-flash",  // on by default; other models require UpdateAIModel
+  model: "deepseek-v4-flash",  // must already be enabled in this env (DescribeAIModels → UpdateAIModel)
   messages: [{ role: "user", content: "Give me a one-paragraph intro to Li Bai." }],
 });
 
@@ -370,14 +373,16 @@ interface Usage {
 
 ## Best Practices
 
-1. **Run the two-step preflight first** — ① eligibility (Token Credits resource pack via `DescribeEnvPostpayPackage`) + ② group readiness (`DescribeAIModels` to inspect what is enabled, `UpdateAIModel` with a full-replacement `Models[]` and `Status: 1` when needed). Skipping preflight leads straight to "model not found" / "model not enabled" errors at runtime.
-2. **`createModel` accepts exactly three kinds of values** — `"cloudbase"` (the main managed group), `"hunyuan-exp"` (legacy builtin, Growth Plan scenarios), or a user-defined GroupName registered via `CreateAIModel` (**MUST start with `custom-`**, e.g. `custom-kimi`, `custom-openai-compat`). **Never** guess with `createModel("deepseek")` / `createModel("kimi")` / `createModel("custom")`.
-3. **Show pricing before enabling a new managed model** — `DescribeManagedAIModelList` returns `ModelSpec` (context length, max input/output tokens) + `ModelChargingInfo` (input / output / cache prices, billing unit). Surface the prices to the user before calling `UpdateAIModel`.
-4. **Use streaming for long responses** — better perceived latency and interactivity.
-5. **Handle errors gracefully** — wrap AI calls in try/catch.
-6. **Keep `accessKey` safe** — use a publishable key, never a secret key.
-7. **Initialize early** — set up the SDK at app entry so auth and AI are both ready before routing.
-8. **Do NOT default to anonymous auth** — require a verified sign-in before calling any AI API. Delegate provider configuration to the `auth-tool` skill and the browser sign-in flow to the `auth-web` skill; the AI-model skill only checks `auth.getLoginState()` and gates the call.
-9. **Distinguish "preflight failure" from "model call failure"** — the former means the user needs to buy a resource pack or call `UpdateAIModel`; the latter is a prompt / parameter / network issue. Give the user different guidance for each.
-10. **TypeScript: do NOT use `any` to silence type errors from the SDK.** The SDK ships its own types; if an error shows up, narrow with `unknown` + a type guard, write a precise `interface` for the shape you actually consume, or augment types in a local `.d.ts`. Never `: any`, `as any`, `@ts-ignore`, or `@ts-nocheck`. See the Engineering constitution in the `web-development` skill.
-11. **Self-verify before claiming done.** Run `tsc --noEmit` + the project build + open the page with `agent-browser` and actually trigger the AI call. Confirm: (a) the text stream reaches the UI, (b) no new console errors, (c) `result.usage` is non-zero. Saying "it should work" without evidence is not acceptable — follow `web-development/browser-testing.md`.
+1. **Run the two-step preflight first** — ① eligibility (Token Credits resource pack via `DescribeEnvPostpayPackage`) + ② group readiness (`DescribeAIModels` to inspect what is enabled, `DescribeManagedAIModelList` for the authoritative supported-model catalog, `UpdateAIModel` with a full-replacement `Models[]` and `Status: 1` when the target model is missing). Skipping preflight leads straight to "model not found" / "model not enabled" errors at runtime.
+2. **Never assume any model is already enabled** — not `deepseek-v4-flash`, not `hunyuan-*`, not anything. Always verify with `DescribeAIModels` first; if the target is missing, look up the exact `Model` string in `DescribeManagedAIModelList` (do **not** guess the spelling or invent vendor prefixes) and then `UpdateAIModel` to enable it.
+3. **`createModel` accepts exactly three kinds of values** — `"cloudbase"` (the main managed group), `"hunyuan-exp"` (legacy builtin, Growth Plan scenarios), or a user-defined GroupName registered via `CreateAIModel` (**MUST start with `custom-`**, e.g. `custom-kimi`, `custom-openai-compat`). **Never** guess with `createModel("deepseek")` / `createModel("kimi")` / `createModel("custom")`.
+4. **Do not invent SDK method names or parameters.** This SKILL.md is the authoritative reference for `@cloudbase/js-sdk`'s AI surface — look up the method signature here (or in the Type Definitions section below) before writing code. If a method or field is not documented here, stop and ask, or check the live contract via the MCP tools. No guessing.
+5. **Show pricing before enabling a new managed model** — `DescribeManagedAIModelList` returns `ModelSpec` (context length, max input/output tokens) + `ModelChargingInfo` (input / output / cache prices, billing unit). Surface the prices to the user before calling `UpdateAIModel`.
+6. **Use streaming for long responses** — better perceived latency and interactivity.
+7. **Handle errors gracefully** — wrap AI calls in try/catch.
+8. **Keep `accessKey` safe** — use a publishable key, never a secret key.
+9. **Initialize early** — set up the SDK at app entry so auth and AI are both ready before routing.
+10. **Do NOT default to anonymous auth** — require a verified sign-in before calling any AI API. Delegate provider configuration to the `auth-tool` skill and the browser sign-in flow to the `auth-web` skill; the AI-model skill only checks `auth.getLoginState()` and gates the call.
+11. **Distinguish "preflight failure" from "model call failure"** — the former means the user needs to buy a resource pack or call `UpdateAIModel`; the latter is a prompt / parameter / network issue. Give the user different guidance for each.
+12. **TypeScript: do NOT use `any` to silence type errors from the SDK.** The SDK ships its own types; if an error shows up, narrow with `unknown` + a type guard, write a precise `interface` for the shape you actually consume, or augment types in a local `.d.ts`. Never `: any`, `as any`, `@ts-ignore`, or `@ts-nocheck`. See the Engineering constitution in the `web-development` skill.
+13. **Self-verify before claiming done.** Run `tsc --noEmit` + the project build + open the page with `agent-browser` and actually trigger the AI call. Confirm: (a) the text stream reaches the UI, (b) no new console errors, (c) `result.usage` is non-zero. Saying "it should work" without evidence is not acceptable — follow `web-development/browser-testing.md`.
