@@ -245,26 +245,35 @@ The `scf_bootstrap` binary path must match the runtime — see the full mapping 
 
 ### Logs
 
-**查询云函数日志**：使用 `queryFunctions` 工具
+**Query function logs** — use the `queryFunctions` tool:
 
-- `queryFunctions(action="listFunctionLogs", functionName="xxx")` — 查询特定函数的执行日志
-- `queryFunctions(action="getFunctionLogDetail", requestId="xxx")` — 查看单条日志详情
+- `queryFunctions(action="listFunctionLogs", functionName="xxx")` — list execution logs of a specific function
+- `queryFunctions(action="getFunctionLogDetail", requestId="xxx")` — fetch the detail of one log entry
 
-**区分 `queryLogs` 工具**：
-- `queryFunctions` 用于查询特定云函数的执行日志，需要提供 `functionName`
-- `queryLogs` 用于搜索 CLS 日志服务（跨服务日志聚合），使用 CLS 查询语法
+**`queryFunctions` vs `queryLogs`**:
+- `queryFunctions` queries execution logs of a single cloud function and requires `functionName`
+- `queryLogs` searches CLS (cross-service log aggregation) using CLS query syntax
 
-**示例**：
+**Examples**:
 ```javascript
-// 查询云函数 my-function 的最近日志
+// List recent logs for cloud function "my-function"
 queryFunctions(action="listFunctionLogs", functionName="my-function", limit=10)
 
-// 查看特定请求的日志详情
+// Inspect the log detail for a specific request id
 queryFunctions(action="getFunctionLogDetail", requestId="abc-123")
 
-// 使用 CLS 搜索所有服务的错误日志（跨服务）
-queryLogs(action="searchLogs", queryString="ERROR", service="tcb")
+// Cross-service error search via CLS
+queryLogs(action="searchLogs", queryString='(src:app OR src:system) AND log:"ERROR"', service="tcb")
 ```
+
+`queryLogs` `queryString` follows CLS syntax (see https://cloud.tencent.com/document/api/876/128127). Common patterns:
+- Function logs: `(src:app OR src:system) AND log:"START RequestId"`
+- Aggregated function status: `| select request_id, max(status_code) as status where retry_num=0 group by request_id`
+- Document database (NoSQL): `module:database`
+- Document database slow-query events: `module:database AND eventType:(MongoSlowQuery)`
+- Relational database (MySQL): `module:rdb`
+- Gateway access logs: `logType:accesslog`
+- LLM trace logs: `module:llm AND logType:llm-tracelog`
 
 If these are unavailable, read `./references/operations-and-config.md` before any `callCloudApi` fallback
 
