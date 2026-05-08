@@ -113,8 +113,9 @@ describe("app tools", () => {
     const payload = JSON.parse(result.content[0].text);
 
     expect(mockUploadCode).toHaveBeenCalledWith({
+      deployType: "static-hosting",
       serviceName: "demo-app",
-      filePath: "/tmp/demo-app",
+      localPath: "/tmp/demo-app",
       ignore: undefined,
     });
     expect(mockCreateApp).toHaveBeenCalledWith(

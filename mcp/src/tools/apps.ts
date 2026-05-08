@@ -278,8 +278,9 @@ export function registerAppTools(server: ExtendedMcpServer) {
             throw new Error("action=deployApp 时必须提供 filePath");
           }
           const uploadResult = await appService.uploadCode({
+            deployType: "static-hosting",
             serviceName,
-            filePath,
+            localPath: filePath,
             ignore,
           });
           logCloudBaseResult(server.logger, uploadResult);
