@@ -562,7 +562,7 @@ For that CMS pattern, `.doc(id).update()` / `.doc(id).remove()` is a validated p
 **Key Understanding**:
 - `ADMINWRITE` = Cloud functions have write access, Frontend SDK **can only read**
 - `CUSTOM` = Configurable read/write permissions for Frontend SDK
-- `READONLY` = All authenticated users can read, creator and admin can write (anonymous login is disabled by default, so anonymous users typically cannot access)
+- `READONLY` = All users (including anonymous) can read, creator and admin can write. Note: although `READONLY` permits anonymous reads at the ACL level, anonymous login is disabled by default for new environments — callers still need an active login method to obtain a session.
 
 ### Role-Based Access Limitations
 
