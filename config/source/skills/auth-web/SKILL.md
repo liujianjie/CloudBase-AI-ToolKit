@@ -172,16 +172,23 @@ if (!data?.session) {
   return
 }
 
+// Also reject anonymous sessions (when signInAnonymously() was called explicitly)
+if (data.session.user?.is_anonymous) {
+  // Anonymous user — not allowed for protected routes
+  window.location.href = '/login'
+  return
+}
+
 // data.session contains: access_token, refresh_token, expires_in, user
 // data.session.user contains the authenticated user info
 const currentUser = data.session.user
 
 // Optional: further verify identity type if needed
 const { data: userData } = await auth.getUser()
-const hasVerifiedIdentity = userData && (
-  userData.phone_confirmed_at ||
-  userData.email_confirmed_at ||
-  userData.user_metadata?.username
+const hasVerifiedIdentity = userData?.user && (
+  userData.user.phone_confirmed_at ||
+  userData.user.email_confirmed_at ||
+  userData.user.user_metadata?.username
 )
 
 // ❌ Do NOT use auth.getLoginState() — it's deprecated and returns

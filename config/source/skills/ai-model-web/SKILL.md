@@ -246,8 +246,8 @@ const auth = app.auth();
 // getSession() returns data.session === undefined when no real login exists.
 // Anonymous users are DENIED AI model permissions — calling AI without real login will fail.
 const { data: sessionData } = await auth.getSession();
-if (!sessionData?.session) {
-  // No real login — route to sign-in page
+if (!sessionData?.session || sessionData.session.user?.is_anonymous) {
+  // No real login or anonymous session — route to sign-in page
   window.location.href = "/login";
   return;
 }
